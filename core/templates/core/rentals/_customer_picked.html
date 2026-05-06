@@ -1,0 +1,18 @@
+<div id="customer-section">
+    <label class="form-label">Клиент</label>
+    <div class="form-control bg-light d-flex justify-content-between align-items-center">
+        <div>
+            <strong>{{ picked_customer.full_name }}</strong>
+            {% if picked_customer.phone %}
+                <span class="text-muted ms-2">{{ picked_customer.phone }}</span>
+            {% endif %}
+        </div>
+        <button type="button" class="btn btn-sm btn-link p-0"
+                hx-get="{% url 'rental_customer_clear' %}"
+                hx-target="#customer-section"
+                hx-swap="outerHTML">
+            сменить
+        </button>
+    </div>
+    <input type="hidden" name="customer" value="{{ picked_customer.pk }}">
+</div>
