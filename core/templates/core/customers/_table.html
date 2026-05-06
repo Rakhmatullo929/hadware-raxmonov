@@ -1,0 +1,49 @@
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Телефон</th>
+                <th class="text-end">Активные аренды</th>
+                <th class="text-end">Долг (шт)</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in customers %}
+                <tr>
+                    <td>
+                        <a href="{% url 'customer_detail' c.pk %}">{{ c.full_name }}</a>
+                    </td>
+                    <td>{{ c.phone|default:'—' }}</td>
+                    <td class="text-end">
+                        {% with n=c.active_rentals_count %}
+                            {% if n %}{{ n }}{% else %}<span class="text-muted">0</span>{% endif %}
+                        {% endwith %}
+                    </td>
+                    <td class="text-end">
+                        {% with q=c.outstanding_qty %}
+                            {% if q %}
+                                <span class="badge bg-warning text-dark">{{ q }}</span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a href="{% url 'customer_update' c.pk %}"
+                           class="btn btn-sm btn-outline-secondary">Изменить</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        Ничего не найдено
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% include 'core/_pagination.html' %}

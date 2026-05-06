@@ -97,6 +97,33 @@ class Customer(models.Model):
     def __str__(self):
         return self.full_name
 
+    @property
+    def active_rentals_count(self) -> int:
+        return self.rentals.filter(
+            status__in=[Rental.Status.ACTIVE, Rental.Status.OVERDUE]
+        ).count()
+
+    @property
+    def outstanding_qty(self) -> int:
+        active_statuses = [Rental.Status.ACTIVE, Rental.Status.OVERDUE]
+        agg = (
+            Movement.objects
+            .filter(
+                rental_item__rental__customer=self,
+                rental_item__rental__status__in=active_statuses,
+            )
+            .aggregate(
+                issued=Sum('qty', filter=Q(kind=Movement.Kind.ISSUE)),
+                returned=Sum('qty', filter=Q(kind=Movement.Kind.RETURN)),
+            )
+        )
+        return (agg['issued'] or 0) - (agg['returned'] or 0)
+
+    @property
+    def total_payments(self):
+        from decimal import Decimal as _D
+        return self.rentals.aggregate(s=Sum('payments__amount'))['s'] or _D('0.00')
+
 
 class Rental(models.Model):
     class Status(models.TextChoices):

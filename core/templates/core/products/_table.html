@@ -1,0 +1,56 @@
+{% load static %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Ед.</th>
+                <th class="text-end">Всего</th>
+                <th class="text-end">Доступно</th>
+                <th class="text-end">Цена/сутки</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in products %}
+                <tr {% if not p.is_active %}class="text-muted"{% endif %}>
+                    <td>
+                        {{ p.name }}
+                        {% if not p.is_active %}
+                            <span class="badge bg-secondary ms-1">отключён</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.category.name }}</td>
+                    <td>{{ p.unit }}</td>
+                    <td class="text-end">{{ p.stock_total }}</td>
+                    <td class="text-end">{{ p.available_stock }}</td>
+                    <td class="text-end">{{ p.daily_price }}</td>
+                    <td class="text-end text-nowrap">
+                        {% if is_admin %}
+                            <a href="{% url 'product_update' p.pk %}"
+                               class="btn btn-sm btn-outline-secondary">Изменить</a>
+                            <form method="post"
+                                  action="{% url 'product_toggle_active' p.pk %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-{% if p.is_active %}danger{% else %}success{% endif %}">
+                                    {% if p.is_active %}Отключить{% else %}Включить{% endif %}
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        Ничего не найдено
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% include 'core/_pagination.html' %}

@@ -24,19 +24,24 @@
         <div class="collapse navbar-collapse" id="mainNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'dashboard' %}">Дашборд</a>
+                    <a class="nav-link {% if nav_section == 'dashboard' %}active{% endif %}"
+                       href="{% url 'dashboard' %}">Дашборд</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'rentals' %}">Аренды</a>
+                    <a class="nav-link {% if nav_section == 'rentals' %}active{% endif %}"
+                       href="{% url 'rentals' %}">Аренды</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'clients' %}">Клиенты</a>
+                    <a class="nav-link {% if nav_section == 'customers' %}active{% endif %}"
+                       href="{% url 'customer_list' %}">Клиенты</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'products' %}">Товары</a>
+                    <a class="nav-link {% if nav_section == 'products' %}active{% endif %}"
+                       href="{% url 'product_list' %}">Товары</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'reports' %}">Отчёты</a>
+                    <a class="nav-link {% if nav_section == 'reports' %}active{% endif %}"
+                       href="{% url 'reports' %}">Отчёты</a>
                 </li>
             </ul>
             <ul class="navbar-nav">

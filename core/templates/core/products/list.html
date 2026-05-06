@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Товары — Учёт аренды{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Товары</h1>
+    {% if is_admin %}
+        <div class="btn-group">
+            <a href="{% url 'category_create' %}" class="btn btn-outline-secondary btn-sm">
+                + Категория
+            </a>
+            <a href="{% url 'product_create' %}" class="btn btn-primary btn-sm">
+                + Товар
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<form class="row g-2 mb-3"
+      hx-get="{% url 'product_list' %}"
+      hx-target="#products-table"
+      hx-swap="innerHTML"
+      hx-trigger="input changed delay:300ms from:input[name=q], change from:select[name=category], search"
+      hx-push-url="true">
+    <div class="col-md-7">
+        <input type="search" class="form-control" name="q"
+               value="{{ q }}" placeholder="Поиск по названию...">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="category">
+            <option value="">Все категории</option>
+            {% for c in categories %}
+                <option value="{{ c.id }}"
+                        {% if selected_category|add:0 == c.id %}selected{% endif %}>
+                    {{ c.name }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <a href="{% url 'product_list' %}" class="btn btn-outline-secondary w-100">Сброс</a>
+    </div>
+</form>
+
+<div id="products-table">
+    {% include 'core/products/_table.html' %}
+</div>
+{% endblock %}
