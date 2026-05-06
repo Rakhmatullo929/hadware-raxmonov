@@ -105,6 +105,14 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'rental-track-default',
+    }
+}
+
+
 # Коэффициент штрафа за просрочку: за каждый день просрочки начисляется
 # outstanding * daily_price * RENTAL_OVERDUE_FINE_COEF.
 from decimal import Decimal as _Decimal  # noqa: E402

@@ -3,34 +3,196 @@
 {% block title %}Дашборд — Учёт аренды{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-4">Дашборд</h1>
-<p class="text-muted">
-    Здесь будет сводка по активным арендам, возвратам и задолженностям.
-</p>
-<div class="row g-3">
-    <div class="col-md-4">
-        <div class="card">
+<h1 class="h3 mb-3">Дашборд</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <a href="{% url 'rental_list' %}?status=active"
+           class="card text-bg-primary h-100 text-decoration-none">
             <div class="card-body">
-                <h5 class="card-title">Активные аренды</h5>
-                <p class="card-text display-6">—</p>
+                <h6 class="text-uppercase mb-2 small opacity-75">Активные аренды</h6>
+                <div class="display-5">{{ active_count }}</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{% url 'rental_list' %}?status=overdue"
+           class="card text-bg-danger h-100 text-decoration-none">
+            <div class="card-body">
+                <h6 class="text-uppercase mb-2 small opacity-75">Просроченных</h6>
+                <div class="display-5">{{ overdue_count }}</div>
+                <div class="small">Σ {{ overdue_outstanding_qty }} шт. на руках</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-warning h-100">
+            <div class="card-body">
+                <h6 class="text-uppercase mb-2 small text-muted">Возвраты сегодня</h6>
+                <div class="display-5">{{ returns_today_count }}</div>
+                <div class="small text-muted">{{ today|date:"d.m.Y" }}</div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Просрочено</h5>
-                <p class="card-text display-6">—</p>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body p-3">
+                <h6 class="text-uppercase mb-2 small text-muted">Свободный парк (топ-5)</h6>
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% for tp in top_park %}
+                            <tr>
+                                <td class="small text-truncate" style="max-width: 11rem;"
+                                    title="{{ tp.product.name }}">{{ tp.product.name }}</td>
+                                <td class="text-end small">
+                                    <strong>{{ tp.available }}</strong>
+                                    <span class="text-muted">/ {{ tp.stock_total }}</span>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td class="text-muted small">Нет товаров</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">К возврату сегодня</h5>
-                <p class="card-text display-6">—</p>
+</div>
+
+<h2 class="h5 mt-4 mb-2">Просрочки</h2>
+{% if overdue_list %}
+    <div class="table-responsive mb-4">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Клиент</th>
+                    <th>Телефон</th>
+                    <th>Аренда</th>
+                    <th class="text-end">Дней просрочки</th>
+                    <th>Не возвращено</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in overdue_list %}
+                    <tr class="bg-danger-subtle">
+                        <td>
+                            <a href="{% url 'customer_detail' r.customer.pk %}">
+                                {{ r.customer.full_name }}
+                            </a>
+                        </td>
+                        <td>{{ r.customer.phone|default:'—' }}</td>
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}">#{{ r.pk }}</a>
+                            <span class="text-muted small">· до {{ r.due_date|date:"d.m.Y" }}</span>
+                        </td>
+                        <td class="text-end">
+                            <strong class="text-danger">{{ r.days_overdue }}</strong>
+                        </td>
+                        <td>
+                            {% for it in r.outstanding_list %}
+                                <div class="small">
+                                    {{ it.product.name }} —
+                                    <strong>{{ it.outstanding }} {{ it.product.unit }}</strong>
+                                </div>
+                            {% endfor %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            {% if r.customer.phone %}
+                                <a href="tel:{{ r.customer.phone }}"
+                                   class="btn btn-sm btn-outline-success">
+                                    Позвонить
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if overdue_count > overdue_list|length %}
+        <p class="text-muted small">
+            Показаны первые {{ overdue_list|length }} из {{ overdue_count }}.
+            <a href="{% url 'rental_list' %}?status=overdue">Все просрочки →</a>
+        </p>
+    {% endif %}
+{% else %}
+    <p class="text-muted">Просрочек нет.</p>
+{% endif %}
+
+<div class="row g-4 mt-2">
+    <div class="col-lg-6">
+        <h2 class="h5 mb-2">Возвраты сегодня и завтра</h2>
+        {% if returns_soon %}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Клиент</th>
+                            <th>Срок</th>
+                            <th class="text-end">Позиций</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in returns_soon %}
+                            <tr {% if r.due_date == today %}class="table-warning"{% endif %}>
+                                <td>{{ r.customer.full_name }}</td>
+                                <td>
+                                    {% if r.due_date == today %}
+                                        <span class="badge bg-warning text-dark">сегодня</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">завтра</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ r.items_count }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'rental_detail' r.pk %}"
+                                       class="btn btn-sm btn-outline-secondary">
+                                        Открыть
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-        </div>
+        {% else %}
+            <p class="text-muted">На сегодня и завтра возвратов нет.</p>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-6">
+        <h2 class="h5 mb-2">Лента движений</h2>
+        {% if last_movements %}
+            <ul class="list-group list-group-flush">
+                {% for m in last_movements %}
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div>
+                            {% if m.kind == 'issue' %}
+                                <span class="badge bg-primary">Выдача</span>
+                            {% else %}
+                                <span class="badge bg-success">Возврат</span>
+                            {% endif %}
+                            <strong>{{ m.qty }}</strong>
+                            {{ m.rental_item.product.name }}
+                            <span class="text-muted">·</span>
+                            <a href="{% url 'rental_detail' m.rental_item.rental.pk %}">
+                                #{{ m.rental_item.rental.pk }}
+                            </a>
+                            <span class="text-muted small">
+                                {{ m.rental_item.rental.customer.full_name }}
+                            </span>
+                        </div>
+                        <span class="text-muted small text-nowrap ms-2">
+                            {{ m.date|date:"d.m H:i" }} · {{ m.created_by.username }}
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">Движений пока нет.</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

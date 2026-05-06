@@ -1,9 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import (
     Count,
@@ -11,6 +10,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     Subquery,
     Sum,
@@ -23,6 +23,8 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
 from django.views.generic import (
     CreateView,
     DetailView,
@@ -66,9 +68,146 @@ def root(request):
     return HttpResponseRedirect(reverse('login'))
 
 
-@login_required
+@cache_page(60)
+@vary_on_headers('Cookie')
+@role_required('staff', 'admin')
 def dashboard(request):
-    return render(request, 'core/dashboard.html')
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+    active_statuses = [Rental.Status.ACTIVE, Rental.Status.OVERDUE]
+
+    # Per-rental outstanding via independent Subqueries
+    issued_sub = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.ISSUE)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    returned_sub = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.RETURN)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    rentals_open = (
+        Rental.objects
+        .filter(status__in=active_statuses)
+        .annotate(
+            _issued=Coalesce(Subquery(issued_sub, output_field=IntegerField()), 0),
+            _returned=Coalesce(Subquery(returned_sub, output_field=IntegerField()), 0),
+        )
+        .annotate(_outstanding=F('_issued') - F('_returned'))
+    )
+
+    # 1) Cards
+    active_count = Rental.objects.filter(status__in=active_statuses).count()
+
+    overdue_qs = rentals_open.filter(due_date__lt=today, _outstanding__gt=0)
+    overdue_count = overdue_qs.count()
+    overdue_outstanding_qty = overdue_qs.aggregate(s=Sum('_outstanding'))['s'] or 0
+
+    returns_today_count = (
+        Rental.objects
+        .filter(status__in=active_statuses, due_date=today)
+        .count()
+    )
+
+    top_products = list(
+        Product.objects.filter(is_active=True).order_by('-stock_total')[:5]
+    )
+    top_pids = [p.pk for p in top_products]
+    if top_pids:
+        rows = (
+            Movement.objects
+            .filter(
+                rental_item__product_id__in=top_pids,
+                rental_item__rental__status__in=active_statuses,
+            )
+            .values('rental_item__product_id')
+            .annotate(
+                issued=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.ISSUE)), 0),
+                returned=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.RETURN)), 0),
+            )
+        )
+        out_map = {
+            r['rental_item__product_id']: r['issued'] - r['returned']
+            for r in rows
+        }
+    else:
+        out_map = {}
+    top_park = [
+        {
+            'product': p,
+            'available': p.stock_total - out_map.get(p.pk, 0),
+            'stock_total': p.stock_total,
+        }
+        for p in top_products
+    ]
+
+    # 2) Overdue table — top 50 by days
+    items_with_outstanding = (
+        RentalItem.objects
+        .annotate(
+            issued=Coalesce(
+                Sum('movements__qty', filter=Q(movements__kind=Movement.Kind.ISSUE)),
+                0,
+            ),
+            returned=Coalesce(
+                Sum('movements__qty', filter=Q(movements__kind=Movement.Kind.RETURN)),
+                0,
+            ),
+        )
+        .annotate(outstanding=F('issued') - F('returned'))
+        .filter(outstanding__gt=0)
+        .select_related('product')
+    )
+    overdue_list = list(
+        overdue_qs
+        .select_related('customer')
+        .prefetch_related(Prefetch(
+            'items',
+            queryset=items_with_outstanding,
+            to_attr='outstanding_list',
+        ))
+        .order_by('due_date')[:50]
+    )
+    for r in overdue_list:
+        r.days_overdue = (today - r.due_date).days
+
+    # 3) Returns today/tomorrow
+    returns_soon = list(
+        Rental.objects
+        .filter(status__in=active_statuses, due_date__in=[today, tomorrow])
+        .select_related('customer')
+        .annotate(items_count=Count('items', distinct=True))
+        .order_by('due_date', 'id')
+    )
+
+    # 4) Last 20 movements
+    last_movements = list(
+        Movement.objects
+        .select_related(
+            'rental_item__product',
+            'rental_item__rental__customer',
+            'created_by',
+        )
+        .order_by('-date')[:20]
+    )
+
+    return render(request, 'core/dashboard.html', {
+        'active_count': active_count,
+        'overdue_count': overdue_count,
+        'overdue_outstanding_qty': overdue_outstanding_qty,
+        'returns_today_count': returns_today_count,
+        'top_park': top_park,
+        'overdue_list': overdue_list,
+        'returns_soon': returns_soon,
+        'last_movements': last_movements,
+        'today': today,
+        'tomorrow': tomorrow,
+    })
 
 
 @role_required('admin')
