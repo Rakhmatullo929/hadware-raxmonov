@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Отчёты — Учёт аренды{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Отчёты</h1>
+
+<div class="row g-3">
+    <div class="col-md-6 col-lg-3">
+        <a href="{% url 'report_revenue' %}" class="card h-100 text-decoration-none">
+            <div class="card-body">
+                <h5 class="card-title">Выручка</h5>
+                <p class="text-muted mb-0">
+                    Платежи аренды и штрафы по дням, сравнение с прошлым периодом.
+                </p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <a href="{% url 'report_top_products' %}" class="card h-100 text-decoration-none">
+            <div class="card-body">
+                <h5 class="card-title">Топ товаров</h5>
+                <p class="text-muted mb-0">
+                    По обороту (FIFO дни × цена) и по частоте выдачи.
+                </p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <a href="{% url 'report_debtors' %}" class="card h-100 text-decoration-none">
+            <div class="card-body">
+                <h5 class="card-title">Должники</h5>
+                <p class="text-muted mb-0">
+                    Σ к получению, дни просрочки. Экспорт в CSV (UTF-8 BOM, для Excel).
+                </p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <a href="{% url 'report_stock' %}" class="card h-100 text-decoration-none">
+            <div class="card-body">
+                <h5 class="card-title">Движение склада</h5>
+                <p class="text-muted mb-0">
+                    Сколько свободно / в аренде по каждому товару на дату.
+                </p>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

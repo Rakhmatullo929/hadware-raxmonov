@@ -160,10 +160,165 @@ python manage.py seed_demo --rentals 1000 --customers 30
 > Удаление демо-данных: `Rental.objects.filter(note='[seed_demo]').delete()` →
 > `Customer.objects.filter(notes='[seed_demo]').delete()`. Делать в shell, не в проде.
 
-## Тесты
+## Тесты и покрытие
 
 ```bash
-pytest
+pytest                              # все тесты
+coverage run -m pytest && coverage report
+coverage html && open htmlcov/index.html  # детальный отчёт по строкам
 ```
 
-Покрывают FIFO-биллинг, Σ к оплате, отсутствие штрафа после закрытия.
+Покрытие по состоянию на 2026-05-06 (65 тестов):
+
+| Модуль | Stmts | Cover |
+|---|---:|---:|
+| `core/billing.py` | 60 | **95.3%** (line: 100%) |
+| `core/models.py` | 152 | 93.7% |
+| `core/decorators.py` | 16 | 100% |
+| `core/forms.py` | 45 | 93.0% |
+| `core/management/commands/mark_overdue.py` | 23 | 88.9% |
+| `core/views.py` | 577 | 72.6% |
+| **Итого** | 1070 | **78.6%** |
+
+Тесты:
+
+- `tests/test_billing.py` — FIFO-расчёт дней, пени, итог с залогом
+- `tests/test_models.py` — outstanding_qty / available_stock / is_overdue / auto-close
+- `tests/test_rental_flow.py` — e2e: создать → частичный возврат → доплата → полный возврат → closed; контракт печать; 404
+- `tests/test_permissions.py` — staff/admin/anonymous матрица доступа (51 параметризованный кейс)
+- `tests/test_management_commands.py` — `mark_overdue` (включая `--dry-run`) и `backup_db`
+
+`seed_demo` исключён из coverage как dev-only fixture loader.
+
+## Бэкап БД
+
+```bash
+python manage.py backup_db                    # снимок в backups/
+python manage.py backup_db --keep 30          # хранить 30 последних
+```
+
+Для SQLite использует online-backup API (`sqlite3.Connection.backup`),
+поэтому копировать можно даже на работающей БД. На Postgres/MySQL
+переключается на `dumpdata`. Папка `backups/` исключена из git.
+
+Расписание (cron, ежедневно в 03:00):
+
+```cron
+0 3 * * * cd /srv/counter-track && /srv/counter-track/venv/bin/python manage.py backup_db
+```
+
+## Деплой на VPS (Linux + systemd + nginx + gunicorn)
+
+### 1. Подготовка
+
+```bash
+sudo adduser --system --group rental
+sudo mkdir -p /srv/counter-track && sudo chown rental:rental /srv/counter-track
+sudo -u rental git clone <repo> /srv/counter-track
+cd /srv/counter-track
+sudo -u rental python3.12 -m venv venv
+sudo -u rental venv/bin/pip install -r requirements.txt
+```
+
+### 2. Переменные окружения
+
+`/srv/counter-track/.env` (chmod 600, owner rental):
+
+```ini
+DJANGO_SECRET_KEY=<сгенерировать: python -c 'from secrets import token_urlsafe; print(token_urlsafe(64))'>
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=rental.example.com
+```
+
+Команда первого деплоя:
+
+```bash
+sudo -u rental venv/bin/python manage.py migrate
+sudo -u rental venv/bin/python manage.py collectstatic --noinput
+sudo -u rental venv/bin/python manage.py createsuperuser
+```
+
+### 3. systemd unit для gunicorn
+
+`/etc/systemd/system/rental-track.service`:
+
+```ini
+[Unit]
+Description=rental_track gunicorn
+After=network.target
+
+[Service]
+Type=notify
+User=rental
+Group=rental
+WorkingDirectory=/srv/counter-track
+EnvironmentFile=/srv/counter-track/.env
+ExecStart=/srv/counter-track/venv/bin/gunicorn rental_track.wsgi:application \
+    --workers 3 --bind unix:/run/rental-track.sock --access-logfile -
+Restart=always
+RuntimeDirectory=rental-track
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now rental-track.service
+```
+
+### 4. nginx (front)
+
+`/etc/nginx/sites-available/rental-track`:
+
+```nginx
+server {
+    listen 80;
+    server_name rental.example.com;
+
+    client_max_body_size 10M;
+
+    location /static/ { alias /srv/counter-track/staticfiles/; }
+    location /media/  { alias /srv/counter-track/media/; }
+
+    location / {
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://unix:/run/rental-track.sock;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/rental-track /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+После — выпустить TLS-сертификат через `certbot --nginx -d rental.example.com`.
+
+### 5. Регулярные задачи
+
+```cron
+# /etc/cron.d/rental-track
+0 *  * * * rental cd /srv/counter-track && venv/bin/python manage.py mark_overdue
+0 3  * * * rental cd /srv/counter-track && venv/bin/python manage.py backup_db --keep 30
+```
+
+### 6. Чек-лист продакшена
+
+- [ ] `DEBUG=False` в `.env`
+- [ ] `DJANGO_SECRET_KEY` сгенерирован, не из `.env.example`
+- [ ] `DJANGO_ALLOWED_HOSTS` указан
+- [ ] HTTPS через nginx + certbot, `SECURE_SSL_REDIRECT`/`SESSION_COOKIE_SECURE`/`CSRF_COOKIE_SECURE` = True (добавьте в settings.py из `.env`)
+- [ ] `python manage.py check --deploy` без warnings
+- [ ] `collectstatic` отработал, статика отдаётся nginx (а не gunicorn)
+- [ ] `mark_overdue` и `backup_db` крутятся в cron
+- [ ] Создан суперпользователь, в группах `staff` / `admin` есть реальные люди
+- [ ] Логи systemd доступны: `journalctl -u rental-track -f`
+- [ ] Бэкапы тестово восстанавливаются: `cp backups/sqlite-... db.sqlite3 && manage.py runserver` на копии
+
+> Под нагрузку выше 50 одновременных пользователей — мигрировать на Postgres
+> (поменять `DATABASES`, прогнать `migrate`, восстановить данные через
+> `dumpdata`/`loaddata`). HTMX и шаблоны не зависят от движка БД.

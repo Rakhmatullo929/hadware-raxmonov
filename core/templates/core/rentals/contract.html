@@ -1,0 +1,101 @@
+{% extends 'print_base.html' %}
+
+{% block title %}Договор аренды #{{ rental.id }}{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+    <h1 class="h3 mb-1">ДОГОВОР АРЕНДЫ № {{ rental.id }}</h1>
+    <div class="text-muted">от {{ rental.created_at|date:"d.m.Y" }}, г. Ташкент</div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-6">
+        <strong>Арендодатель:</strong>
+        <div>ООО «Учёт аренды» (rental_track)</div>
+        <div>ИНН ____________</div>
+        <div>Тел.: ____________</div>
+    </div>
+    <div class="col-6">
+        <strong>Арендатор:</strong>
+        <div>{{ rental.customer.full_name }}</div>
+        {% if rental.customer.passport %}
+            <div>Паспорт: {{ rental.customer.passport }}</div>
+        {% endif %}
+        {% if rental.customer.address %}
+            <div>Адрес: {{ rental.customer.address }}</div>
+        {% endif %}
+        {% if rental.customer.phone %}
+            <div>Тел.: {{ rental.customer.phone }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<h2 class="h5">1. Предмет договора</h2>
+<p>
+    Арендодатель передаёт, а Арендатор принимает во временное возмездное пользование
+    оборудование, перечисленное ниже:
+</p>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>№</th>
+            <th>Наименование</th>
+            <th class="text-end">Кол-во</th>
+            <th>Ед.</th>
+            <th class="text-end">Цена/сут., сум</th>
+            <th class="text-end">Залог за ед., сум</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for it in items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ it.product.name }}</td>
+                <td class="text-end">{{ it.qty }}</td>
+                <td>{{ it.product.unit }}</td>
+                <td class="text-end">{{ it.price_per_day }}</td>
+                <td class="text-end">{{ it.product.deposit_per_unit }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="5" class="text-end">Залог суммарно</th>
+            <th class="text-end">{{ total_deposit_due }}</th>
+        </tr>
+    </tfoot>
+</table>
+
+<h2 class="h5">2. Сроки и оплата</h2>
+<ul>
+    <li>Дата выдачи: <strong>{{ rental.created_at|date:"d.m.Y" }}</strong></li>
+    <li>Срок возврата: <strong>{{ rental.due_date|date:"d.m.Y" }}</strong></li>
+    <li>Внесённый залог при выдаче:
+        <strong>{{ deposit_paid }}</strong> сум</li>
+    <li>Расчётный коэффициент штрафа за просрочку:
+        <strong>{{ fine_coef }}</strong> от стоимости суток за каждую просроченную единицу.</li>
+</ul>
+
+<h2 class="h5">3. Обязанности арендатора</h2>
+<ol>
+    <li>Использовать оборудование по назначению, не передавать третьим лицам.</li>
+    <li>Вернуть оборудование в исправном состоянии в установленный срок.</li>
+    <li>В случае повреждения / утраты возместить полную стоимость, удерживается из залога.</li>
+    <li>При просрочке возврата уплатить штраф согласно п. 2.</li>
+</ol>
+
+{% if rental.note %}
+    <h2 class="h5">4. Дополнительно</h2>
+    <p>{{ rental.note|linebreaksbr }}</p>
+{% endif %}
+
+<div class="row mt-5">
+    <div class="col-6">
+        <div class="sig-line">Арендодатель / подпись · печать</div>
+    </div>
+    <div class="col-6">
+        <div class="sig-line">Арендатор / подпись</div>
+    </div>
+</div>
+{% endblock %}

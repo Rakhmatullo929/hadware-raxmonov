@@ -1,0 +1,19 @@
+[run]
+source = core, rental_track
+branch = True
+omit =
+    */migrations/*
+    */tests/*
+    rental_track/asgi.py
+    rental_track/wsgi.py
+    manage.py
+    core/tests.py
+    core/management/commands/seed_demo.py
+
+[report]
+precision = 1
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:

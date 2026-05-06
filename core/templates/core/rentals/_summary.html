@@ -22,6 +22,10 @@
         {% endif %}
     </div>
     <div class="text-nowrap">
+        <a href="{% url 'rental_contract' rental.pk %}" target="_blank"
+           class="btn btn-outline-secondary">
+            Печать договора
+        </a>
         {% if rental.status != 'closed' %}
             <button type="button"
                     class="btn btn-primary"

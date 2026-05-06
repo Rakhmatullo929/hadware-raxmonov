@@ -6,6 +6,11 @@ urlpatterns = [
     path('', views.root, name='root'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('reports/', views.reports, name='reports'),
+    path('reports/revenue/', views.report_revenue, name='report_revenue'),
+    path('reports/top-products/', views.report_top_products, name='report_top_products'),
+    path('reports/debtors/', views.report_debtors, name='report_debtors'),
+    path('reports/debtors.csv', views.report_debtors_csv, name='report_debtors_csv'),
+    path('reports/stock/', views.report_stock, name='report_stock'),
 
     path('products/', views.ProductListView.as_view(), name='product_list'),
     path('products/new/', views.ProductCreateView.as_view(), name='product_create'),
@@ -26,6 +31,7 @@ urlpatterns = [
     path('rentals/new/', views.RentalCreateView.as_view(), name='rental_create'),
     path('rentals/<int:pk>/', views.RentalDetailView.as_view(), name='rental_detail'),
     path('rentals/<int:pk>/return/', views.RentalReturnView.as_view(), name='rental_return'),
+    path('rentals/<int:pk>/contract/', views.rental_contract, name='rental_contract'),
     path('rentals/<int:pk>/close/', views.RentalCloseView.as_view(), name='rental_close'),
     path(
         'rentals/_/modal-close/',

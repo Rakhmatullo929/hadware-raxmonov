@@ -212,7 +212,249 @@ def dashboard(request):
 
 @role_required('admin')
 def reports(request):
-    return render(request, 'core/stub.html', {'title': 'Отчёты'})
+    return render(request, 'core/reports/index.html')
+
+
+# ---------- reports: revenue ----------
+
+def _parse_period(request, default_days=None):
+    """Parse ?date_from / ?date_to from request; default = current month."""
+    today = timezone.localdate()
+    raw_from = (request.GET.get('date_from') or '').strip()
+    raw_to = (request.GET.get('date_to') or '').strip()
+    try:
+        date_from = datetime.strptime(raw_from, '%Y-%m-%d').date()
+    except ValueError:
+        date_from = today.replace(day=1)
+    try:
+        date_to = datetime.strptime(raw_to, '%Y-%m-%d').date()
+    except ValueError:
+        date_to = today
+    if date_to < date_from:
+        date_from, date_to = date_to, date_from
+    return date_from, date_to
+
+
+@role_required('admin')
+def report_revenue(request):
+    date_from, date_to = _parse_period(request)
+    period_days = (date_to - date_from).days + 1
+    prev_to = date_from - timedelta(days=1)
+    prev_from = prev_to - timedelta(days=period_days - 1)
+
+    def _series(df, dt):
+        rows = (
+            Payment.objects
+            .filter(
+                kind__in=[Payment.Kind.RENT, Payment.Kind.FINE],
+                date__date__gte=df,
+                date__date__lte=dt,
+            )
+            .values('date__date')
+            .annotate(s=Sum('amount'))
+        )
+        by_day = {r['date__date']: r['s'] or Decimal('0') for r in rows}
+        labels = []
+        values = []
+        cur = df
+        while cur <= dt:
+            labels.append(cur.isoformat())
+            values.append(float(by_day.get(cur, Decimal('0'))))
+            cur += timedelta(days=1)
+        return labels, values, sum((Decimal(str(v)) for v in values), Decimal('0'))
+
+    labels, current_values, current_total = _series(date_from, date_to)
+    _, prev_values, prev_total = _series(prev_from, prev_to)
+
+    delta = current_total - prev_total
+    delta_pct = None
+    if prev_total > 0:
+        delta_pct = float(((current_total - prev_total) / prev_total) * 100)
+
+    return render(request, 'core/reports/revenue.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+        'prev_from': prev_from,
+        'prev_to': prev_to,
+        'labels': labels,
+        'current_values': current_values,
+        'prev_values': prev_values,
+        'current_total': current_total,
+        'prev_total': prev_total,
+        'delta': delta,
+        'delta_pct': delta_pct,
+    })
+
+
+# ---------- reports: top products ----------
+
+@role_required('admin')
+def report_top_products(request):
+    date_from, date_to = _parse_period(request)
+
+    items = (
+        RentalItem.objects
+        .filter(
+            rental__created_at__date__gte=date_from,
+            rental__created_at__date__lte=date_to,
+        )
+        .select_related('product')
+        .prefetch_related('movements')
+    )
+
+    by_product = {}
+    for it in items:
+        days = billing.compute_item_unit_days(it)
+        bucket = by_product.setdefault(it.product_id, {
+            'product': it.product,
+            'turnover': Decimal('0.00'),
+            'issues': 0,
+            'total_qty': 0,
+        })
+        bucket['turnover'] += Decimal(days) * it.price_per_day
+        bucket['issues'] += 1
+        bucket['total_qty'] += it.qty
+
+    rows = list(by_product.values())
+    rows.sort(key=lambda r: r['turnover'], reverse=True)
+    rows_by_turnover = rows[:15]
+    rows_by_freq = sorted(rows, key=lambda r: r['issues'], reverse=True)[:15]
+
+    return render(request, 'core/reports/top_products.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+        'rows_by_turnover': rows_by_turnover,
+        'rows_by_freq': rows_by_freq,
+    })
+
+
+# ---------- reports: debtors ----------
+
+def _debtors_rows():
+    """Walk non-closed rentals, group by customer, compute total_due/outstanding."""
+    today = timezone.localdate()
+    rentals = (
+        Rental.objects
+        .filter(status__in=[Rental.Status.ACTIVE, Rental.Status.OVERDUE])
+        .select_related('customer')
+        .prefetch_related('items__movements', 'payments')
+    )
+    by_cust = {}
+    for r in rentals:
+        summary = billing.compute_rental_billing(r)
+        outstanding_qty = sum(it.outstanding_qty for it in r.items.all())
+        days_overdue = max(0, (today - r.due_date).days)
+        bucket = by_cust.setdefault(r.customer_id, {
+            'customer': r.customer,
+            'rentals': 0,
+            'total_due': Decimal('0.00'),
+            'outstanding_qty': 0,
+            'max_days_overdue': 0,
+        })
+        bucket['rentals'] += 1
+        bucket['total_due'] += summary['total_due']
+        bucket['outstanding_qty'] += outstanding_qty
+        if days_overdue > bucket['max_days_overdue']:
+            bucket['max_days_overdue'] = days_overdue
+
+    return [
+        b for b in by_cust.values()
+        if b['outstanding_qty'] > 0 or b['total_due'] > 0
+    ]
+
+
+@role_required('admin')
+def report_debtors(request):
+    rows = _debtors_rows()
+    rows.sort(key=lambda r: r['total_due'], reverse=True)
+    grand_total = sum((r['total_due'] for r in rows), Decimal('0.00'))
+    grand_qty = sum((r['outstanding_qty'] for r in rows), 0)
+    return render(request, 'core/reports/debtors.html', {
+        'rows': rows,
+        'grand_total': grand_total,
+        'grand_qty': grand_qty,
+    })
+
+
+@role_required('admin')
+def report_debtors_csv(request):
+    import csv
+    from io import StringIO
+
+    rows = _debtors_rows()
+    rows.sort(key=lambda r: r['total_due'], reverse=True)
+
+    buffer = StringIO()
+    writer = csv.writer(buffer, delimiter=';')
+    writer.writerow([
+        'ФИО', 'Телефон', 'Аренд', 'Невозвращено (шт)',
+        'Дней просрочки (макс)', 'К получению',
+    ])
+    for r in rows:
+        writer.writerow([
+            r['customer'].full_name,
+            r['customer'].phone or '',
+            r['rentals'],
+            r['outstanding_qty'],
+            r['max_days_overdue'],
+            f"{r['total_due']:.2f}",
+        ])
+
+    body = '﻿' + buffer.getvalue()  # UTF-8 BOM for Excel
+    response = HttpResponse(
+        body.encode('utf-8'),
+        content_type='text/csv; charset=utf-8',
+    )
+    today = timezone.localdate().isoformat()
+    response['Content-Disposition'] = f'attachment; filename="debtors-{today}.csv"'
+    return response
+
+
+# ---------- reports: stock snapshot ----------
+
+@role_required('admin')
+def report_stock(request):
+    raw = (request.GET.get('date') or '').strip()
+    today = timezone.localdate()
+    try:
+        on_date = datetime.strptime(raw, '%Y-%m-%d').date()
+    except ValueError:
+        on_date = today
+    end_dt = datetime.combine(
+        on_date + timedelta(days=1),
+        datetime.min.time(),
+        tzinfo=timezone.get_current_timezone(),
+    )
+
+    products = list(Product.objects.filter(is_active=True).order_by('name'))
+    rows = (
+        Movement.objects
+        .filter(date__lt=end_dt)
+        .values('rental_item__product_id')
+        .annotate(
+            issued=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.ISSUE)), 0),
+            returned=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.RETURN)), 0),
+        )
+    )
+    out_map = {
+        r['rental_item__product_id']: r['issued'] - r['returned']
+        for r in rows
+    }
+    table = []
+    for p in products:
+        in_rent = max(0, out_map.get(p.pk, 0))
+        free = p.stock_total - in_rent
+        table.append({
+            'product': p,
+            'in_rent': in_rent,
+            'free': free,
+        })
+
+    return render(request, 'core/reports/stock.html', {
+        'on_date': on_date,
+        'today': today,
+        'rows': table,
+    })
 
 
 # ---------- products ----------
@@ -715,6 +957,33 @@ class RentalModalCloseView(StaffOrAdminRequiredMixin, View):
 
     def get(self, request):
         return HttpResponse('')
+
+
+@role_required('staff', 'admin')
+def rental_contract(request, pk):
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    items = list(
+        rental.items.select_related('product').all()
+    )
+    deposit_paid = sum(
+        (p.amount for p in rental.payments.filter(kind=Payment.Kind.DEPOSIT)),
+        Decimal('0.00'),
+    )
+    total_deposit_due = sum(
+        (it.product.deposit_per_unit * it.qty for it in items),
+        Decimal('0.00'),
+    )
+    from django.conf import settings as _s
+    return render(request, 'core/rentals/contract.html', {
+        'rental': rental,
+        'items': items,
+        'deposit_paid': deposit_paid,
+        'total_deposit_due': total_deposit_due,
+        'fine_coef': getattr(_s, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5')),
+        'back_url': reverse('rental_detail', args=[rental.pk]),
+    })
 
 
 class RentalCreateView(StaffOrAdminRequiredMixin, View):

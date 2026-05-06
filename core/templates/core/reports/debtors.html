@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Должники — Отчёты{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Должники</h1>
+    <div>
+        <a href="{% url 'report_debtors_csv' %}" class="btn btn-outline-secondary btn-sm">
+            Скачать CSV (для Excel)
+        </a>
+        <a href="{% url 'reports' %}" class="btn btn-link btn-sm">← К списку отчётов</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">Должников</div>
+            <div class="h4 mb-0">{{ rows|length }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">Σ невозвращено</div>
+            <div class="h4 mb-0">{{ grand_qty }} шт.</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2 border-warning">
+            <div class="small text-muted">Σ к получению</div>
+            <div class="h4 mb-0 text-warning-emphasis">{{ grand_total|floatformat:2 }}</div>
+        </div>
+    </div>
+</div>
+
+{% if rows %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Клиент</th>
+                <th>Телефон</th>
+                <th class="text-end">Аренд</th>
+                <th class="text-end">Не возвращено</th>
+                <th class="text-end">Дней просрочки</th>
+                <th class="text-end">К получению</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+                <tr>
+                    <td>
+                        <a href="{% url 'customer_detail' r.customer.pk %}">
+                            {{ r.customer.full_name }}
+                        </a>
+                    </td>
+                    <td>{{ r.customer.phone|default:'—' }}</td>
+                    <td class="text-end">{{ r.rentals }}</td>
+                    <td class="text-end">{{ r.outstanding_qty }}</td>
+                    <td class="text-end">
+                        {% if r.max_days_overdue > 0 %}
+                            <strong class="text-danger">{{ r.max_days_overdue }}</strong>
+                        {% else %}
+                            <span class="text-muted">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <strong class="text-warning-emphasis">{{ r.total_due|floatformat:2 }}</strong>
+                    </td>
+                    <td class="text-end">
+                        {% if r.customer.phone %}
+                            <a href="tel:{{ r.customer.phone }}"
+                               class="btn btn-sm btn-outline-success">Позвонить</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+    <p class="text-muted">Должников нет.</p>
+{% endif %}
+{% endblock %}
