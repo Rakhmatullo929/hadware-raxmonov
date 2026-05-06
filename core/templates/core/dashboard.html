@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Дашборд — Учёт аренды{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4">Дашборд</h1>
+<p class="text-muted">
+    Здесь будет сводка по активным арендам, возвратам и задолженностям.
+</p>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Активные аренды</h5>
+                <p class="card-text display-6">—</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Просрочено</h5>
+                <p class="card-text display-6">—</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">К возврату сегодня</h5>
+                <p class="card-text display-6">—</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
