@@ -25,6 +25,13 @@ urlpatterns = [
     path('rentals/', views.RentalListView.as_view(), name='rental_list'),
     path('rentals/new/', views.RentalCreateView.as_view(), name='rental_create'),
     path('rentals/<int:pk>/', views.RentalDetailView.as_view(), name='rental_detail'),
+    path('rentals/<int:pk>/return/', views.RentalReturnView.as_view(), name='rental_return'),
+    path('rentals/<int:pk>/close/', views.RentalCloseView.as_view(), name='rental_close'),
+    path(
+        'rentals/_/modal-close/',
+        views.RentalModalCloseView.as_view(),
+        name='rental_modal_close',
+    ),
 
     path(
         'rentals/_/customer-search/',

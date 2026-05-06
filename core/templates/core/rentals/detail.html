@@ -3,145 +3,26 @@
 {% block title %}Аренда #{{ rental.id }} — Учёт аренды{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
-    <div>
-        <h1 class="h3 mb-1">
-            Аренда #{{ rental.id }}
-            {% if rental.status == 'closed' %}
-                <span class="badge bg-secondary align-middle">Закрыта</span>
-            {% elif rental.status == 'active' and rental.due_date < today %}
-                <span class="badge bg-danger align-middle">Просрочена</span>
-            {% else %}
-                <span class="badge bg-primary align-middle">Активна</span>
-            {% endif %}
-        </h1>
-        <div class="text-muted">
-            <a href="{% url 'customer_detail' rental.customer.pk %}">{{ rental.customer.full_name }}</a>
-            {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
-        </div>
-    </div>
-    <div>
-        <button type="button" class="btn btn-outline-primary" disabled
-                title="Будет реализовано на следующем этапе">
-            Принять возврат
-        </button>
-    </div>
+<div id="rental-summary">
+    {% include 'core/rentals/_summary.html' %}
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card card-body py-2">
-            <div class="small text-muted">Создана</div>
-            <div>{{ rental.created_at|date:"d.m.Y H:i" }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-body py-2 {% if rental.status == 'active' and rental.due_date < today %}bg-danger-subtle{% endif %}">
-            <div class="small text-muted">Срок возврата</div>
-            <div>{{ rental.due_date|date:"d.m.Y" }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-body py-2">
-            <div class="small text-muted">Оплачено (аренда + штрафы)</div>
-            <div>{{ paid_total }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-body py-2">
-            <div class="small text-muted">Залог</div>
-            <div>{{ deposit_total }}</div>
-        </div>
-    </div>
-</div>
-
-{% if rental.note %}
-    <div class="alert alert-light border">
-        <strong>Примечание:</strong> {{ rental.note|linebreaksbr }}
-    </div>
-{% endif %}
-
-<h2 class="h5 mb-2">Позиции</h2>
-<div class="table-responsive mb-4">
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr>
-                <th>Товар</th>
-                <th class="text-end">Кол-во</th>
-                <th class="text-end">Цена/сут.</th>
-                <th class="text-end">Выдано</th>
-                <th class="text-end">Возвращено</th>
-                <th class="text-end">Не возвращено</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for it in items %}
-                <tr>
-                    <td>{{ it.product.name }}</td>
-                    <td class="text-end">{{ it.qty }}</td>
-                    <td class="text-end">{{ it.price_per_day }}</td>
-                    <td class="text-end">{{ it.issued_qty }}</td>
-                    <td class="text-end">{{ it.returned_qty }}</td>
-                    <td class="text-end">
-                        {% if it.outstanding_qty > 0 %}
-                            <strong class="text-danger">{{ it.outstanding_qty }}</strong>
-                        {% else %}
-                            <span class="text-success">0</span>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div id="rental-items">
+    {% include 'core/rentals/_items_table.html' %}
 </div>
 
 <div class="row g-4">
     <div class="col-lg-6">
-        <h2 class="h5 mb-2">Движения</h2>
-        {% if movements %}
-            <ul class="list-group">
-                {% for m in movements %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>
-                            {% if m.kind == 'issue' %}
-                                <span class="badge bg-primary">Выдача</span>
-                            {% else %}
-                                <span class="badge bg-success">Возврат</span>
-                            {% endif %}
-                            {{ m.rental_item.product.name }} — <strong>{{ m.qty }}</strong>
-                        </span>
-                        <span class="text-muted small">
-                            {{ m.date|date:"d.m.Y H:i" }} · {{ m.created_by.username }}
-                        </span>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-muted">Нет движений.</p>
-        {% endif %}
+        <div id="rental-timeline">
+            {% include 'core/rentals/_timeline.html' %}
+        </div>
     </div>
     <div class="col-lg-6">
-        <h2 class="h5 mb-2">Платежи</h2>
-        {% if payments %}
-            <ul class="list-group">
-                {% for p in payments %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>
-                            {% if p.kind == 'deposit' %}<span class="badge bg-info text-dark">Залог</span>
-                            {% elif p.kind == 'rent' %}<span class="badge bg-success">Аренда</span>
-                            {% elif p.kind == 'fine' %}<span class="badge bg-warning text-dark">Штраф</span>
-                            {% else %}<span class="badge bg-secondary">Возврат залога</span>
-                            {% endif %}
-                            <strong class="ms-1">{{ p.amount }}</strong>
-                            {% if p.note %}<span class="text-muted ms-2">{{ p.note }}</span>{% endif %}
-                        </span>
-                        <span class="text-muted small">{{ p.date|date:"d.m.Y H:i" }}</span>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-muted">Платежей нет.</p>
-        {% endif %}
+        <div id="rental-payments">
+            {% include 'core/rentals/_payments.html' %}
+        </div>
     </div>
 </div>
+
+<div id="modal-slot"></div>
 {% endblock %}

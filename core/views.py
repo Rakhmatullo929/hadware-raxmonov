@@ -30,6 +30,7 @@ from django.views.generic import (
     UpdateView,
 )
 
+from . import billing
 from .decorators import role_required
 from .forms import CategoryForm, CustomerForm, ProductForm, RentalCreateForm
 from .models import (
@@ -367,6 +368,27 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
         return ctx
 
 
+def _rental_card_context(rental):
+    """Shared context for the detail page and OOB refreshes after a return."""
+    items = list(rental.items.select_related('product').all())
+    movements = []
+    for it in items:
+        movements.extend(list(it.movements.select_related('created_by').all()))
+    movements.sort(key=lambda m: m.date, reverse=True)
+    payments = list(rental.payments.all())
+    summary = billing.compute_rental_billing(rental)
+    has_outstanding = any(it.outstanding_qty > 0 for it in items)
+    return {
+        'rental': rental,
+        'items': items,
+        'movements': movements,
+        'payments': payments,
+        'summary': summary,
+        'has_outstanding': has_outstanding,
+        'today': timezone.localdate(),
+    }
+
+
 class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
     model = Rental
     template_name = 'core/rentals/detail.html'
@@ -375,7 +397,7 @@ class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
     def get_queryset(self):
         return (
             Rental.objects
-            .select_related('customer', 'created_by')
+            .select_related('customer', 'created_by', 'closed_by')
             .prefetch_related(
                 'items__product',
                 'items__movements__created_by',
@@ -385,28 +407,175 @@ class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        rental = self.object
-        items = list(rental.items.all())
-        all_movements = []
-        for it in items:
-            for m in it.movements.all():
-                all_movements.append(m)
-        all_movements.sort(key=lambda m: m.date, reverse=True)
-
-        ctx['items'] = items
-        ctx['movements'] = all_movements
-        ctx['payments'] = list(rental.payments.all())
-        ctx['paid_total'] = sum(
-            (p.amount for p in ctx['payments']
-             if p.kind in (Payment.Kind.RENT, Payment.Kind.FINE)),
-            Decimal('0.00'),
-        )
-        ctx['deposit_total'] = sum(
-            (p.amount for p in ctx['payments'] if p.kind == Payment.Kind.DEPOSIT),
-            Decimal('0.00'),
-        )
-        ctx['today'] = timezone.localdate()
+        ctx.update(_rental_card_context(self.object))
         return ctx
+
+
+class RentalReturnView(StaffOrAdminRequiredMixin, View):
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=204)
+        outstanding = list(rental.outstanding_items().select_related('product'))
+        return render(request, 'core/rentals/_return_modal.html', {
+            'rental': rental,
+            'rows': [
+                {'item': it, 'outstanding': it.outstanding_qty, 'value': ''}
+                for it in outstanding
+            ],
+            'errors': [],
+            'note': '',
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=409)
+
+        outstanding_items = list(rental.outstanding_items().select_related('product'))
+        item_by_id = {it.pk: it for it in outstanding_items}
+
+        note = (request.POST.get('note') or '').strip()
+        inputs = {}
+        plan = []  # list of (item, qty)
+        errors = []
+
+        for it in outstanding_items:
+            raw = (request.POST.get(f'qty_{it.pk}') or '').strip()
+            inputs[it.pk] = raw
+            if raw == '':
+                continue
+            try:
+                qty = int(raw)
+            except (TypeError, ValueError):
+                errors.append(f'«{it.product.name}»: некорректное количество.')
+                continue
+            if qty < 0:
+                errors.append(f'«{it.product.name}»: количество не может быть отрицательным.')
+                continue
+            if qty == 0:
+                continue
+            if qty > it.outstanding_qty:
+                errors.append(
+                    f'«{it.product.name}»: возвращаете {qty}, '
+                    f'а к возврату только {it.outstanding_qty}.'
+                )
+                continue
+            plan.append((it, qty))
+
+        if not errors and not plan:
+            errors.append('Укажите количество хотя бы по одной позиции.')
+
+        if errors:
+            return render(request, 'core/rentals/_return_modal.html', {
+                'rental': rental,
+                'rows': [
+                    {
+                        'item': it,
+                        'outstanding': it.outstanding_qty,
+                        'value': inputs.get(it.pk, ''),
+                    }
+                    for it in outstanding_items
+                ],
+                'errors': errors,
+                'note': note,
+            })
+
+        with transaction.atomic():
+            for it, qty in plan:
+                Movement.objects.create(
+                    rental_item=it,
+                    kind=Movement.Kind.RETURN,
+                    qty=qty,
+                    note=note,
+                    created_by=request.user,
+                )
+            rental.refresh_from_db()
+            rental.maybe_auto_close()
+
+        rental = (
+            Rental.objects
+            .select_related('customer', 'created_by', 'closed_by')
+            .prefetch_related(
+                'items__product',
+                'items__movements__created_by',
+                'payments',
+            )
+            .get(pk=rental.pk)
+        )
+        ctx = _rental_card_context(rental)
+        ctx['is_admin'] = (
+            request.user.is_superuser
+            or request.user.groups.filter(name='admin').exists()
+        )
+        return render(request, 'core/rentals/_oob_refresh.html', ctx)
+
+
+class RentalCloseView(AdminRequiredMixin, View):
+    """Early close: write off remaining outstanding qty as 'списание'."""
+
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=204)
+        return render(request, 'core/rentals/_close_modal.html', {
+            'rental': rental,
+            'outstanding_items': list(rental.outstanding_items().select_related('product')),
+            'errors': [],
+            'note': '',
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=409)
+
+        note = (request.POST.get('note') or '').strip()
+        if not note:
+            return render(request, 'core/rentals/_close_modal.html', {
+                'rental': rental,
+                'outstanding_items': list(rental.outstanding_items().select_related('product')),
+                'errors': ['Укажите причину досрочного закрытия (списание / потеря).'],
+                'note': note,
+            })
+
+        with transaction.atomic():
+            outstanding = list(rental.outstanding_items().select_related('product'))
+            for it in outstanding:
+                qty = it.outstanding_qty
+                if qty > 0:
+                    Movement.objects.create(
+                        rental_item=it,
+                        kind=Movement.Kind.RETURN,
+                        qty=qty,
+                        note=f'списание: {note}',
+                        created_by=request.user,
+                    )
+            rental.status = Rental.Status.CLOSED
+            rental.closed_at = timezone.now()
+            rental.closed_by = request.user
+            rental.save(update_fields=['status', 'closed_at', 'closed_by'])
+
+        rental = (
+            Rental.objects
+            .select_related('customer', 'created_by', 'closed_by')
+            .prefetch_related(
+                'items__product',
+                'items__movements__created_by',
+                'payments',
+            )
+            .get(pk=rental.pk)
+        )
+        ctx = _rental_card_context(rental)
+        ctx['is_admin'] = True
+        return render(request, 'core/rentals/_oob_refresh.html', ctx)
+
+
+class RentalModalCloseView(StaffOrAdminRequiredMixin, View):
+    """Empty-200 endpoint to wipe out #modal-slot's content via hx-swap=innerHTML."""
+
+    def get(self, request):
+        return HttpResponse('')
 
 
 class RentalCreateView(StaffOrAdminRequiredMixin, View):

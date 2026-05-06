@@ -103,3 +103,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+# Коэффициент штрафа за просрочку: за каждый день просрочки начисляется
+# outstanding * daily_price * RENTAL_OVERDUE_FINE_COEF.
+from decimal import Decimal as _Decimal  # noqa: E402
+
+RENTAL_OVERDUE_FINE_COEF = _Decimal('1.5')

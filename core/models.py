@@ -152,6 +152,15 @@ class Rental(models.Model):
         related_name='rentals_created',
         verbose_name='Оформил',
     )
+    closed_at = models.DateTimeField('Закрыта', null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='rentals_closed',
+        verbose_name='Закрыл',
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         verbose_name = 'Аренда'
@@ -183,6 +192,23 @@ class Rental(models.Model):
             )
             .filter(_issued__gt=F('_returned'))
         )
+
+    def maybe_auto_close(self):
+        """If every item is fully returned, close the rental.
+        closed_at = max date of return movements."""
+        if self.status == self.Status.CLOSED:
+            return False
+        if self.outstanding_items().exists():
+            return False
+        last_return = (
+            Movement.objects
+            .filter(rental_item__rental=self, kind=Movement.Kind.RETURN)
+            .order_by('-date').first()
+        )
+        self.status = self.Status.CLOSED
+        self.closed_at = last_return.date if last_return else timezone.now()
+        self.save(update_fields=['status', 'closed_at'])
+        return True
 
 
 class RentalItem(models.Model):
