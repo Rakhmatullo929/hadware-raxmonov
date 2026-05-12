@@ -41,9 +41,10 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'phone', 'passport', 'created_at')
-    search_fields = ('full_name', 'phone', 'passport')
+    list_display = ('code', 'full_name', 'phone', 'passport', 'created_at')
+    search_fields = ('code', 'full_name', 'phone', 'passport')
     list_filter = ('created_at',)
+    readonly_fields = ()
 
 
 class RentalItemInline(admin.TabularInline):

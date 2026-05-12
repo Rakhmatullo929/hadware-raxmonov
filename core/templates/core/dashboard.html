@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load rental_extras %}
 
 {% block title %}Дашборд — Учёт аренды{% endblock %}
 
@@ -8,92 +9,127 @@
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <a href="{% url 'rental_list' %}?status=active"
-           class="card text-bg-primary h-100 text-decoration-none">
+           class="card stat-card stat-card-active h-100 text-decoration-none">
             <div class="card-body">
-                <h6 class="text-uppercase mb-2 small opacity-75">Активные аренды</h6>
-                <div class="display-5">{{ active_count }}</div>
+                <i class="bi bi-clock-history stat-icon"></i>
+                <div class="stat-label">Активные аренды</div>
+                <div class="stat-value">{{ active_count }}</div>
+                <div class="small mt-1 opacity-75">всего открытых</div>
             </div>
         </a>
     </div>
     <div class="col-md-3">
         <a href="{% url 'rental_list' %}?status=overdue"
-           class="card text-bg-danger h-100 text-decoration-none">
+           class="card stat-card stat-card-danger h-100 text-decoration-none">
             <div class="card-body">
-                <h6 class="text-uppercase mb-2 small opacity-75">Просроченных</h6>
-                <div class="display-5">{{ overdue_count }}</div>
-                <div class="small">Σ {{ overdue_outstanding_qty }} шт. на руках</div>
+                <i class="bi bi-exclamation-triangle-fill stat-icon"></i>
+                <div class="stat-label">Просроченных</div>
+                <div class="stat-value">{{ overdue_count }}</div>
+                <div class="small mt-1 opacity-90">
+                    Σ {{ overdue_outstanding_qty }} шт. на руках
+                </div>
             </div>
         </a>
     </div>
     <div class="col-md-3">
-        <div class="card border-warning h-100">
+        <div class="card stat-card stat-card-warning h-100">
             <div class="card-body">
-                <h6 class="text-uppercase mb-2 small text-muted">Возвраты сегодня</h6>
-                <div class="display-5">{{ returns_today_count }}</div>
-                <div class="small text-muted">{{ today|date:"d.m.Y" }}</div>
+                <i class="bi bi-calendar-event stat-icon"></i>
+                <div class="stat-label">Возвраты сегодня</div>
+                <div class="stat-value">{{ returns_today_count }}</div>
+                <div class="small mt-1 opacity-90">{{ today|date:"d.m.Y" }}</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 park-card">
             <div class="card-body p-3">
-                <h6 class="text-uppercase mb-2 small text-muted">Свободный парк (топ-5)</h6>
-                <table class="table table-sm mb-0">
-                    <tbody>
-                        {% for tp in top_park %}
-                            <tr>
-                                <td class="small text-truncate" style="max-width: 11rem;"
-                                    title="{{ tp.product.name }}">{{ tp.product.name }}</td>
-                                <td class="text-end small">
-                                    <strong>{{ tp.available }}</strong>
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-boxes me-2 text-primary"></i>
+                    <h6 class="text-uppercase mb-0 small text-muted fw-semibold">
+                        Свободный парк · топ-5
+                    </h6>
+                </div>
+                <div class="park-list">
+                    {% for tp in top_park %}
+                        <div class="park-item" title="{{ tp.product.name }}">
+                            <div class="d-flex justify-content-between small mb-1 align-items-baseline">
+                                <span class="text-truncate park-name">
+                                    {{ tp.product.name }}
+                                </span>
+                                <span class="park-figures">
+                                    <strong class="park-available">{{ tp.available }}</strong>
                                     <span class="text-muted">/ {{ tp.stock_total }}</span>
-                                </td>
-                            </tr>
-                        {% empty %}
-                            <tr><td class="text-muted small">Нет товаров</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                </span>
+                            </div>
+                            <div class="park-bar">
+                                <div class="park-bar-fill park-bar-{{ tp.tone }}"
+                                     style="width: {{ tp.utilization_pct }}%"></div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-muted small">Нет товаров</div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<h2 class="h5 mt-4 mb-2">Просрочки</h2>
+<h2 class="h5 mt-4 mb-2">
+    <i class="bi bi-exclamation-triangle text-danger me-1"></i>
+    Просрочки
+</h2>
 {% if overdue_list %}
-    <div class="table-responsive mb-4">
+    <div class="table-card mb-4">
         <table class="table table-hover align-middle">
             <thead>
                 <tr>
                     <th>Клиент</th>
                     <th>Телефон</th>
                     <th>Аренда</th>
-                    <th class="text-end">Дней просрочки</th>
+                    <th class="text-end">Просрочка</th>
                     <th>Не возвращено</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for r in overdue_list %}
-                    <tr class="bg-danger-subtle">
+                    <tr class="overdue-row">
                         <td>
-                            <a href="{% url 'customer_detail' r.customer.pk %}">
-                                {{ r.customer.full_name }}
-                            </a>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle avatar-danger">
+                                    {{ r.customer.full_name|initial }}
+                                </span>
+                                <a href="{% url 'customer_detail' r.customer.pk %}"
+                                   class="fw-semibold text-decoration-none">
+                                    {{ r.customer.full_name }}
+                                </a>
+                            </div>
                         </td>
-                        <td>{{ r.customer.phone|default:'—' }}</td>
                         <td>
-                            <a href="{% url 'rental_detail' r.pk %}">#{{ r.pk }}</a>
-                            <span class="text-muted small">· до {{ r.due_date|date:"d.m.Y" }}</span>
+                            <span class="phone-cell">
+                                {{ r.customer.phone|format_phone|default:'—' }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}"
+                               class="fw-semibold text-decoration-none">#{{ r.pk }}</a>
+                            <div class="text-muted small">до {{ r.due_date|date:"d.m.Y" }}</div>
                         </td>
                         <td class="text-end">
-                            <strong class="text-danger">{{ r.days_overdue }}</strong>
+                            <span class="overdue-days {% if r.days_overdue > 30 %}overdue-days-critical{% endif %}">
+                                <span class="overdue-days-num">{{ r.days_overdue }}</span>
+                                <span class="overdue-days-unit">дней</span>
+                            </span>
                         </td>
-                        <td>
+                        <td style="min-width: 14rem;">
                             {% for it in r.outstanding_list %}
-                                <div class="small">
-                                    {{ it.product.name }} —
-                                    <strong>{{ it.outstanding }} {{ it.product.unit }}</strong>
+                                <div class="item-chip">
+                                    <span class="item-name">{{ it.product.name }}</span>
+                                    <span class="item-qty">
+                                        {{ it.outstanding }} {{ it.product.unit }}
+                                    </span>
                                 </div>
                             {% endfor %}
                         </td>
@@ -101,7 +137,7 @@
                             {% if r.customer.phone %}
                                 <a href="tel:{{ r.customer.phone }}"
                                    class="btn btn-sm btn-outline-success">
-                                    Позвонить
+                                    <i class="bi bi-telephone me-1"></i>Позвонить
                                 </a>
                             {% endif %}
                         </td>
@@ -122,7 +158,10 @@
 
 <div class="row g-4 mt-2">
     <div class="col-lg-6">
-        <h2 class="h5 mb-2">Возвраты сегодня и завтра</h2>
+        <h2 class="h5 mb-2">
+            <i class="bi bi-arrow-return-left text-warning me-1"></i>
+            Возвраты сегодня и завтра
+        </h2>
         {% if returns_soon %}
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
@@ -163,7 +202,10 @@
     </div>
 
     <div class="col-lg-6">
-        <h2 class="h5 mb-2">Лента движений</h2>
+        <h2 class="h5 mb-2">
+            <i class="bi bi-activity text-primary me-1"></i>
+            Лента движений
+        </h2>
         {% if last_movements %}
             <ul class="list-group list-group-flush">
                 {% for m in last_movements %}

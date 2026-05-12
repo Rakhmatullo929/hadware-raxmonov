@@ -8,10 +8,10 @@
     {% if is_admin %}
         <div class="btn-group">
             <a href="{% url 'category_create' %}" class="btn btn-outline-secondary btn-sm">
-                + Категория
+                <i class="bi bi-tag me-1"></i>Категория
             </a>
             <a href="{% url 'product_create' %}" class="btn btn-primary btn-sm">
-                + Товар
+                <i class="bi bi-plus-lg me-1"></i>Товар
             </a>
         </div>
     {% endif %}

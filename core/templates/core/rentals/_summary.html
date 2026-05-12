@@ -11,6 +11,9 @@
             {% endif %}
         </h1>
         <div class="text-muted">
+            {% if rental.customer.code %}
+                <span class="customer-code me-1">№ {{ rental.customer.code }}</span>
+            {% endif %}
             <a href="{% url 'customer_detail' rental.customer.pk %}">{{ rental.customer.full_name }}</a>
             {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
         </div>

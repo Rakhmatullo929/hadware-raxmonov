@@ -165,6 +165,29 @@ def test_maybe_auto_close_triggers_when_all_returned(admin_user, customer, produ
     assert rental.closed_at is not None
 
 
+def test_customer_code_auto_assigned_on_create(db):
+    from core.models import Customer
+    c = Customer.objects.create(full_name='Без кода')
+    c.refresh_from_db()
+    assert c.code is not None
+    assert c.code == f'{c.pk:05d}'
+
+
+def test_customer_code_manual_override_kept(db):
+    from core.models import Customer
+    c = Customer.objects.create(full_name='Свой код', code='VIP-001')
+    c.refresh_from_db()
+    assert c.code == 'VIP-001'
+
+
+def test_customer_code_unique(db):
+    from django.db import IntegrityError
+    from core.models import Customer
+    Customer.objects.create(full_name='A', code='SAME')
+    with pytest.raises(IntegrityError):
+        Customer.objects.create(full_name='B', code='SAME')
+
+
 def test_customer_outstanding_qty_aggregates_active_rentals(
     admin_user, customer, product,
 ):

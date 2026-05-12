@@ -137,14 +137,26 @@ def dashboard(request):
         }
     else:
         out_map = {}
-    top_park = [
-        {
+    top_park = []
+    for p in top_products:
+        out = out_map.get(p.pk, 0)
+        available = max(0, p.stock_total - out)
+        stock_total = p.stock_total or 1
+        utilization = min(100, int(round(100 * out / stock_total)))
+        if utilization >= 90:
+            tone = 'danger'
+        elif utilization >= 70:
+            tone = 'warn'
+        else:
+            tone = 'ok'
+        top_park.append({
             'product': p,
-            'available': p.stock_total - out_map.get(p.pk, 0),
+            'available': available,
+            'in_rent': out,
             'stock_total': p.stock_total,
-        }
-        for p in top_products
-    ]
+            'utilization_pct': utilization,
+            'tone': tone,
+        })
 
     # 2) Overdue table — top 50 by days
     items_with_outstanding = (
@@ -560,7 +572,11 @@ class CustomerListView(StaffOrAdminRequiredMixin, ListView):
         qs = Customer.objects.order_by('full_name')
         q = self.request.GET.get('q', '').strip()
         if q:
-            qs = qs.filter(Q(full_name__icontains=q) | Q(phone__icontains=q))
+            qs = qs.filter(
+                Q(full_name__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(code__icontains=q)
+            )
         return qs
 
     def get_template_names(self):
@@ -1141,7 +1157,11 @@ class CustomerSearchView(View):
                           {'customers': [], 'q': q, 'too_short': True})
         customers = (
             Customer.objects
-            .filter(Q(full_name__icontains=q) | Q(phone__icontains=q))
+            .filter(
+                Q(full_name__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(code__icontains=q)
+            )
             .order_by('full_name')[:10]
         )
         return render(request, 'core/rentals/_customer_search_results.html',

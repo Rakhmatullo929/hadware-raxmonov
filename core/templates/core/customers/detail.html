@@ -5,11 +5,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
+        {% if customer.code %}
+            <div class="customer-code-big mb-1">№ {{ customer.code }}</div>
+        {% endif %}
         <h1 class="h3 mb-1">{{ customer.full_name }}</h1>
         <div class="text-muted small">Создан: {{ customer.created_at|date:"d.m.Y H:i" }}</div>
     </div>
     <a href="{% url 'customer_update' customer.pk %}" class="btn btn-outline-secondary btn-sm">
-        Изменить
+        <i class="bi bi-pencil me-1"></i>Изменить
     </a>
 </div>
 

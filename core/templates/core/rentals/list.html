@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load rental_extras %}
 
 {% block title %}Аренды — Учёт аренды{% endblock %}
 
@@ -6,7 +7,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Аренды</h1>
     <a href="{% url 'rental_create' %}" class="btn btn-primary btn-sm">
-        + Аренда
+        <i class="bi bi-plus-lg me-1"></i>Аренда
     </a>
 </div>
 
@@ -57,13 +58,16 @@
         </div>
     </div>
     <div class="mt-2">
-        <button type="submit" class="btn btn-sm btn-primary">Применить</button>
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-funnel me-1"></i>Применить
+        </button>
         <a href="{% url 'rental_list' %}" class="btn btn-sm btn-link">Сброс</a>
     </div>
 </form>
 
-<div class="table-responsive">
-    <table class="table table-hover align-middle">
+{% if rentals %}
+<div class="table-card">
+    <table class="table table-hover align-middle mb-0">
         <thead>
             <tr>
                 <th>№</th>
@@ -77,51 +81,80 @@
         </thead>
         <tbody>
             {% for r in rentals %}
-                {% with overdue=False %}
                 {% if r.status == 'active' and r.due_date < today and r.outstanding_total > 0 %}
-                    {% with overdue=True %}
-                    <tr class="bg-danger-subtle">
-                        <td>#{{ r.id }}</td>
-                        <td><a href="{% url 'customer_detail' r.customer.pk %}">{{ r.customer.full_name }}</a></td>
-                        <td>{{ r.created_at|date:"d.m.Y" }}</td>
-                        <td>{{ r.due_date|date:"d.m.Y" }}</td>
-                        <td class="text-end">{{ r.items_count }}</td>
-                        <td class="text-end">{{ r.paid_total }} / {{ r.deposit_total }}</td>
+                    <tr class="overdue-row">
+                        <td class="fw-semibold text-danger">#{{ r.id }}</td>
                         <td>
-                            <a href="{% url 'rental_detail' r.pk %}" class="badge text-decoration-none bg-danger">
-                                Просрочена
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle avatar-danger">
+                                    {{ r.customer.full_name|initial }}
+                                </span>
+                                <a href="{% url 'customer_detail' r.customer.pk %}"
+                                   class="fw-semibold text-decoration-none">
+                                    {{ r.customer.full_name }}
+                                </a>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
+                        <td class="text-danger fw-semibold">{{ r.due_date|date:"d.m.Y" }}</td>
+                        <td class="text-end">{{ r.items_count }}</td>
+                        <td class="text-end font-monospace small">
+                            {{ r.paid_total }}
+                            <span class="text-muted">/ {{ r.deposit_total }}</span>
+                        </td>
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}"
+                               class="badge text-decoration-none bg-danger">
+                                <i class="bi bi-exclamation-circle me-1"></i>Просрочена
                             </a>
                         </td>
                     </tr>
-                    {% endwith %}
                 {% else %}
                     <tr>
-                        <td>#{{ r.id }}</td>
-                        <td><a href="{% url 'customer_detail' r.customer.pk %}">{{ r.customer.full_name }}</a></td>
-                        <td>{{ r.created_at|date:"d.m.Y" }}</td>
+                        <td class="fw-semibold text-muted">#{{ r.id }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle">
+                                    {{ r.customer.full_name|initial }}
+                                </span>
+                                <a href="{% url 'customer_detail' r.customer.pk %}"
+                                   class="text-decoration-none">
+                                    {{ r.customer.full_name }}
+                                </a>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
                         <td>{{ r.due_date|date:"d.m.Y" }}</td>
                         <td class="text-end">{{ r.items_count }}</td>
-                        <td class="text-end">{{ r.paid_total }} / {{ r.deposit_total }}</td>
+                        <td class="text-end font-monospace small">
+                            {{ r.paid_total }}
+                            <span class="text-muted">/ {{ r.deposit_total }}</span>
+                        </td>
                         <td>
                             {% if r.status == 'closed' %}
-                                <a href="{% url 'rental_detail' r.pk %}" class="badge text-decoration-none bg-secondary">
-                                    Закрыта
+                                <a href="{% url 'rental_detail' r.pk %}"
+                                   class="badge text-decoration-none bg-secondary">
+                                    <i class="bi bi-check2-circle me-1"></i>Закрыта
                                 </a>
                             {% else %}
-                                <a href="{% url 'rental_detail' r.pk %}" class="badge text-decoration-none bg-primary">
-                                    Активна
+                                <a href="{% url 'rental_detail' r.pk %}"
+                                   class="badge text-decoration-none bg-primary">
+                                    <i class="bi bi-clock me-1"></i>Активна
                                 </a>
                             {% endif %}
                         </td>
                     </tr>
                 {% endif %}
-                {% endwith %}
-            {% empty %}
-                <tr><td colspan="7" class="text-center text-muted py-4">Аренд нет</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% else %}
+    <div class="empty-state">
+        <i class="bi bi-clipboard-x"></i>
+        <div class="mt-2">Аренд нет</div>
+    </div>
+{% endif %}
 
 {% include 'core/_pagination.html' %}
 {% endblock %}

@@ -18,6 +18,9 @@
     <div class="col-6">
         <strong>Арендатор:</strong>
         <div>{{ rental.customer.full_name }}</div>
+        {% if rental.customer.code %}
+            <div>Внутр. номер: <strong>№ {{ rental.customer.code }}</strong></div>
+        {% endif %}
         {% if rental.customer.passport %}
             <div>Паспорт: {{ rental.customer.passport }}</div>
         {% endif %}

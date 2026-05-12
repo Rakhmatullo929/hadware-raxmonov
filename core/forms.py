@@ -39,7 +39,12 @@ class ProductForm(BootstrapFormMixin, forms.ModelForm):
 class CustomerForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Customer
-        fields = ['full_name', 'phone', 'passport', 'address', 'notes']
+        fields = ['code', 'full_name', 'phone', 'passport', 'address', 'notes']
+        widgets = {
+            'code': forms.TextInput(attrs={
+                'placeholder': 'оставьте пустым — присвоится автоматически',
+            }),
+        }
 
 
 class CategoryForm(BootstrapFormMixin, forms.ModelForm):

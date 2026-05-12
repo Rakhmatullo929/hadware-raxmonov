@@ -82,6 +82,16 @@ class Product(models.Model):
 
 
 class Customer(models.Model):
+    code = models.CharField(
+        'Код клиента',
+        max_length=16,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Внутренний номер для прикрепления паспорта/документов. '
+                  'Если оставить пустым — присвоится автоматически.',
+    )
     full_name = models.CharField('ФИО', max_length=200)
     phone = models.CharField('Телефон', max_length=32, blank=True)
     passport = models.CharField('Паспорт', max_length=64, blank=True)
@@ -95,7 +105,18 @@ class Customer(models.Model):
         ordering = ['full_name']
 
     def __str__(self):
-        return self.full_name
+        return f'№ {self.code} · {self.full_name}' if self.code else self.full_name
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and not self.code:
+            self.code = f'{self.pk:05d}'
+            super().save(update_fields=['code'])
+
+    @property
+    def display_code(self) -> str:
+        return f'№ {self.code}' if self.code else ''
 
     @property
     def active_rentals_count(self) -> int:
