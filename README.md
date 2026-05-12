@@ -322,3 +322,4 @@ sudo nginx -t && sudo systemctl reload nginx
 > Под нагрузку выше 50 одновременных пользователей — мигрировать на Postgres
 > (поменять `DATABASES`, прогнать `migrate`, восстановить данные через
 > `dumpdata`/`loaddata`). HTMX и шаблоны не зависят от движка БД.
+# hadware-raxmonov
