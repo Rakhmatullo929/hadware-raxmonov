@@ -1,0 +1,14 @@
+{% load i18n %}
+<div id="customer-section" class="position-relative">
+    <label class="form-label">{% trans "Клиент" %}</label>
+    <input type="search" class="form-control"
+           name="customer_q"
+           autocomplete="off"
+           placeholder="{% trans 'Начните вводить ФИО или телефон (≥ 2 символов)...' %}"
+           hx-get="{% url 'rental_customer_search' %}"
+           hx-target="#customer-search-results"
+           hx-trigger="input changed delay:250ms, search"
+           hx-include="this">
+    <div id="customer-search-results"></div>
+    <input type="hidden" name="customer" value="">
+</div>

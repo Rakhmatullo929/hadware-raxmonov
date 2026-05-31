@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load i18n rental_extras %}
+
+{% block title %}{% trans "Аренды" %} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Аренды" %}</h1>
+    <a href="{% url 'rental_create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i>{% trans "Аренда" %}
+    </a>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Статус" %}</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">{% trans "— Все —" %}</option>
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>
+                    {% trans "Активные" %}
+                </option>
+                <option value="overdue" {% if filters.status == 'overdue' %}selected{% endif %}>
+                    {% trans "Просроченные" %}
+                </option>
+                <option value="closed" {% if filters.status == 'closed' %}selected{% endif %}>
+                    {% trans "Закрытые" %}
+                </option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1">{% trans "Создана с" %}</label>
+            <input type="date" name="date_from" value="{{ filters.date_from }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1">{% trans "по" %}</label>
+            <input type="date" name="date_to" value="{{ filters.date_to }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Клиент" %}</label>
+            <input type="number" name="customer" value="{{ filters.customer }}"
+                   class="form-control form-control-sm"
+                   placeholder="{% trans 'ID или оставьте пустым' %}">
+            {% if filter_customer_obj %}
+                <div class="form-text">{{ filter_customer_obj.full_name }}</div>
+            {% endif %}
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1">{% trans "Сортировка" %}</label>
+            <select name="sort" class="form-select form-select-sm">
+                <option value="due_date" {% if filters.sort == 'due_date' %}selected{% endif %}>{% trans "Срок ↑" %}</option>
+                <option value="-due_date" {% if filters.sort == '-due_date' %}selected{% endif %}>{% trans "Срок ↓" %}</option>
+                <option value="-created_at" {% if filters.sort == '-created_at' %}selected{% endif %}>{% trans "Создана ↓" %}</option>
+                <option value="created_at" {% if filters.sort == 'created_at' %}selected{% endif %}>{% trans "Создана ↑" %}</option>
+            </select>
+        </div>
+    </div>
+    <div class="mt-2">
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-funnel me-1"></i>{% trans "Применить" %}
+        </button>
+        <a href="{% url 'rental_list' %}" class="btn btn-sm btn-link">{% trans "Сброс" %}</a>
+    </div>
+</form>
+
+{% if rentals %}
+<div class="table-card">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>{% trans "Клиент" %}</th>
+                <th>{% trans "Создана" %}</th>
+                <th>{% trans "Срок" %}</th>
+                <th class="text-end">{% trans "Поз." %}</th>
+                <th class="text-end">{% trans "Оплачено / Залог" %}</th>
+                <th>{% trans "Статус" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rentals %}
+                {% if r.status == 'active' and r.due_date < today and r.outstanding_total > 0 %}
+                    <tr class="overdue-row">
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}"
+                               class="fw-semibold text-danger text-decoration-none">
+                                #{{ r.id }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle avatar-danger">
+                                    {{ r.customer.full_name|initial }}
+                                </span>
+                                <a href="{% url 'customer_detail' r.customer.pk %}"
+                                   class="fw-semibold text-decoration-none">
+                                    {{ r.customer.full_name }}
+                                </a>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
+                        <td class="text-danger fw-semibold">{{ r.due_date|date:"d.m.Y" }}</td>
+                        <td class="text-end">{{ r.items_count }}</td>
+                        <td class="text-end font-monospace small">
+                            {{ r.paid_total }}
+                            <span class="text-muted">/ {{ r.deposit_total }}</span>
+                        </td>
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}"
+                               class="badge text-decoration-none bg-danger">
+                                <i class="bi bi-exclamation-circle me-1"></i>{% trans "Просрочена" %}
+                            </a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'rental_detail' r.pk %}"
+                               class="fw-semibold text-decoration-none">
+                                #{{ r.id }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="avatar-circle">
+                                    {{ r.customer.full_name|initial }}
+                                </span>
+                                <a href="{% url 'customer_detail' r.customer.pk %}"
+                                   class="text-decoration-none">
+                                    {{ r.customer.full_name }}
+                                </a>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
+                        <td>{{ r.due_date|date:"d.m.Y" }}</td>
+                        <td class="text-end">{{ r.items_count }}</td>
+                        <td class="text-end font-monospace small">
+                            {{ r.paid_total }}
+                            <span class="text-muted">/ {{ r.deposit_total }}</span>
+                        </td>
+                        <td>
+                            {% if r.status == 'closed' %}
+                                <a href="{% url 'rental_detail' r.pk %}"
+                                   class="badge text-decoration-none bg-secondary">
+                                    <i class="bi bi-check2-circle me-1"></i>{% trans "Закрыта" %}
+                                </a>
+                            {% else %}
+                                <a href="{% url 'rental_detail' r.pk %}"
+                                   class="badge text-decoration-none bg-primary">
+                                    <i class="bi bi-clock me-1"></i>{% trans "Активна" %}
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+    <div class="empty-state">
+        <i class="bi bi-clipboard-x"></i>
+        <div class="mt-2">{% trans "Аренд нет" %}</div>
+    </div>
+{% endif %}
+
+{% include 'config/_pagination.html' %}
+{% endblock %}

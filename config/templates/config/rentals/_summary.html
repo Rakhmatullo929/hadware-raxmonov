@@ -1,0 +1,191 @@
+{% load i18n %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1 class="h3 mb-1">
+            {% blocktrans with rid=rental.id %}Аренда #{{ rid }}{% endblocktrans %}
+            {% if rental.status == 'closed' %}
+                <span class="badge bg-secondary align-middle">{% trans "Закрыта" %}</span>
+            {% elif rental.status == 'active' and rental.due_date < today %}
+                <span class="badge bg-danger align-middle">{% trans "Просрочена" %}</span>
+            {% else %}
+                <span class="badge bg-primary align-middle">{% trans "Активна" %}</span>
+            {% endif %}
+        </h1>
+        <div class="text-muted">
+            {% if rental.customer.code %}
+                <span class="customer-code me-1">№ {{ rental.customer.code }}</span>
+            {% endif %}
+            <a href="{% url 'customer_detail' rental.customer.pk %}">{{ rental.customer.full_name }}</a>
+            {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
+        </div>
+        {% if rental.closed_at %}
+            <div class="text-muted small">
+                {% blocktrans with d=rental.closed_at|date:"d.m.Y H:i" %}Закрыта {{ d }}{% endblocktrans %}
+                {% if rental.closed_by %}· {{ rental.closed_by.username }}{% endif %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="text-nowrap">
+        {# Печать договора: split-button с выбором формата листа.
+           Основная кнопка — компактный «для своих» формат (A6),
+           дроп — A5 (половина листа) и A4 (полный договор). #}
+        <div class="btn-group" role="group" aria-label="{% trans 'Печать договора' %}">
+            <a href="{% url 'rental_contract' rental.pk %}?size=quarter"
+               target="_blank"
+               class="btn btn-outline-secondary"
+               title="{% trans 'Печать кратко (на четверть листа, A6) — для своих' %}">
+                {% trans "Печать договора" %}
+            </a>
+            <button type="button"
+                    class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">{% trans "Выбрать формат" %}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><h6 class="dropdown-header">{% trans "Формат печати" %}</h6></li>
+                <li>
+                    <a class="dropdown-item" target="_blank"
+                       href="{% url 'rental_contract' rental.pk %}?size=quarter">
+                        {% trans "Четверть листа (A6) — кратко, для своих" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" target="_blank"
+                       href="{% url 'rental_contract' rental.pk %}?size=half">
+                        {% trans "Половина листа (A5) — средний" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" target="_blank"
+                       href="{% url 'rental_contract' rental.pk %}?size=full">
+                        {% trans "Полный лист (A4) — для клиента" %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# PDF — тот же принцип, но скачиванием. #}
+        <div class="btn-group" role="group" aria-label="{% trans 'Скачать PDF' %}">
+            <a href="{% url 'rental_contract_pdf' rental.pk %}?size=quarter"
+               class="btn btn-outline-secondary"
+               title="{% trans 'PDF на четверть листа (A6) — для своих' %}">
+                <i class="bi bi-file-earmark-pdf me-1"></i>{% trans "Скачать PDF" %}
+            </a>
+            <button type="button"
+                    class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">{% trans "Выбрать формат" %}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><h6 class="dropdown-header">{% trans "Формат PDF" %}</h6></li>
+                <li>
+                    <a class="dropdown-item"
+                       href="{% url 'rental_contract_pdf' rental.pk %}?size=quarter">
+                        {% trans "Четверть листа (A6) — кратко, для своих" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item"
+                       href="{% url 'rental_contract_pdf' rental.pk %}?size=half">
+                        {% trans "Половина листа (A5) — средний" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item"
+                       href="{% url 'rental_contract_pdf' rental.pk %}?size=full">
+                        {% trans "Полный лист (A4) — для клиента" %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% if is_admin %}
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    hx-get="{% url 'rental_edit' rental.pk %}"
+                    hx-target="#modal-slot"
+                    hx-swap="innerHTML">
+                <i class="bi bi-pencil me-1"></i>{% trans "Изменить" %}
+            </button>
+        {% endif %}
+        {% if rental.status != 'closed' %}
+            <button type="button"
+                    class="btn btn-primary"
+                    {% if not has_outstanding %}disabled{% endif %}
+                    hx-get="{% url 'rental_return' rental.pk %}"
+                    hx-target="#modal-slot"
+                    hx-swap="innerHTML">
+                {% trans "Принять возврат" %}
+            </button>
+            {% if is_admin %}
+                <button type="button"
+                        class="btn btn-outline-danger"
+                        hx-get="{% url 'rental_close' rental.pk %}"
+                        hx-target="#modal-slot"
+                        hx-swap="innerHTML">
+                    {% trans "Закрыть досрочно" %}
+                </button>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-2">
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Создана" %}</div>
+            <div>{{ rental.created_at|date:"d.m.Y H:i" }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 {% if rental.status == 'active' and rental.due_date < today %}bg-danger-subtle{% endif %}">
+            <div class="small text-muted">{% trans "Срок возврата" %}</div>
+            <div>
+                {{ rental.due_date|date:"d.m.Y" }}
+                {% if summary.overdue_days > 0 and rental.status != 'closed' %}
+                    <span class="badge bg-danger ms-1">+{{ summary.overdue_days }} {% trans "дн." %}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "База (qty × дни × цена)" %}</div>
+            <div>{{ summary.base }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 {% if summary.fine > 0 %}bg-warning-subtle{% endif %}">
+            <div class="small text-muted">{% blocktrans with coef=summary.coef %}Штраф (k = {{ coef }}){% endblocktrans %}</div>
+            <div>{{ summary.fine }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Залог удержан" %}</div>
+            <div>{{ summary.deposit_held }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Платежей (аренда+штрафы)" %}</div>
+            <div>{{ summary.paid }}</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body py-2 {% if summary.total_due > 0 %}border-warning{% else %}border-success{% endif %}">
+            <div class="small text-muted">{% trans "К доплате (база + штраф − залог − платежи)" %}</div>
+            <div class="h5 mb-0 {% if summary.total_due > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">
+                {{ summary.total_due }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if rental.note %}
+    <div class="alert alert-light border">
+        <strong>{% trans "Примечание:" %}</strong> {{ rental.note|linebreaksbr }}
+    </div>
+{% endif %}

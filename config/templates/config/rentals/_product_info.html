@@ -1,0 +1,5 @@
+{% load i18n %}
+<span class="text-muted">
+    {% trans "Доступно:" %} <strong class="text-body">{{ product.available_stock }} {{ product.unit }}</strong>
+    · {% trans "Цена:" %} <strong class="text-body">{{ product.daily_price }}</strong>/{% trans "сут." %}
+</span>

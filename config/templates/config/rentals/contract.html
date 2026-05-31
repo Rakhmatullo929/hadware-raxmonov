@@ -1,0 +1,147 @@
+{% extends 'print_base.html' %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with rid=rental.id %}Договор аренды #{{ rid }}{% endblocktrans %}{% endblock %}
+
+{% block page_class %}print-page--{{ size }}{% endblock %}
+
+{% block content %}
+<div class="text-center mb-3">
+    <h1 class="contract-h1 mb-1">{% blocktrans with rid=rental.id %}ДОГОВОР АРЕНДЫ № {{ rid }}{% endblocktrans %}</h1>
+    <div class="text-muted small">{% blocktrans with d=rental.created_at|date:"d.m.Y" %}от {{ d }}, г. Ташкент{% endblocktrans %}</div>
+</div>
+
+{% if size == 'quarter' %}
+    {# --- Краткая выписка «для своих»: только клиент + позиции + ключевые даты --- #}
+    <div class="mb-2">
+        <strong>{% trans "Арендатор:" %}</strong>
+        {{ rental.customer.full_name }}
+        {% if rental.customer.code %} · <span class="customer-code">№ {{ rental.customer.code }}</span>{% endif %}
+        {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
+    </div>
+
+    <table class="table table-bordered table-sm mb-2">
+        <thead>
+            <tr>
+                <th style="width: 8%">№</th>
+                <th>{% trans "Наименование" %}</th>
+                <th class="text-end" style="width: 18%">{% trans "Кол-во" %}</th>
+                <th style="width: 14%">{% trans "Ед." %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ it.product.name }}</td>
+                    <td class="text-end">{{ it.qty }}</td>
+                    <td>{{ it.product.unit }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="small mb-3">
+        {% trans "Выдано:" %} <strong>{{ rental.created_at|date:"d.m.Y" }}</strong>
+        · {% trans "Возврат:" %} <strong>{{ rental.due_date|date:"d.m.Y" }}</strong>
+        · {% trans "Залог при выдаче:" %} <strong>{{ deposit_paid }}</strong> {% trans "сум" %}
+    </div>
+
+{% else %}
+    {# --- Half / Full: стороны и таблица позиций с ценами --- #}
+    <div class="row mb-3">
+        <div class="col-6">
+            <strong>{% trans "Арендодатель:" %}</strong>
+            <div>{% trans "ООО «Учёт аренды» (rental_track)" %}</div>
+            <div>{% trans "ИНН ____________" %}</div>
+            <div>{% trans "Тел.: ____________" %}</div>
+        </div>
+        <div class="col-6">
+            <strong>{% trans "Арендатор:" %}</strong>
+            <div>{{ rental.customer.full_name }}</div>
+            {% if rental.customer.code %}
+                <div>{% trans "Внутр. номер:" %} <strong>№ {{ rental.customer.code }}</strong></div>
+            {% endif %}
+            {% if rental.customer.passport %}
+                <div>{% trans "Паспорт:" %} {{ rental.customer.passport }}</div>
+            {% endif %}
+            {% if rental.customer.address %}
+                <div>{% trans "Адрес:" %} {{ rental.customer.address }}</div>
+            {% endif %}
+            {% if rental.customer.phone %}
+                <div>{% trans "Тел.:" %} {{ rental.customer.phone }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <h2 class="contract-h2">{% trans "1. Предмет договора" %}</h2>
+    <p class="mb-2">
+        {% trans "Арендодатель передаёт, а Арендатор принимает во временное возмездное пользование оборудование, перечисленное ниже:" %}
+    </p>
+
+    <table class="table table-bordered table-sm">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>{% trans "Наименование" %}</th>
+                <th class="text-end">{% trans "Кол-во" %}</th>
+                <th>{% trans "Ед." %}</th>
+                <th class="text-end">{% trans "Цена/сут., сум" %}</th>
+                <th class="text-end">{% trans "Залог за ед., сум" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ it.product.name }}</td>
+                    <td class="text-end">{{ it.qty }}</td>
+                    <td>{{ it.product.unit }}</td>
+                    <td class="text-end">{{ it.price_per_day }}</td>
+                    <td class="text-end">{{ it.product.deposit_per_unit }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="5" class="text-end">{% trans "Залог суммарно" %}</th>
+                <th class="text-end">{{ total_deposit_due }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <h2 class="contract-h2">{% trans "2. Сроки и оплата" %}</h2>
+    <ul class="mb-2">
+        <li>{% trans "Дата выдачи:" %} <strong>{{ rental.created_at|date:"d.m.Y" }}</strong></li>
+        <li>{% trans "Срок возврата:" %} <strong>{{ rental.due_date|date:"d.m.Y" }}</strong></li>
+        <li>{% trans "Внесённый залог при выдаче:" %}
+            <strong>{{ deposit_paid }}</strong> {% trans "сум" %}</li>
+        <li>{% trans "Расчётный коэффициент штрафа за просрочку:" %}
+            <strong>{{ fine_coef }}</strong> {% trans "от стоимости суток за каждую просроченную единицу." %}</li>
+    </ul>
+
+    {% if size == 'full' %}
+        <h2 class="contract-h2">{% trans "3. Обязанности арендатора" %}</h2>
+        <ol class="mb-2">
+            <li>{% trans "Использовать оборудование по назначению, не передавать третьим лицам." %}</li>
+            <li>{% trans "Вернуть оборудование в исправном состоянии в установленный срок." %}</li>
+            <li>{% trans "В случае повреждения / утраты возместить полную стоимость, удерживается из залога." %}</li>
+            <li>{% trans "При просрочке возврата уплатить штраф согласно п. 2." %}</li>
+        </ol>
+    {% endif %}
+
+    {% if rental.note %}
+        <h2 class="contract-h2">{% if size == 'full' %}{% trans "4. Дополнительно" %}{% else %}{% trans "Дополнительно" %}{% endif %}</h2>
+        <p>{{ rental.note|linebreaksbr }}</p>
+    {% endif %}
+{% endif %}
+
+<div class="row mt-4 contract-signatures">
+    <div class="col-6">
+        <div class="sig-line">{% trans "Арендодатель / подпись · печать" %}</div>
+    </div>
+    <div class="col-6">
+        <div class="sig-line">{% trans "Арендатор / подпись" %}</div>
+    </div>
+</div>
+{% endblock %}

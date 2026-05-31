@@ -1,0 +1,54 @@
+{% load i18n %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <form class="modal-content"
+              hx-post="{% url 'rental_close' rental.pk %}"
+              hx-target="#modal-slot"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">{% blocktrans with rid=rental.id %}Закрыть досрочно · Аренда #{{ rid }}{% endblocktrans %}</h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot"
+                        hx-swap="innerHTML"></button>
+            </div>
+            <div class="modal-body">
+                {% if errors %}
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                {% if outstanding_items %}
+                    <p class="mb-2">
+                        {% trans "Будут списаны как «потеря/списание» оставшиеся позиции:" %}
+                    </p>
+                    <ul class="mb-3">
+                        {% for it in outstanding_items %}
+                            <li>{{ it.product.name }} —
+                                <strong>{{ it.outstanding_qty }} {{ it.product.unit }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted">{% trans "Невозвращённых позиций нет — статус будет переведён в «Закрыта»." %}</p>
+                {% endif %}
+
+                <label class="form-label">{% trans "Причина (обязательно)" %}</label>
+                <textarea name="note" rows="3" class="form-control"
+                          placeholder="{% trans 'Например: списание, потеря, договорное закрытие' %}">{{ note }}</textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot"
+                        hx-swap="innerHTML">{% trans "Отмена" %}</button>
+                <button type="submit" class="btn btn-danger">{% trans "Закрыть аренду" %}</button>
+            </div>
+        </form>
+    </div>
+</div>

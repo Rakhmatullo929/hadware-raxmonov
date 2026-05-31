@@ -1,0 +1,61 @@
+{% load i18n %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="h5 mb-0">{% trans "Позиции" %}</h2>
+    {% if is_admin %}
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                hx-get="{% url 'rental_item_add' rental.pk %}"
+                hx-target="#modal-slot" hx-swap="innerHTML">
+            <i class="bi bi-plus-lg me-1"></i>{% trans "Позиция" %}
+        </button>
+    {% endif %}
+</div>
+<div class="table-responsive mb-4">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>{% trans "Товар" %}</th>
+                <th class="text-end">{% trans "Кол-во" %}</th>
+                <th class="text-end">{% trans "Цена/сут." %}</th>
+                <th class="text-end">{% trans "Выдано" %}</th>
+                <th class="text-end">{% trans "Возвращено" %}</th>
+                <th class="text-end">{% trans "Не возвращено" %}</th>
+                {% if is_admin %}<th class="text-end"></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+                <tr>
+                    <td>{{ it.product.name }}</td>
+                    <td class="text-end">{{ it.qty }}</td>
+                    <td class="text-end">{{ it.price_per_day }}</td>
+                    <td class="text-end">{{ it.issued_qty }}</td>
+                    <td class="text-end">{{ it.returned_qty }}</td>
+                    <td class="text-end">
+                        {% if it.outstanding_qty > 0 %}
+                            <strong class="text-danger">{{ it.outstanding_qty }}</strong>
+                        {% else %}
+                            <span class="text-success">0</span>
+                        {% endif %}
+                    </td>
+                    {% if is_admin %}
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-link p-0 me-2"
+                                    title="{% trans 'Изменить количество' %}"
+                                    hx-get="{% url 'rental_item_edit' rental.pk it.pk %}"
+                                    hx-target="#modal-slot" hx-swap="innerHTML">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-link text-danger p-0"
+                                    title="{% trans 'Удалить позицию' %}"
+                                    hx-post="{% url 'rental_item_remove' rental.pk it.pk %}"
+                                    hx-confirm="{% trans 'Удалить эту позицию?' %}"
+                                    hx-target="#modal-slot" hx-swap="innerHTML">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

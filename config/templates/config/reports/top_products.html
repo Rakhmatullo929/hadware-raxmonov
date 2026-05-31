@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Топ товаров" %} — {% trans "Отчёты" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Топ товаров" %}</h1>
+    <a href="{% url 'reports' %}" class="btn btn-link btn-sm">{% trans "← К списку отчётов" %}</a>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "С" %}</label>
+            <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "По" %}</label>
+            <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Применить" %}</button>
+        </div>
+    </div>
+    <div class="form-text">
+        {% trans "В выборке — позиции аренд, созданных в указанном периоде." %}
+    </div>
+</form>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <h2 class="h5 mb-2">{% trans "По обороту (FIFO дни × цена)" %}</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>{% trans "Товар" %}</th>
+                    <th class="text-end">{% trans "Выдач" %}</th>
+                    <th class="text-end">{% trans "Σ qty" %}</th>
+                    <th class="text-end">{% trans "Оборот" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows_by_turnover %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ r.product.name }}</td>
+                        <td class="text-end">{{ r.issues }}</td>
+                        <td class="text-end">{{ r.total_qty }}</td>
+                        <td class="text-end"><strong>{{ r.turnover|floatformat:2 }}</strong></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">{% trans "Нет данных" %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="col-lg-6">
+        <h2 class="h5 mb-2">{% trans "По частоте выдач" %}</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>{% trans "Товар" %}</th>
+                    <th class="text-end">{% trans "Выдач" %}</th>
+                    <th class="text-end">{% trans "Σ qty" %}</th>
+                    <th class="text-end">{% trans "Оборот" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows_by_freq %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ r.product.name }}</td>
+                        <td class="text-end"><strong>{{ r.issues }}</strong></td>
+                        <td class="text-end">{{ r.total_qty }}</td>
+                        <td class="text-end">{{ r.turnover|floatformat:2 }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">{% trans "Нет данных" %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

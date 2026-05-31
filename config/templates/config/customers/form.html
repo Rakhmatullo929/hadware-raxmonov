@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ title }} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-3">{{ title }}</h1>
+
+<form method="post" novalidate class="col-lg-8">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    {% for field in form %}
+        <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">
+                {{ field.label }}
+            </label>
+            {{ field }}
+            {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+            {% endif %}
+            {% for err in field.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">{% trans "Сохранить" %}</button>
+    {% if object %}
+        <a href="{% url 'customer_detail' object.pk %}" class="btn btn-link">{% trans "Отмена" %}</a>
+    {% else %}
+        <a href="{% url 'customer_list' %}" class="btn btn-link">{% trans "Отмена" %}</a>
+    {% endif %}
+</form>
+{% endblock %}

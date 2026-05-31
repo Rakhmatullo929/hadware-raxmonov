@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ customer.full_name }} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        {% if customer.code %}
+            <div class="customer-code-big mb-1">№ {{ customer.code }}</div>
+        {% endif %}
+        <h1 class="h3 mb-1">{{ customer.full_name }}</h1>
+        <div class="text-muted small">{% blocktrans with d=customer.created_at|date:"d.m.Y H:i" %}Создан: {{ d }}{% endblocktrans %}</div>
+    </div>
+    <a href="{% url 'customer_update' customer.pk %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-pencil me-1"></i>{% trans "Изменить" %}
+    </a>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="h6 text-muted">{% trans "Контакты" %}</h2>
+                <dl class="row mb-0">
+                    <dt class="col-4">{% trans "Телефон" %}</dt>
+                    <dd class="col-8">{{ customer.phone|default:'—' }}</dd>
+                    <dt class="col-4">{% trans "Паспорт" %}</dt>
+                    <dd class="col-8">{{ customer.passport|default:'—' }}</dd>
+                    <dt class="col-4">{% trans "Адрес" %}</dt>
+                    <dd class="col-8">{{ customer.address|default:'—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="h6 text-muted">{% trans "Сводка" %}</h2>
+                <dl class="row mb-0">
+                    <dt class="col-7">{% trans "Активные аренды" %}</dt>
+                    <dd class="col-5 text-end">{{ customer.active_rentals_count }}</dd>
+                    <dt class="col-7">{% trans "Текущий долг (шт)" %}</dt>
+                    <dd class="col-5 text-end">{{ customer.outstanding_qty }}</dd>
+                    <dt class="col-7">{% trans "Сумма платежей" %}</dt>
+                    <dd class="col-5 text-end">{{ customer.total_payments }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if customer.notes %}
+    <div class="alert alert-light border">
+        <strong>{% trans "Заметки:" %}</strong> {{ customer.notes|linebreaksbr }}
+    </div>
+{% endif %}
+
+<h2 class="h5 mt-4 mb-2">{% trans "История аренд" %}</h2>
+{% if rentals %}
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>{% trans "Создана" %}</th>
+                <th>{% trans "Срок возврата" %}</th>
+                <th>{% trans "Статус" %}</th>
+                <th class="text-end">{% trans "Позиций" %}</th>
+                <th>{% trans "Оформил" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rentals %}
+                <tr>
+                    <td>{{ r.id }}</td>
+                    <td>{{ r.created_at|date:"d.m.Y" }}</td>
+                    <td>{{ r.due_date|date:"d.m.Y" }}</td>
+                    <td>
+                        {% if r.status == 'active' %}
+                            <span class="badge bg-primary">{% trans "Активна" %}</span>
+                        {% elif r.status == 'overdue' %}
+                            <span class="badge bg-danger">{% trans "Просрочена" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{% trans "Закрыта" %}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">{{ r.items.count }}</td>
+                    <td>{{ r.created_by.username }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+    <p class="text-muted">{% trans "Аренд пока нет." %}</p>
+{% endif %}
+{% endblock %}

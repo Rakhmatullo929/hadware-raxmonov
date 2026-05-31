@@ -1,0 +1,1553 @@
+import uuid
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import (
+    Count,
+    DecimalField,
+    F,
+    IntegerField,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce
+from django.http import HttpResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.utils.translation import gettext as _
+from django.views import View
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
+from django.views.generic import (
+    CreateView,
+    DetailView,
+    ListView,
+    UpdateView,
+)
+
+from . import billing
+from .decorators import role_required
+from .forms import (
+    CategoryForm,
+    CustomerForm,
+    PaymentForm,
+    ProductForm,
+    RentalCreateForm,
+    RentalEditForm,
+)
+from .models import (
+    Category,
+    Customer,
+    Movement,
+    Payment,
+    Product,
+    Rental,
+    RentalItem,
+)
+
+
+# ---------- access mixins ----------
+
+class StaffOrAdminRequiredMixin:
+    @method_decorator(role_required('staff', 'admin'))
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+
+class AdminRequiredMixin:
+    @method_decorator(role_required('admin'))
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+
+# ---------- entry / stubs ----------
+
+def root(request):
+    if request.user.is_authenticated:
+        return HttpResponseRedirect(reverse('dashboard'))
+    return HttpResponseRedirect(reverse('login'))
+
+
+@cache_page(60)
+@vary_on_headers('Cookie')
+@role_required('staff', 'admin')
+def dashboard(request):
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+    active_statuses = [Rental.Status.ACTIVE, Rental.Status.OVERDUE]
+
+    # Per-rental outstanding via independent Subqueries
+    issued_sub = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.ISSUE)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    returned_sub = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.RETURN)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    rentals_open = (
+        Rental.objects
+        .filter(status__in=active_statuses)
+        .annotate(
+            _issued=Coalesce(Subquery(issued_sub, output_field=IntegerField()), 0),
+            _returned=Coalesce(Subquery(returned_sub, output_field=IntegerField()), 0),
+        )
+        .annotate(_outstanding=F('_issued') - F('_returned'))
+    )
+
+    # 1) Cards
+    active_count = Rental.objects.filter(status__in=active_statuses).count()
+
+    overdue_qs = rentals_open.filter(due_date__lt=today, _outstanding__gt=0)
+    overdue_count = overdue_qs.count()
+    overdue_outstanding_qty = overdue_qs.aggregate(s=Sum('_outstanding'))['s'] or 0
+
+    returns_today_count = (
+        Rental.objects
+        .filter(status__in=active_statuses, due_date=today)
+        .count()
+    )
+
+    top_products = list(
+        Product.objects.filter(is_active=True).order_by('-stock_total')[:5]
+    )
+    top_pids = [p.pk for p in top_products]
+    if top_pids:
+        rows = (
+            Movement.objects
+            .filter(
+                rental_item__product_id__in=top_pids,
+                rental_item__rental__status__in=active_statuses,
+            )
+            .values('rental_item__product_id')
+            .annotate(
+                issued=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.ISSUE)), 0),
+                returned=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.RETURN)), 0),
+            )
+        )
+        out_map = {
+            r['rental_item__product_id']: r['issued'] - r['returned']
+            for r in rows
+        }
+    else:
+        out_map = {}
+    top_park = []
+    for p in top_products:
+        out = out_map.get(p.pk, 0)
+        available = max(0, p.stock_total - out)
+        stock_total = p.stock_total or 1
+        utilization = min(100, int(round(100 * out / stock_total)))
+        if utilization >= 90:
+            tone = 'danger'
+        elif utilization >= 70:
+            tone = 'warn'
+        else:
+            tone = 'ok'
+        top_park.append({
+            'product': p,
+            'available': available,
+            'in_rent': out,
+            'stock_total': p.stock_total,
+            'utilization_pct': utilization,
+            'tone': tone,
+        })
+
+    # 2) Overdue table — top 50 by days
+    items_with_outstanding = (
+        RentalItem.objects
+        .annotate(
+            issued=Coalesce(
+                Sum('movements__qty', filter=Q(movements__kind=Movement.Kind.ISSUE)),
+                0,
+            ),
+            returned=Coalesce(
+                Sum('movements__qty', filter=Q(movements__kind=Movement.Kind.RETURN)),
+                0,
+            ),
+        )
+        .annotate(outstanding=F('issued') - F('returned'))
+        .filter(outstanding__gt=0)
+        .select_related('product')
+    )
+    overdue_list = list(
+        overdue_qs
+        .select_related('customer')
+        .prefetch_related(Prefetch(
+            'items',
+            queryset=items_with_outstanding,
+            to_attr='outstanding_list',
+        ))
+        .order_by('due_date')[:50]
+    )
+    for r in overdue_list:
+        r.days_overdue = (today - r.due_date).days
+
+    # 3) Returns today/tomorrow
+    returns_soon = list(
+        Rental.objects
+        .filter(status__in=active_statuses, due_date__in=[today, tomorrow])
+        .select_related('customer')
+        .annotate(items_count=Count('items', distinct=True))
+        .order_by('due_date', 'id')
+    )
+
+    # 4) Last 20 movements
+    last_movements = list(
+        Movement.objects
+        .select_related(
+            'rental_item__product',
+            'rental_item__rental__customer',
+            'created_by',
+        )
+        .order_by('-date')[:20]
+    )
+
+    return render(request, 'config/dashboard.html', {
+        'active_count': active_count,
+        'overdue_count': overdue_count,
+        'overdue_outstanding_qty': overdue_outstanding_qty,
+        'returns_today_count': returns_today_count,
+        'top_park': top_park,
+        'overdue_list': overdue_list,
+        'returns_soon': returns_soon,
+        'last_movements': last_movements,
+        'today': today,
+        'tomorrow': tomorrow,
+    })
+
+
+@role_required('admin')
+def reports(request):
+    return render(request, 'config/reports/index.html')
+
+
+# ---------- reports: revenue ----------
+
+def _parse_period(request, default_days=None):
+    """Parse ?date_from / ?date_to from request; default = current month."""
+    today = timezone.localdate()
+    raw_from = (request.GET.get('date_from') or '').strip()
+    raw_to = (request.GET.get('date_to') or '').strip()
+    try:
+        date_from = datetime.strptime(raw_from, '%Y-%m-%d').date()
+    except ValueError:
+        date_from = today.replace(day=1)
+    try:
+        date_to = datetime.strptime(raw_to, '%Y-%m-%d').date()
+    except ValueError:
+        date_to = today
+    if date_to < date_from:
+        date_from, date_to = date_to, date_from
+    return date_from, date_to
+
+
+@role_required('admin')
+def report_revenue(request):
+    date_from, date_to = _parse_period(request)
+    period_days = (date_to - date_from).days + 1
+    prev_to = date_from - timedelta(days=1)
+    prev_from = prev_to - timedelta(days=period_days - 1)
+
+    def _series(df, dt):
+        rows = (
+            Payment.objects
+            .filter(
+                kind__in=[Payment.Kind.RENT, Payment.Kind.FINE],
+                date__date__gte=df,
+                date__date__lte=dt,
+            )
+            .values('date__date')
+            .annotate(s=Sum('amount'))
+        )
+        by_day = {r['date__date']: r['s'] or Decimal('0') for r in rows}
+        labels = []
+        values = []
+        cur = df
+        while cur <= dt:
+            labels.append(cur.isoformat())
+            values.append(float(by_day.get(cur, Decimal('0'))))
+            cur += timedelta(days=1)
+        return labels, values, sum((Decimal(str(v)) for v in values), Decimal('0'))
+
+    labels, current_values, current_total = _series(date_from, date_to)
+    _, prev_values, prev_total = _series(prev_from, prev_to)
+
+    delta = current_total - prev_total
+    delta_pct = None
+    if prev_total > 0:
+        delta_pct = float(((current_total - prev_total) / prev_total) * 100)
+
+    return render(request, 'config/reports/revenue.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+        'prev_from': prev_from,
+        'prev_to': prev_to,
+        'labels': labels,
+        'current_values': current_values,
+        'prev_values': prev_values,
+        'current_total': current_total,
+        'prev_total': prev_total,
+        'delta': delta,
+        'delta_pct': delta_pct,
+    })
+
+
+# ---------- reports: top products ----------
+
+@role_required('admin')
+def report_top_products(request):
+    date_from, date_to = _parse_period(request)
+
+    items = (
+        RentalItem.objects
+        .filter(
+            rental__created_at__date__gte=date_from,
+            rental__created_at__date__lte=date_to,
+        )
+        .select_related('product')
+        .prefetch_related('movements')
+    )
+
+    by_product = {}
+    for it in items:
+        days = billing.compute_item_unit_days(it)
+        bucket = by_product.setdefault(it.product_id, {
+            'product': it.product,
+            'turnover': Decimal('0.00'),
+            'issues': 0,
+            'total_qty': 0,
+        })
+        bucket['turnover'] += Decimal(days) * it.price_per_day
+        bucket['issues'] += 1
+        bucket['total_qty'] += it.qty
+
+    rows = list(by_product.values())
+    rows.sort(key=lambda r: r['turnover'], reverse=True)
+    rows_by_turnover = rows[:15]
+    rows_by_freq = sorted(rows, key=lambda r: r['issues'], reverse=True)[:15]
+
+    return render(request, 'config/reports/top_products.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+        'rows_by_turnover': rows_by_turnover,
+        'rows_by_freq': rows_by_freq,
+    })
+
+
+# ---------- reports: debtors ----------
+
+def _debtors_rows():
+    """Walk non-closed rentals, group by customer, compute total_due/outstanding."""
+    today = timezone.localdate()
+    rentals = (
+        Rental.objects
+        .filter(status__in=[Rental.Status.ACTIVE, Rental.Status.OVERDUE])
+        .select_related('customer')
+        .prefetch_related('items__movements', 'payments')
+    )
+    by_cust = {}
+    for r in rentals:
+        summary = billing.compute_rental_billing(r)
+        outstanding_qty = sum(it.outstanding_qty for it in r.items.all())
+        days_overdue = max(0, (today - r.due_date).days)
+        bucket = by_cust.setdefault(r.customer_id, {
+            'customer': r.customer,
+            'rentals': 0,
+            'total_due': Decimal('0.00'),
+            'outstanding_qty': 0,
+            'max_days_overdue': 0,
+        })
+        bucket['rentals'] += 1
+        bucket['total_due'] += summary['total_due']
+        bucket['outstanding_qty'] += outstanding_qty
+        if days_overdue > bucket['max_days_overdue']:
+            bucket['max_days_overdue'] = days_overdue
+
+    return [
+        b for b in by_cust.values()
+        if b['outstanding_qty'] > 0 or b['total_due'] > 0
+    ]
+
+
+@role_required('admin')
+def report_debtors(request):
+    rows = _debtors_rows()
+    rows.sort(key=lambda r: r['total_due'], reverse=True)
+    grand_total = sum((r['total_due'] for r in rows), Decimal('0.00'))
+    grand_qty = sum((r['outstanding_qty'] for r in rows), 0)
+    return render(request, 'config/reports/debtors.html', {
+        'rows': rows,
+        'grand_total': grand_total,
+        'grand_qty': grand_qty,
+    })
+
+
+@role_required('admin')
+def report_debtors_csv(request):
+    import csv
+    from io import StringIO
+
+    rows = _debtors_rows()
+    rows.sort(key=lambda r: r['total_due'], reverse=True)
+
+    buffer = StringIO()
+    writer = csv.writer(buffer, delimiter=';')
+    writer.writerow([
+        _('ФИО'), _('Телефон'), _('Аренд'), _('Невозвращено (шт)'),
+        _('Дней просрочки (макс)'), _('К получению'),
+    ])
+    for r in rows:
+        writer.writerow([
+            r['customer'].full_name,
+            r['customer'].phone or '',
+            r['rentals'],
+            r['outstanding_qty'],
+            r['max_days_overdue'],
+            f"{r['total_due']:.2f}",
+        ])
+
+    body = '﻿' + buffer.getvalue()  # UTF-8 BOM for Excel
+    response = HttpResponse(
+        body.encode('utf-8'),
+        content_type='text/csv; charset=utf-8',
+    )
+    today = timezone.localdate().isoformat()
+    response['Content-Disposition'] = f'attachment; filename="debtors-{today}.csv"'
+    return response
+
+
+# ---------- reports: stock snapshot ----------
+
+@role_required('admin')
+def report_stock(request):
+    raw = (request.GET.get('date') or '').strip()
+    today = timezone.localdate()
+    try:
+        on_date = datetime.strptime(raw, '%Y-%m-%d').date()
+    except ValueError:
+        on_date = today
+    end_dt = datetime.combine(
+        on_date + timedelta(days=1),
+        datetime.min.time(),
+        tzinfo=timezone.get_current_timezone(),
+    )
+
+    products = list(Product.objects.filter(is_active=True).order_by('name'))
+    rows = (
+        Movement.objects
+        .filter(date__lt=end_dt)
+        .values('rental_item__product_id')
+        .annotate(
+            issued=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.ISSUE)), 0),
+            returned=Coalesce(Sum('qty', filter=Q(kind=Movement.Kind.RETURN)), 0),
+        )
+    )
+    out_map = {
+        r['rental_item__product_id']: r['issued'] - r['returned']
+        for r in rows
+    }
+    table = []
+    for p in products:
+        in_rent = max(0, out_map.get(p.pk, 0))
+        free = p.stock_total - in_rent
+        table.append({
+            'product': p,
+            'in_rent': in_rent,
+            'free': free,
+        })
+
+    return render(request, 'config/reports/stock.html', {
+        'on_date': on_date,
+        'today': today,
+        'rows': table,
+    })
+
+
+# ---------- products ----------
+
+class ProductListView(StaffOrAdminRequiredMixin, ListView):
+    model = Product
+    template_name = 'config/products/list.html'
+    context_object_name = 'products'
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Product.objects.select_related('category').order_by('name')
+        q = self.request.GET.get('q', '').strip()
+        category_id = self.request.GET.get('category', '').strip()
+        if q:
+            qs = qs.filter(name__icontains=q)
+        if category_id.isdigit():
+            qs = qs.filter(category_id=int(category_id))
+        return qs
+
+    def get_template_names(self):
+        if self.request.htmx:
+            return ['config/products/_table.html']
+        return [self.template_name]
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['categories'] = Category.objects.all()
+        ctx['q'] = self.request.GET.get('q', '')
+        ctx['selected_category'] = self.request.GET.get('category', '')
+        return ctx
+
+
+class ProductCreateView(AdminRequiredMixin, CreateView):
+    model = Product
+    form_class = ProductForm
+    template_name = 'config/products/form.html'
+    success_url = reverse_lazy('product_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = _('Новый товар')
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Товар «%(name)s» создан.') % {'name': form.instance.name},
+        )
+        return super().form_valid(form)
+
+
+class ProductUpdateView(AdminRequiredMixin, UpdateView):
+    model = Product
+    form_class = ProductForm
+    template_name = 'config/products/form.html'
+    success_url = reverse_lazy('product_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = _('Товар: %(name)s') % {'name': self.object.name}
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Товар «%(name)s» сохранён.') % {'name': form.instance.name},
+        )
+        return super().form_valid(form)
+
+
+class ProductToggleActiveView(AdminRequiredMixin, View):
+    def post(self, request, pk):
+        product = get_object_or_404(Product, pk=pk)
+        product.is_active = not product.is_active
+        product.save(update_fields=['is_active'])
+        if product.is_active:
+            msg = _('Товар «%(name)s» активирован.') % {'name': product.name}
+        else:
+            msg = _('Товар «%(name)s» деактивирован.') % {'name': product.name}
+        messages.success(request, msg)
+        return HttpResponseRedirect(
+            request.META.get('HTTP_REFERER') or reverse('product_list')
+        )
+
+
+class CategoryCreateView(AdminRequiredMixin, CreateView):
+    model = Category
+    form_class = CategoryForm
+    template_name = 'config/products/form.html'
+    success_url = reverse_lazy('product_list')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = _('Новая категория')
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Категория «%(name)s» создана.') % {'name': form.instance.name},
+        )
+        return super().form_valid(form)
+
+
+# ---------- customers ----------
+
+class CustomerListView(StaffOrAdminRequiredMixin, ListView):
+    model = Customer
+    template_name = 'config/customers/list.html'
+    context_object_name = 'customers'
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = Customer.objects.order_by('full_name')
+        q = self.request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(
+                Q(full_name__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(code__icontains=q)
+            )
+        return qs
+
+    def get_template_names(self):
+        if self.request.htmx:
+            return ['config/customers/_table.html']
+        return [self.template_name]
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['q'] = self.request.GET.get('q', '')
+        return ctx
+
+
+class CustomerCreateView(StaffOrAdminRequiredMixin, CreateView):
+    model = Customer
+    form_class = CustomerForm
+    template_name = 'config/customers/form.html'
+
+    def get_success_url(self):
+        return reverse('customer_detail', args=[self.object.pk])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = _('Новый клиент')
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Клиент «%(name)s» создан.') % {'name': form.instance.full_name},
+        )
+        return super().form_valid(form)
+
+
+class CustomerUpdateView(StaffOrAdminRequiredMixin, UpdateView):
+    model = Customer
+    form_class = CustomerForm
+    template_name = 'config/customers/form.html'
+
+    def get_success_url(self):
+        return reverse('customer_detail', args=[self.object.pk])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = _('Клиент: %(name)s') % {'name': self.object.full_name}
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Клиент «%(name)s» сохранён.') % {'name': form.instance.full_name},
+        )
+        return super().form_valid(form)
+
+
+class CustomerDetailView(StaffOrAdminRequiredMixin, DetailView):
+    model = Customer
+    template_name = 'config/customers/detail.html'
+    context_object_name = 'customer'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['rentals'] = (
+            self.object.rentals
+            .select_related('created_by')
+            .prefetch_related('items__product')
+            .order_by('-created_at')
+        )
+        return ctx
+
+
+# ---------- rentals ----------
+
+def _annotate_rental_qs(qs):
+    """Attach issued/returned/outstanding/items_count and money totals as
+    Subquery annotations to keep aggregates from interfering with each other."""
+    issued_sum = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.ISSUE)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    returned_sum = (
+        Movement.objects
+        .filter(rental_item__rental=OuterRef('pk'), kind=Movement.Kind.RETURN)
+        .values('rental_item__rental')
+        .annotate(s=Sum('qty'))
+        .values('s')
+    )
+    paid_sum = (
+        Payment.objects
+        .filter(
+            rental=OuterRef('pk'),
+            kind__in=[Payment.Kind.RENT, Payment.Kind.FINE],
+        )
+        .values('rental')
+        .annotate(s=Sum('amount'))
+        .values('s')
+    )
+    deposit_sum = (
+        Payment.objects
+        .filter(rental=OuterRef('pk'), kind=Payment.Kind.DEPOSIT)
+        .values('rental')
+        .annotate(s=Sum('amount'))
+        .values('s')
+    )
+    money = DecimalField(max_digits=12, decimal_places=2)
+    return qs.annotate(
+        items_count=Count('items', distinct=True),
+        issued_total=Coalesce(Subquery(issued_sum, output_field=IntegerField()), 0),
+        returned_total=Coalesce(Subquery(returned_sum, output_field=IntegerField()), 0),
+        paid_total=Coalesce(
+            Subquery(paid_sum, output_field=money), Value(Decimal('0.00')), output_field=money,
+        ),
+        deposit_total=Coalesce(
+            Subquery(deposit_sum, output_field=money), Value(Decimal('0.00')), output_field=money,
+        ),
+    ).annotate(
+        outstanding_total=F('issued_total') - F('returned_total'),
+    )
+
+
+class RentalListView(StaffOrAdminRequiredMixin, ListView):
+    model = Rental
+    template_name = 'config/rentals/list.html'
+    context_object_name = 'rentals'
+    paginate_by = 25
+
+    SORT_FIELDS = {
+        'due_date': 'due_date',
+        '-due_date': '-due_date',
+        'created_at': 'created_at',
+        '-created_at': '-created_at',
+    }
+
+    def get_queryset(self):
+        qs = (
+            Rental.objects
+            .select_related('customer', 'created_by')
+        )
+        qs = _annotate_rental_qs(qs)
+
+        today = timezone.localdate()
+        status = self.request.GET.get('status', '').strip()
+        if status == Rental.Status.CLOSED:
+            qs = qs.filter(status=Rental.Status.CLOSED)
+        elif status == 'overdue':
+            qs = qs.filter(
+                status=Rental.Status.ACTIVE,
+                due_date__lt=today,
+                outstanding_total__gt=0,
+            )
+        elif status == Rental.Status.ACTIVE:
+            qs = qs.filter(status=Rental.Status.ACTIVE).filter(
+                Q(due_date__gte=today) | Q(outstanding_total=0)
+            )
+
+        date_from = self.request.GET.get('date_from', '').strip()
+        date_to = self.request.GET.get('date_to', '').strip()
+        for raw, lookup in ((date_from, 'created_at__date__gte'),
+                            (date_to, 'created_at__date__lte')):
+            if raw:
+                try:
+                    parsed = datetime.strptime(raw, '%Y-%m-%d').date()
+                    qs = qs.filter(**{lookup: parsed})
+                except ValueError:
+                    pass
+
+        customer_id = self.request.GET.get('customer', '').strip()
+        if customer_id.isdigit():
+            qs = qs.filter(customer_id=int(customer_id))
+
+        sort = self.request.GET.get('sort', 'due_date')
+        sort_field = self.SORT_FIELDS.get(sort, 'due_date')
+        return qs.order_by(sort_field, '-created_at')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['today'] = timezone.localdate()
+        ctx['filters'] = {
+            'status': self.request.GET.get('status', ''),
+            'date_from': self.request.GET.get('date_from', ''),
+            'date_to': self.request.GET.get('date_to', ''),
+            'customer': self.request.GET.get('customer', ''),
+            'sort': self.request.GET.get('sort', 'due_date'),
+        }
+        if ctx['filters']['customer'].isdigit():
+            ctx['filter_customer_obj'] = Customer.objects.filter(
+                pk=int(ctx['filters']['customer'])
+            ).first()
+        return ctx
+
+
+def _rental_card_context(rental):
+    """Shared context for the detail page and OOB refreshes after a return."""
+    items = list(rental.items.select_related('product').all())
+    movements = []
+    for it in items:
+        movements.extend(list(it.movements.select_related('created_by').all()))
+    movements.sort(key=lambda m: m.date, reverse=True)
+    payments = list(rental.payments.all())
+    summary = billing.compute_rental_billing(rental)
+    has_outstanding = any(it.outstanding_qty > 0 for it in items)
+    return {
+        'rental': rental,
+        'items': items,
+        'movements': movements,
+        'payments': payments,
+        'summary': summary,
+        'has_outstanding': has_outstanding,
+        'today': timezone.localdate(),
+    }
+
+
+class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
+    model = Rental
+    template_name = 'config/rentals/detail.html'
+    context_object_name = 'rental'
+
+    def get_queryset(self):
+        return (
+            Rental.objects
+            .select_related('customer', 'created_by', 'closed_by')
+            .prefetch_related(
+                'items__product',
+                'items__movements__created_by',
+                'payments',
+            )
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_rental_card_context(self.object))
+        return ctx
+
+
+class RentalReturnView(StaffOrAdminRequiredMixin, View):
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=204)
+        outstanding = list(rental.outstanding_items().select_related('product'))
+        return render(request, 'config/rentals/_return_modal.html', {
+            'rental': rental,
+            'rows': [
+                {'item': it, 'outstanding': it.outstanding_qty, 'value': ''}
+                for it in outstanding
+            ],
+            'errors': [],
+            'note': '',
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=409)
+
+        outstanding_items = list(rental.outstanding_items().select_related('product'))
+        item_by_id = {it.pk: it for it in outstanding_items}
+
+        note = (request.POST.get('note') or '').strip()
+        inputs = {}
+        plan = []  # list of (item, qty)
+        errors = []
+
+        for it in outstanding_items:
+            raw = (request.POST.get(f'qty_{it.pk}') or '').strip()
+            inputs[it.pk] = raw
+            if raw == '':
+                continue
+            try:
+                qty = int(raw)
+            except (TypeError, ValueError):
+                errors.append(
+                    _('«%(name)s»: некорректное количество.')
+                    % {'name': it.product.name}
+                )
+                continue
+            if qty < 0:
+                errors.append(
+                    _('«%(name)s»: количество не может быть отрицательным.')
+                    % {'name': it.product.name}
+                )
+                continue
+            if qty == 0:
+                continue
+            if qty > it.outstanding_qty:
+                errors.append(
+                    _('«%(name)s»: возвращаете %(qty)d, а к возврату только %(out)d.')
+                    % {
+                        'name': it.product.name,
+                        'qty': qty,
+                        'out': it.outstanding_qty,
+                    }
+                )
+                continue
+            plan.append((it, qty))
+
+        if not errors and not plan:
+            errors.append(_('Укажите количество хотя бы по одной позиции.'))
+
+        if errors:
+            return render(request, 'config/rentals/_return_modal.html', {
+                'rental': rental,
+                'rows': [
+                    {
+                        'item': it,
+                        'outstanding': it.outstanding_qty,
+                        'value': inputs.get(it.pk, ''),
+                    }
+                    for it in outstanding_items
+                ],
+                'errors': errors,
+                'note': note,
+            })
+
+        with transaction.atomic():
+            for it, qty in plan:
+                Movement.objects.create(
+                    rental_item=it,
+                    kind=Movement.Kind.RETURN,
+                    qty=qty,
+                    note=note,
+                    created_by=request.user,
+                )
+            rental.refresh_from_db()
+            rental.maybe_auto_close()
+
+        rental = (
+            Rental.objects
+            .select_related('customer', 'created_by', 'closed_by')
+            .prefetch_related(
+                'items__product',
+                'items__movements__created_by',
+                'payments',
+            )
+            .get(pk=rental.pk)
+        )
+        ctx = _rental_card_context(rental)
+        ctx['is_admin'] = (
+            request.user.is_superuser
+            or request.user.groups.filter(name='admin').exists()
+        )
+        return render(request, 'config/rentals/_oob_refresh.html', ctx)
+
+
+class RentalCloseView(AdminRequiredMixin, View):
+    """Early close: write off remaining outstanding qty as 'списание'."""
+
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=204)
+        return render(request, 'config/rentals/_close_modal.html', {
+            'rental': rental,
+            'outstanding_items': list(rental.outstanding_items().select_related('product')),
+            'errors': [],
+            'note': '',
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        if rental.status == Rental.Status.CLOSED:
+            return HttpResponse(status=409)
+
+        note = (request.POST.get('note') or '').strip()
+        if not note:
+            return render(request, 'config/rentals/_close_modal.html', {
+                'rental': rental,
+                'outstanding_items': list(rental.outstanding_items().select_related('product')),
+                'errors': [_('Укажите причину досрочного закрытия (списание / потеря).')],
+                'note': note,
+            })
+
+        with transaction.atomic():
+            outstanding = list(rental.outstanding_items().select_related('product'))
+            for it in outstanding:
+                qty = it.outstanding_qty
+                if qty > 0:
+                    Movement.objects.create(
+                        rental_item=it,
+                        kind=Movement.Kind.RETURN,
+                        qty=qty,
+                        note=f'списание: {note}',
+                        created_by=request.user,
+                    )
+            rental.status = Rental.Status.CLOSED
+            rental.closed_at = timezone.now()
+            rental.closed_by = request.user
+            rental.save(update_fields=['status', 'closed_at', 'closed_by'])
+
+        rental = (
+            Rental.objects
+            .select_related('customer', 'created_by', 'closed_by')
+            .prefetch_related(
+                'items__product',
+                'items__movements__created_by',
+                'payments',
+            )
+            .get(pk=rental.pk)
+        )
+        ctx = _rental_card_context(rental)
+        ctx['is_admin'] = True
+        return render(request, 'config/rentals/_oob_refresh.html', ctx)
+
+
+class RentalModalCloseView(StaffOrAdminRequiredMixin, View):
+    """Empty-200 endpoint to wipe out #modal-slot's content via hx-swap=innerHTML."""
+
+    def get(self, request):
+        return HttpResponse('')
+
+
+@role_required('staff', 'admin')
+def rental_contract(request, pk):
+    from .contract_pdf import normalize_size
+
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    items = list(
+        rental.items.select_related('product').all()
+    )
+    deposit_paid = sum(
+        (p.amount for p in rental.payments.filter(kind=Payment.Kind.DEPOSIT)),
+        Decimal('0.00'),
+    )
+    total_deposit_due = sum(
+        (it.product.deposit_per_unit * it.qty for it in items),
+        Decimal('0.00'),
+    )
+    from django.conf import settings as _s
+    size = normalize_size(request.GET.get('size'))
+    return render(request, 'config/rentals/contract.html', {
+        'rental': rental,
+        'items': items,
+        'deposit_paid': deposit_paid,
+        'total_deposit_due': total_deposit_due,
+        'fine_coef': getattr(_s, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5')),
+        'back_url': reverse('rental_detail', args=[rental.pk]),
+        'size': size,
+    })
+
+
+@role_required('staff', 'admin')
+def rental_contract_pdf(request, pk):
+    """Скачать договор аренды как PDF (fpdf2, без системных зависимостей).
+
+    Параметр ?size=full|half|quarter определяет формат:
+    A4 / A5 / A6 соответственно.
+    """
+    from .contract_pdf import (
+        ContractFontMissing,
+        build_contract_pdf,
+        normalize_size,
+    )
+
+    rental = get_object_or_404(
+        Rental.objects
+        .select_related('customer')
+        .prefetch_related('items__product', 'payments'),
+        pk=pk,
+    )
+    size = normalize_size(request.GET.get('size'))
+    try:
+        pdf_bytes = build_contract_pdf(rental, size=size)
+    except ContractFontMissing as e:
+        messages.error(request, str(e))
+        return HttpResponseRedirect(reverse('rental_detail', args=[rental.pk]))
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    filename = f'contract-{rental.pk}-{size}.pdf'
+    disposition = 'inline' if request.GET.get('inline') else 'attachment'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    return response
+
+
+class RentalCreateView(StaffOrAdminRequiredMixin, View):
+    template_name = 'config/rentals/create.html'
+
+    def get(self, request):
+        return render(request, self.template_name, self._initial_context(request))
+
+    def post(self, request):
+        form = RentalCreateForm(request.POST)
+        rows = self._parse_item_rows(request.POST)
+        item_errors = self._validate_items(rows)
+        ok = form.is_valid() and not item_errors
+
+        if ok:
+            try:
+                rental = self._create_rental(request, form, rows)
+            except ValueError as e:
+                item_errors.append(str(e))
+                ok = False
+            else:
+                messages.success(
+                    request,
+                    _('Аренда #%(pk)d создана. Выдано %(qty)d шт.')
+                    % {
+                        'pk': rental.pk,
+                        'qty': sum(r['qty'] for r in rows),
+                    },
+                )
+                return HttpResponseRedirect(
+                    reverse('rental_detail', args=[rental.pk])
+                )
+
+        ctx = self._initial_context(request)
+        ctx['form'] = form
+        ctx['item_rows'] = self._rows_for_template(rows)
+        ctx['item_errors'] = item_errors
+        if form.cleaned_data.get('customer'):
+            ctx['picked_customer'] = form.cleaned_data['customer']
+        return render(request, self.template_name, ctx)
+
+    def _initial_context(self, request):
+        return {
+            'form': RentalCreateForm(),
+            'item_rows': [{'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''}],
+            'item_errors': [],
+            'picked_customer': None,
+            'today_iso': timezone.localdate().isoformat(),
+            'products': Product.objects.filter(is_active=True).order_by('name'),
+        }
+
+    def _parse_item_rows(self, post):
+        product_ids = post.getlist('item_product')
+        qtys = post.getlist('item_qty')
+        rows = []
+        for pid_raw, qty_raw in zip(product_ids, qtys):
+            pid_raw = (pid_raw or '').strip()
+            qty_raw = (qty_raw or '').strip()
+            if not pid_raw and not qty_raw:
+                continue
+            try:
+                pid = int(pid_raw)
+                qty = int(qty_raw)
+            except (TypeError, ValueError):
+                rows.append({'product_id': pid_raw, 'qty': qty_raw, 'invalid': True})
+                continue
+            rows.append({'product_id': pid, 'qty': qty, 'invalid': False})
+        return rows
+
+    def _validate_items(self, rows):
+        errors = []
+        if not rows:
+            errors.append(_('Добавьте хотя бы одну позицию.'))
+            return errors
+        for i, r in enumerate(rows, start=1):
+            if r.get('invalid'):
+                errors.append(
+                    _('Строка %(i)d: некорректные значения.') % {'i': i}
+                )
+                continue
+            if r['qty'] <= 0:
+                errors.append(
+                    _('Строка %(i)d: количество должно быть больше нуля.')
+                    % {'i': i}
+                )
+                continue
+            try:
+                p = Product.objects.get(pk=r['product_id'], is_active=True)
+            except Product.DoesNotExist:
+                errors.append(
+                    _('Строка %(i)d: товар не найден или отключён.') % {'i': i}
+                )
+                continue
+            if r['qty'] > p.available_stock:
+                errors.append(
+                    _(
+                        'Строка %(i)d: «%(name)s» — доступно %(avail)d %(unit)s, '
+                        'запрошено %(qty)d.'
+                    )
+                    % {
+                        'i': i,
+                        'name': p.name,
+                        'avail': p.available_stock,
+                        'unit': p.unit,
+                        'qty': r['qty'],
+                    }
+                )
+            r['product_obj'] = p
+        return errors
+
+    @transaction.atomic
+    def _create_rental(self, request, form, rows):
+        rental = form.save(commit=False)
+        rental.created_by = request.user
+        if not rental.created_at:
+            rental.created_at = timezone.now()
+        rental.status = Rental.Status.ACTIVE
+        rental.save()
+
+        for r in rows:
+            product = r['product_obj']
+            if r['qty'] > product.available_stock:
+                raise ValueError(
+                    _('«%(name)s»: доступно %(avail)d, запрошено %(qty)d')
+                    % {
+                        'name': product.name,
+                        'avail': product.available_stock,
+                        'qty': r['qty'],
+                    }
+                )
+            item = RentalItem.objects.create(
+                rental=rental,
+                product=product,
+                qty=r['qty'],
+                price_per_day=product.daily_price,
+            )
+            Movement.objects.create(
+                rental_item=item,
+                kind=Movement.Kind.ISSUE,
+                qty=r['qty'],
+                created_by=request.user,
+            )
+
+        deposit = form.cleaned_data.get('initial_deposit') or Decimal('0')
+        if deposit > 0:
+            Payment.objects.create(
+                rental=rental,
+                amount=deposit,
+                kind=Payment.Kind.DEPOSIT,
+                note='Платёж при выдаче',
+            )
+        return rental
+
+    def _rows_for_template(self, rows):
+        out = []
+        for r in rows:
+            row_id = uuid.uuid4().hex[:8]
+            product = r.get('product_obj')
+            if product is None and isinstance(r.get('product_id'), int):
+                product = Product.objects.filter(pk=r['product_id']).first()
+            out.append({
+                'row_id': row_id,
+                'product': product,
+                'qty': r.get('qty', ''),
+            })
+        if not out:
+            out = [{'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''}]
+        return out
+
+
+# ---------- HTMX endpoints for rental form ----------
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class CustomerSearchView(View):
+    def get(self, request):
+        q = request.GET.get('customer_q', '').strip()
+        if len(q) < 2:
+            return render(request, 'config/rentals/_customer_search_results.html',
+                          {'customers': [], 'q': q, 'too_short': True})
+        customers = (
+            Customer.objects
+            .filter(
+                Q(full_name__icontains=q)
+                | Q(phone__icontains=q)
+                | Q(code__icontains=q)
+            )
+            .order_by('full_name')[:10]
+        )
+        return render(request, 'config/rentals/_customer_search_results.html',
+                      {'customers': customers, 'q': q, 'too_short': False})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class CustomerPickView(View):
+    def get(self, request, pk):
+        customer = get_object_or_404(Customer, pk=pk)
+        return render(request, 'config/rentals/_customer_picked.html',
+                      {'picked_customer': customer})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class CustomerClearView(View):
+    def get(self, request):
+        return render(request, 'config/rentals/_customer_search_input.html')
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ProductInfoView(View):
+    def get(self, request):
+        pid = request.GET.get('item_product') or ''
+        if not pid.isdigit():
+            return HttpResponse('')
+        product = Product.objects.filter(pk=int(pid)).first()
+        if not product:
+            return HttpResponse('')
+        return render(request, 'config/rentals/_product_info.html',
+                      {'product': product})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ItemRowNewView(View):
+    def get(self, request):
+        return render(request, 'config/rentals/_item_row.html', {
+            'row': {'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''},
+            'products': Product.objects.filter(is_active=True).order_by('name'),
+        })
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ItemRowRemoveView(View):
+    """No-op endpoint; the actual removal is done client-side via hx-swap=delete."""
+    def post(self, request):
+        return HttpResponse(status=204)
+
+
+# ---------- Admin: edit rental, payments, items (HTMX modals) ----------
+
+def _reload_rental(pk):
+    return (
+        Rental.objects
+        .select_related('customer', 'created_by', 'closed_by')
+        .prefetch_related(
+            'items__product',
+            'items__movements__created_by',
+            'payments',
+        )
+        .get(pk=pk)
+    )
+
+
+def _oob_response(request, rental):
+    ctx = _rental_card_context(rental)
+    ctx['is_admin'] = (
+        request.user.is_superuser
+        or request.user.groups.filter(name='admin').exists()
+    )
+    return render(request, 'config/rentals/_oob_refresh.html', ctx)
+
+
+class RentalEditView(AdminRequiredMixin, View):
+    """Правка срока возврата и примечания у существующей аренды."""
+
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        form = RentalEditForm(instance=rental)
+        return render(request, 'config/rentals/_edit_modal.html', {
+            'rental': rental, 'form': form,
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        form = RentalEditForm(request.POST, instance=rental)
+        if not form.is_valid():
+            return render(request, 'config/rentals/_edit_modal.html', {
+                'rental': rental, 'form': form,
+            })
+        form.save()
+        messages.success(request, _('Аренда #%(pk)d обновлена.') % {'pk': rental.pk})
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalPaymentAddView(AdminRequiredMixin, View):
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        return render(request, 'config/rentals/_payment_modal.html', {
+            'rental': rental, 'form': PaymentForm(), 'is_edit': False,
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        form = PaymentForm(request.POST)
+        if not form.is_valid():
+            return render(request, 'config/rentals/_payment_modal.html', {
+                'rental': rental, 'form': form, 'is_edit': False,
+            })
+        payment = form.save(commit=False)
+        payment.rental = rental
+        payment.save()
+        messages.success(
+            request,
+            _('Платёж %(a)s добавлен.') % {'a': payment.amount},
+        )
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalPaymentEditView(AdminRequiredMixin, View):
+    def _get_objs(self, pk, payment_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        payment = get_object_or_404(Payment, pk=payment_pk, rental=rental)
+        return rental, payment
+
+    def get(self, request, pk, payment_pk):
+        rental, payment = self._get_objs(pk, payment_pk)
+        return render(request, 'config/rentals/_payment_modal.html', {
+            'rental': rental,
+            'form': PaymentForm(instance=payment),
+            'is_edit': True,
+            'payment': payment,
+        })
+
+    def post(self, request, pk, payment_pk):
+        rental, payment = self._get_objs(pk, payment_pk)
+        form = PaymentForm(request.POST, instance=payment)
+        if not form.is_valid():
+            return render(request, 'config/rentals/_payment_modal.html', {
+                'rental': rental, 'form': form,
+                'is_edit': True, 'payment': payment,
+            })
+        form.save()
+        messages.success(request, _('Платёж обновлён.'))
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalPaymentDeleteView(AdminRequiredMixin, View):
+    def post(self, request, pk, payment_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        payment = get_object_or_404(Payment, pk=payment_pk, rental=rental)
+        payment.delete()
+        messages.success(request, _('Платёж удалён.'))
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalItemAddView(AdminRequiredMixin, View):
+    """Добавить новую позицию к существующей аренде (с выдачей со склада)."""
+
+    def get(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        return render(request, 'config/rentals/_item_modal.html', {
+            'rental': rental,
+            'products': Product.objects.filter(is_active=True).order_by('name'),
+            'errors': [],
+        })
+
+    def post(self, request, pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        products = Product.objects.filter(is_active=True).order_by('name')
+        pid = (request.POST.get('product') or '').strip()
+        qty_raw = (request.POST.get('qty') or '').strip()
+        errors = []
+
+        product = None
+        if not pid.isdigit():
+            errors.append(_('Выберите товар.'))
+        else:
+            product = Product.objects.filter(pk=int(pid), is_active=True).first()
+            if product is None:
+                errors.append(_('Товар не найден или отключён.'))
+
+        try:
+            qty = int(qty_raw)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            errors.append(_('Количество должно быть больше нуля.'))
+        elif product is not None and qty > product.available_stock:
+            errors.append(
+                _('«%(name)s» — доступно %(avail)d, запрошено %(qty)d.')
+                % {
+                    'name': product.name,
+                    'avail': product.available_stock,
+                    'qty': qty,
+                }
+            )
+
+        if errors:
+            return render(request, 'config/rentals/_item_modal.html', {
+                'rental': rental, 'products': products, 'errors': errors,
+            })
+
+        with transaction.atomic():
+            item = RentalItem.objects.create(
+                rental=rental, product=product, qty=qty,
+                price_per_day=product.daily_price,
+            )
+            Movement.objects.create(
+                rental_item=item, kind=Movement.Kind.ISSUE,
+                qty=qty, created_by=request.user,
+            )
+            if rental.status == Rental.Status.CLOSED:
+                rental.status = Rental.Status.ACTIVE
+                rental.closed_at = None
+                rental.closed_by = None
+                rental.save(update_fields=['status', 'closed_at', 'closed_by'])
+
+        messages.success(
+            request,
+            _('Позиция «%(name)s» × %(qty)d добавлена.')
+            % {'name': product.name, 'qty': qty},
+        )
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalItemEditView(AdminRequiredMixin, View):
+    """Изменить заказанное количество позиции (не меньше уже выданного)."""
+
+    def _get_objs(self, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        return rental, item
+
+    def get(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        return render(request, 'config/rentals/_item_edit_modal.html', {
+            'rental': rental, 'item': item, 'errors': [],
+        })
+
+    def post(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        qty_raw = (request.POST.get('qty') or '').strip()
+        errors = []
+        try:
+            qty = int(qty_raw)
+        except (TypeError, ValueError):
+            qty = -1
+        issued = item.issued_qty
+        if qty <= 0:
+            errors.append(_('Количество должно быть больше нуля.'))
+        elif qty < issued:
+            errors.append(
+                _('Нельзя заказать меньше уже выданного (%(n)d).')
+                % {'n': issued}
+            )
+        if errors:
+            return render(request, 'config/rentals/_item_edit_modal.html', {
+                'rental': rental, 'item': item, 'errors': errors,
+            })
+        item.qty = qty
+        item.save(update_fields=['qty'])
+        messages.success(request, _('Позиция обновлена.'))
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalItemRemoveView(AdminRequiredMixin, View):
+    """Удалить позицию. Разрешено только если по ней ничего не выдано."""
+
+    def post(self, request, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        if item.issued_qty > 0:
+            messages.error(
+                request,
+                _('Нельзя удалить «%(name)s»: уже была выдача. '
+                  'Сначала оформите возврат или досрочное закрытие.')
+                % {'name': item.product.name},
+            )
+            return _oob_response(request, _reload_rental(rental.pk))
+        name = item.product.name
+        item.delete()
+        messages.success(
+            request, _('Позиция «%(name)s» удалена.') % {'name': name},
+        )
+        return _oob_response(request, _reload_rental(rental.pk))
