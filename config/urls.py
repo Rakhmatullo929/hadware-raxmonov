@@ -11,6 +11,11 @@ urlpatterns = [
     path('reports/debtors/', views.report_debtors, name='report_debtors'),
     path('reports/debtors.csv', views.report_debtors_csv, name='report_debtors_csv'),
     path('reports/stock/', views.report_stock, name='report_stock'),
+    path(
+        'reports/payment-methods/',
+        views.report_payment_methods,
+        name='report_payment_methods',
+    ),
 
     path('products/', views.ProductListView.as_view(), name='product_list'),
     path('products/new/', views.ProductCreateView.as_view(), name='product_create'),
@@ -21,6 +26,29 @@ urlpatterns = [
         name='product_toggle_active',
     ),
     path('categories/new/', views.CategoryCreateView.as_view(), name='category_create'),
+
+    # Подозрения: позиции, превышающие норму проката товара
+    path('suspicions/', views.product_suspicions, name='product_suspicions'),
+
+    # Посещаемость рабочих
+    path('attendance/', views.attendance_journal, name='attendance_journal'),
+    path(
+        'attendance/<int:worker_id>/toggle/',
+        views.attendance_toggle,
+        name='attendance_toggle',
+    ),
+    path('workers/', views.WorkerListView.as_view(), name='worker_list'),
+    path('workers/new/', views.WorkerCreateView.as_view(), name='worker_create'),
+    path(
+        'workers/<int:pk>/edit/',
+        views.WorkerUpdateView.as_view(),
+        name='worker_update',
+    ),
+    path(
+        'workers/<int:pk>/toggle/',
+        views.WorkerToggleActiveView.as_view(),
+        name='worker_toggle_active',
+    ),
 
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
     path('customers/new/', views.CustomerCreateView.as_view(), name='customer_create'),
@@ -89,6 +117,21 @@ urlpatterns = [
         'rentals/_/product-info/',
         views.ProductInfoView.as_view(),
         name='rental_product_info',
+    ),
+    path(
+        'rentals/_/product-search/',
+        views.ItemProductSearchView.as_view(),
+        name='rental_item_product_search',
+    ),
+    path(
+        'rentals/_/product-pick/<int:pk>/',
+        views.ItemProductPickView.as_view(),
+        name='rental_item_product_pick',
+    ),
+    path(
+        'rentals/_/product-clear/',
+        views.ItemProductClearView.as_view(),
+        name='rental_item_product_clear',
     ),
     path(
         'rentals/_/item-row/',

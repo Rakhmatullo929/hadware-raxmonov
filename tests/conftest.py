@@ -5,7 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
-from core.models import Category, Customer, Product
+from config.models import Category, Customer, Product
 
 
 @pytest.fixture

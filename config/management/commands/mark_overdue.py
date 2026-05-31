@@ -24,7 +24,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, dry_run, **opts):
-        today = timezone.localdate()
+        now = timezone.now()
 
         outstanding_item_exists = (
             RentalItem.objects
@@ -46,7 +46,7 @@ class Command(BaseCommand):
 
         candidates = (
             Rental.objects
-            .filter(status=Rental.Status.ACTIVE, due_date__lt=today)
+            .filter(status=Rental.Status.ACTIVE, due_date__lt=now)
             .filter(Exists(outstanding_item_exists))
         )
 

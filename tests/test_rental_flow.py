@@ -9,7 +9,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from core.models import Movement, Payment, Rental, RentalItem
+from config.models import Movement, Payment, Rental, RentalItem
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ def test_create_rental_rejects_qty_above_available_stock(
 def test_contract_print_page_renders(client_admin, admin_user, customer, product):
     rental = Rental.objects.create(
         customer=customer,
-        due_date=timezone.localdate() + timedelta(days=5),
+        due_date=timezone.now() + timedelta(days=5),
         created_by=admin_user,
     )
     item = RentalItem.objects.create(

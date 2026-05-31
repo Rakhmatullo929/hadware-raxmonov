@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Подозрения" %} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-hourglass-split text-warning me-1"></i>
+        {% trans "Подозрения по нормам товаров" %}
+    </h1>
+    <a href="{% url 'product_list' %}" class="btn btn-link btn-sm">
+        <i class="bi bi-box-seam me-1"></i>{% trans "Настроить нормы" %} →
+    </a>
+</div>
+
+<p class="text-muted">
+    {% trans "Позиции, которые держат на руках дольше ожидаемой длительности проката (поле «Норма» у товара). За 1 день до превышения — жёлтое «подозрение», после — красная просрочка." %}
+</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card card-body py-2 border-warning">
+            <div class="small text-muted">
+                <i class="bi bi-hourglass-split text-warning me-1"></i>{% trans "Подозрений (день в день)" %}
+            </div>
+            <div class="h4 mb-0 text-warning-emphasis">{{ warn_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2 border-danger">
+            <div class="small text-muted">
+                <i class="bi bi-exclamation-octagon-fill text-danger me-1"></i>{% trans "Превышений нормы" %}
+            </div>
+            <div class="h4 mb-0 text-danger">{{ over_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Всего в списке" %}</div>
+            <div class="h4 mb-0">{{ total }}</div>
+        </div>
+    </div>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <div class="form-check">
+                <input type="checkbox" name="only" value="over"
+                       id="filter-only-over"
+                       {% if only_over %}checked{% endif %}
+                       class="form-check-input"
+                       onchange="this.form.submit()">
+                <label for="filter-only-over" class="form-check-label">
+                    {% trans "Показать только превышения (без подозрений)" %}
+                </label>
+            </div>
+        </div>
+        {% if only_over %}
+            <div class="col-auto">
+                <a href="{% url 'product_suspicions' %}" class="btn btn-sm btn-link">
+                    {% trans "Сброс" %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</form>
+
+{% if rows %}
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>{% trans "Клиент" %}</th>
+                    <th>{% trans "Аренда" %}</th>
+                    <th>{% trans "Товар" %}</th>
+                    <th class="text-end">{% trans "На руках" %}</th>
+                    <th class="text-end">{% trans "Дней / норма" %}</th>
+                    <th class="text-end">{% trans "Превышение" %}</th>
+                    <th>{% trans "Статус" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr class="{% if row.status == 'over' %}table-danger{% else %}table-warning{% endif %}">
+                        <td>
+                            <a href="{% url 'customer_detail' row.item.rental.customer.pk %}"
+                               class="text-decoration-none">
+                                {{ row.item.rental.customer.full_name }}
+                            </a>
+                            {% if row.item.rental.customer.phone %}
+                                <div class="text-muted small">
+                                    <a href="tel:{{ row.item.rental.customer.phone }}"
+                                       class="text-decoration-none text-muted">
+                                        {{ row.item.rental.customer.phone }}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'rental_detail' row.item.rental.pk %}"
+                               class="text-decoration-none fw-semibold">
+                                #{{ row.item.rental.pk }}
+                            </a>
+                            <div class="text-muted small">
+                                {% trans "до" %} {{ row.item.rental.due_date|date:"d.m.Y H:i" }}
+                            </div>
+                        </td>
+                        <td>{{ row.item.product.name }}</td>
+                        <td class="text-end">
+                            {{ row.item.outstanding_qty }} {{ row.item.product.unit }}
+                        </td>
+                        <td class="text-end font-monospace">
+                            <strong>{{ row.days_elapsed }}</strong>
+                            <span class="text-muted">/ {{ row.max_days }}</span>
+                        </td>
+                        <td class="text-end font-monospace">
+                            {% if row.over_by > 0 %}
+                                <span class="text-danger fw-semibold">+{{ row.over_by }} {% trans "дн." %}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.status == 'over' %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-exclamation-octagon-fill me-1"></i>{% trans "Просрочка" %}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-hourglass-split me-1"></i>{% trans "Подозрение" %}
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="alert alert-success border-success">
+        <i class="bi bi-check2-circle me-1"></i>
+        {% if only_over %}
+            {% trans "Превышений нет — все позиции в пределах нормы." %}
+        {% else %}
+            {% trans "Подозрений нет — всё в норме." %}
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

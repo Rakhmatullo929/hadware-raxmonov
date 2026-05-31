@@ -85,7 +85,11 @@ class Command(BaseCommand):
                 hours=rnd.randint(0, 23),
                 minutes=rnd.randint(0, 59),
             )
-            due_date = created_at.date() + timedelta(days=rnd.randint(3, 21))
+            due_date = created_at + timedelta(
+                days=rnd.randint(3, 21),
+                hours=rnd.randint(0, 23),
+                minutes=rnd.randint(0, 59),
+            )
             rentals_to_create.append(Rental(
                 customer=rnd.choice(all_demo_custs),
                 created_at=created_at,

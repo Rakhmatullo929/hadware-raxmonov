@@ -70,7 +70,9 @@ def compute_rental_billing(rental, as_of=None) -> dict:
 
     base = Decimal('0.00')
     fine = Decimal('0.00')
-    overdue_days = (today - rental.due_date).days
+    # due_date теперь DateTimeField — берём дневную часть для счёта дней
+    # просрочки. Один день начинает капать со следующих суток после due_date.
+    overdue_days = (today - rental.due_date.date()).days
     if overdue_days < 0:
         overdue_days = 0
 
@@ -88,9 +90,12 @@ def compute_rental_billing(rental, as_of=None) -> dict:
             )
 
     payments = list(rental.payments.all())
+    # ADVANCE — это предоплата, фактически зачитывается в счёт аренды,
+    # поэтому считаем её вместе с RENT/FINE в «оплачено».
     paid = sum(
         (p.amount for p in payments
-         if p.kind in (Payment.Kind.RENT, Payment.Kind.FINE)),
+         if p.kind in (Payment.Kind.RENT, Payment.Kind.FINE,
+                       Payment.Kind.ADVANCE)),
         Decimal('0.00'),
     )
     deposit = sum(

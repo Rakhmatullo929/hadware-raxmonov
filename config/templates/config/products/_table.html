@@ -9,6 +9,7 @@
                 <th class="text-end">{% trans "Всего" %}</th>
                 <th class="text-end">{% trans "Доступно" %}</th>
                 <th class="text-end">{% trans "Цена/сутки" %}</th>
+                <th class="text-end">{% trans "Норма" %}</th>
                 <th></th>
             </tr>
         </thead>
@@ -27,6 +28,15 @@
                     <td class="text-end">{{ p.available_stock }}</td>
                     <td class="text-end">{{ p.daily_price }}</td>
                     <td class="text-end text-nowrap">
+                        {% if p.expected_max_days %}
+                            <span class="badge bg-light text-dark border" title="{% trans 'Ожидаемая длительность проката' %}">
+                                {{ p.expected_window_label }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">
                         {% if is_admin %}
                             <a href="{% url 'product_update' p.pk %}"
                                class="btn btn-sm btn-outline-secondary">{% trans "Изменить" %}</a>
@@ -44,7 +54,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
+                    <td colspan="8" class="text-center text-muted py-4">
                         {% trans "Ничего не найдено" %}
                     </td>
                 </tr>

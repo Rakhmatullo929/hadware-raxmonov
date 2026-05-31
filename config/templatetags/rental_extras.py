@@ -30,3 +30,15 @@ def initial(value):
     """First character of a string, uppercased."""
     s = (value or '').strip()
     return s[:1].upper() if s else '?'
+
+
+@register.filter
+def dict_lookup(d, key):
+    """`{{ mapping|dict_lookup:key }}` — обращение к ключу словаря
+    из шаблона, когда ключ — переменная и не подставляется через точку."""
+    if d is None:
+        return ''
+    try:
+        return d.get(key, '')
+    except AttributeError:
+        return d[key] if key in d else ''

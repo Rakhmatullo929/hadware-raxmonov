@@ -1,0 +1,31 @@
+{% load i18n %}
+{% if too_short %}
+    {% if q %}
+        <div class="form-text">{% trans "Введите минимум 2 символа." %}</div>
+    {% endif %}
+{% elif products %}
+    <ul class="list-group mt-1 item-product-dropdown">
+        {% for p in products %}
+            <li class="list-group-item list-group-item-action p-2"
+                style="cursor: pointer;"
+                hx-get="{% url 'rental_item_product_pick' p.pk %}?row_id={{ row_id }}"
+                hx-target="#picker-{{ row_id }}"
+                hx-swap="outerHTML">
+                <div class="d-flex justify-content-between align-items-baseline">
+                    <span class="fw-semibold">{{ p.name }}</span>
+                    <span class="small text-muted text-nowrap">
+                        {{ p.daily_price }} / {% trans "сут." %}
+                    </span>
+                </div>
+                <div class="small text-muted">
+                    {% trans "Доступно:" %} {{ p.available_stock }} {{ p.unit }}
+                    {% if p.expected_max_days %}
+                        · {% trans "Норма:" %} {{ p.expected_window_label }}
+                    {% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <div class="form-text">{% trans "Ничего не найдено." %}</div>
+{% endif %}

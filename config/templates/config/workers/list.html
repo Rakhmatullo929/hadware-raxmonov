@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Рабочие" %} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Рабочие" %}</h1>
+    <div>
+        <a href="{% url 'attendance_journal' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-calendar-check me-1"></i>{% trans "Журнал посещаемости" %}
+        </a>
+        {% if is_admin %}
+            <a href="{% url 'worker_create' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg me-1"></i>{% trans "Добавить рабочего" %}
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">{% trans "Поиск" %}</label>
+            <input type="search" name="q" value="{{ filters.q }}"
+                   class="form-control form-control-sm"
+                   placeholder="{% trans 'ФИО / должность / телефон' %}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Статус" %}</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="" {% if not filters.status %}selected{% endif %}>{% trans "Все" %}</option>
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{% trans "Активные" %}</option>
+                <option value="archived" {% if filters.status == 'archived' %}selected{% endif %}>{% trans "В архиве" %}</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Применить" %}</button>
+            <a href="{% url 'worker_list' %}" class="btn btn-sm btn-link">{% trans "Сброс" %}</a>
+        </div>
+    </div>
+</form>
+
+{% if workers %}
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>{% trans "ФИО" %}</th>
+                    <th>{% trans "Должность" %}</th>
+                    <th>{% trans "Телефон" %}</th>
+                    <th>{% trans "Статус" %}</th>
+                    {% if is_admin %}<th class="text-end">{% trans "Действия" %}</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in workers %}
+                    <tr {% if not w.is_active %}class="text-muted"{% endif %}>
+                        <td class="fw-semibold">{{ w.full_name }}</td>
+                        <td>{{ w.position|default:"—" }}</td>
+                        <td>{{ w.phone|default:"—" }}</td>
+                        <td>
+                            {% if w.is_active %}
+                                <span class="badge bg-success">{% trans "Активен" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "В архиве" %}</span>
+                            {% endif %}
+                        </td>
+                        {% if is_admin %}
+                            <td class="text-end text-nowrap">
+                                <a href="{% url 'worker_update' w.pk %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" action="{% url 'worker_toggle_active' w.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-{% if w.is_active %}danger{% else %}success{% endif %}"
+                                            title="{% if w.is_active %}{% trans 'В архив' %}{% else %}{% trans 'Восстановить' %}{% endif %}">
+                                        {% if w.is_active %}<i class="bi bi-archive"></i>{% else %}<i class="bi bi-arrow-counterclockwise"></i>{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% include 'config/_pagination.html' %}
+{% else %}
+    <div class="alert alert-light border">
+        {% trans "Рабочих пока нет." %}
+        {% if is_admin %}
+            <a href="{% url 'worker_create' %}" class="ms-2">{% trans "Добавить →" %}</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

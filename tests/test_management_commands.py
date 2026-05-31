@@ -6,14 +6,14 @@ import pytest
 from django.core.management import call_command
 from django.utils import timezone
 
-from core.models import Movement, Rental, RentalItem
+from config.models import Movement, Rental, RentalItem
 
 
 def test_mark_overdue_flips_only_qualifying_rentals(admin_user, customer, product):
     today = timezone.localdate()
     # Past due, has outstanding → should be flipped
     r1 = Rental.objects.create(
-        customer=customer, due_date=today - timedelta(days=1),
+        customer=customer, due_date=timezone.now() - timedelta(days=1),
         created_by=admin_user, status=Rental.Status.ACTIVE,
     )
     item = RentalItem.objects.create(
@@ -24,7 +24,7 @@ def test_mark_overdue_flips_only_qualifying_rentals(admin_user, customer, produc
     )
     # Past due, fully returned → should NOT be flipped
     r2 = Rental.objects.create(
-        customer=customer, due_date=today - timedelta(days=1),
+        customer=customer, due_date=timezone.now() - timedelta(days=1),
         created_by=admin_user, status=Rental.Status.ACTIVE,
     )
     item2 = RentalItem.objects.create(
@@ -38,7 +38,7 @@ def test_mark_overdue_flips_only_qualifying_rentals(admin_user, customer, produc
     )
     # Future due → should NOT be flipped
     r3 = Rental.objects.create(
-        customer=customer, due_date=today + timedelta(days=2),
+        customer=customer, due_date=timezone.now() + timedelta(days=2),
         created_by=admin_user, status=Rental.Status.ACTIVE,
     )
 
@@ -54,7 +54,7 @@ def test_mark_overdue_flips_only_qualifying_rentals(admin_user, customer, produc
 def test_mark_overdue_dry_run_doesnt_modify(admin_user, customer, product):
     rental = Rental.objects.create(
         customer=customer,
-        due_date=timezone.localdate() - timedelta(days=2),
+        due_date=timezone.now() - timedelta(days=2),
         created_by=admin_user,
         status=Rental.Status.ACTIVE,
     )
@@ -74,7 +74,7 @@ def test_mark_overdue_dry_run_doesnt_modify(admin_user, customer, product):
 
 def test_backup_db_sqlite_helper_copies_db(tmp_path):
     """Hit the SQLite online-backup path directly with a real source file."""
-    from core.management.commands.backup_db import Command
+    from config.management.commands.backup_db import Command
     import sqlite3
 
     src = tmp_path / 'src.sqlite3'
@@ -94,7 +94,7 @@ def test_backup_db_sqlite_helper_copies_db(tmp_path):
 
 def test_backup_db_rotates_old_backups(tmp_path):
     """Rotation logic on its own — no DB needed."""
-    from core.management.commands.backup_db import Command
+    from config.management.commands.backup_db import Command
 
     for i in range(4):
         f = tmp_path / f'sqlite-{i}.sqlite3'
