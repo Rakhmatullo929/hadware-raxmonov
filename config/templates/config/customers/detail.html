@@ -74,8 +74,8 @@
             {% for r in rentals %}
                 <tr>
                     <td>{{ r.id }}</td>
-                    <td>{{ r.created_at|date:"d.m.Y" }}</td>
-                    <td>{{ r.due_date|date:"d.m.Y" }}</td>
+                    <td class="text-nowrap">{{ r.created_at|date:"d.m.Y H:i" }}</td>
+                    <td class="text-nowrap">{{ r.due_date|date:"d.m.Y H:i" }}</td>
                     <td>
                         {% if r.status == 'active' %}
                             <span class="badge bg-primary">{% trans "Активна" %}</span>

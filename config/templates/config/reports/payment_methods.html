@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% load i18n rental_extras %}
+
+{% block title %}{% trans "Способы оплаты" %} — {% trans "Отчёты" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Способы оплаты" %}</h1>
+    <a href="{% url 'reports' %}" class="btn btn-link btn-sm">{% trans "← К списку отчётов" %}</a>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "С" %}</label>
+            <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "По" %}</label>
+            <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Применить" %}</button>
+            <a href="{% url 'report_payment_methods' %}" class="btn btn-sm btn-link">{% trans "Сброс" %}</a>
+        </div>
+    </div>
+</form>
+
+{# Карточки-итоги по способам оплаты + общий итог #}
+<div class="row g-3 mb-4">
+    {% for m in methods %}
+        <div class="col-md-4">
+            <div class="card card-body py-2">
+                <div class="small text-muted">
+                    {% if m == 'cash' %}<i class="bi bi-cash me-1"></i>{% else %}<i class="bi bi-credit-card me-1"></i>{% endif %}
+                    {{ method_labels|dict_lookup:m }}
+                </div>
+                <div class="h4 mb-0">{{ by_method|dict_lookup:m|floatformat:2 }}</div>
+            </div>
+        </div>
+    {% endfor %}
+    <div class="col-md-4">
+        <div class="card card-body py-2 border-primary">
+            <div class="small text-muted">{% trans "Всего за период" %}</div>
+            <div class="h4 mb-0 text-primary">{{ grand_total|floatformat:2 }}</div>
+            <div class="small text-muted">{{ date_from|date:"d.m.Y" }} — {{ date_to|date:"d.m.Y" }}</div>
+        </div>
+    </div>
+</div>
+
+{# Матрица: строки — способы оплаты, столбцы — типы платежей #}
+<div class="table-responsive">
+    <table class="table table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>{% trans "Способ оплаты" %}</th>
+                {% for k in kinds %}
+                    <th class="text-end">{{ kind_labels|dict_lookup:k }}</th>
+                {% endfor %}
+                <th class="text-end">{% trans "Итого" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in methods %}
+                <tr>
+                    <td class="fw-semibold">
+                        {% if m == 'cash' %}<i class="bi bi-cash me-1"></i>{% else %}<i class="bi bi-credit-card me-1"></i>{% endif %}
+                        {{ method_labels|dict_lookup:m }}
+                    </td>
+                    {% for k in kinds %}
+                        {% with cell=matrix|dict_lookup:m|dict_lookup:k %}
+                            <td class="text-end font-monospace">
+                                {% if cell.total %}{{ cell.total|floatformat:2 }}{% else %}<span class="text-muted">—</span>{% endif %}
+                                {% if cell.count %}
+                                    <div class="text-muted small">{{ cell.count }} {% trans "шт." %}</div>
+                                {% endif %}
+                            </td>
+                        {% endwith %}
+                    {% endfor %}
+                    <td class="text-end fw-semibold font-monospace">
+                        {{ by_method|dict_lookup:m|floatformat:2 }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot class="table-light">
+            <tr>
+                <th>{% trans "Итого по типу" %}</th>
+                {% for k in kinds %}
+                    <th class="text-end font-monospace">{{ by_kind|dict_lookup:k|floatformat:2 }}</th>
+                {% endfor %}
+                <th class="text-end fw-semibold font-monospace text-primary">{{ grand_total|floatformat:2 }}</th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<p class="text-muted small mt-2">
+    {% trans "Подсчёт по полю date платежа (с учётом часового пояса)." %}
+</p>
+{% endblock %}

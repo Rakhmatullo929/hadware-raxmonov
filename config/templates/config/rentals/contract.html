@@ -42,8 +42,8 @@
     </table>
 
     <div class="small mb-3">
-        {% trans "Выдано:" %} <strong>{{ rental.created_at|date:"d.m.Y" }}</strong>
-        · {% trans "Возврат:" %} <strong>{{ rental.due_date|date:"d.m.Y" }}</strong>
+        {% trans "Выдано:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong>
+        · {% trans "Возврат:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong>
         · {% trans "Залог при выдаче:" %} <strong>{{ deposit_paid }}</strong> {% trans "сум" %}
     </div>
 
@@ -52,7 +52,7 @@
     <div class="row mb-3">
         <div class="col-6">
             <strong>{% trans "Арендодатель:" %}</strong>
-            <div>{% trans "ООО «Учёт аренды» (rental_track)" %}</div>
+            <div>{% trans "ООО «Rakhmonov — учёт аренды»" %}</div>
             <div>{% trans "ИНН ____________" %}</div>
             <div>{% trans "Тел.: ____________" %}</div>
         </div>
@@ -112,8 +112,8 @@
 
     <h2 class="contract-h2">{% trans "2. Сроки и оплата" %}</h2>
     <ul class="mb-2">
-        <li>{% trans "Дата выдачи:" %} <strong>{{ rental.created_at|date:"d.m.Y" }}</strong></li>
-        <li>{% trans "Срок возврата:" %} <strong>{{ rental.due_date|date:"d.m.Y" }}</strong></li>
+        <li>{% trans "Дата выдачи:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong></li>
+        <li>{% trans "Срок возврата:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong></li>
         <li>{% trans "Внесённый залог при выдаче:" %}
             <strong>{{ deposit_paid }}</strong> {% trans "сум" %}</li>
         <li>{% trans "Расчётный коэффициент штрафа за просрочку:" %}

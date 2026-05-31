@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Вход — Учёт аренды{% endblock %}
+{% block title %}{% trans "Вход" %} — {% trans "Учёт аренды" %}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -11,8 +12,8 @@
                     <div class="mb-2" style="font-size: 2.5rem;">
                         <i class="bi bi-clipboard-check text-primary"></i>
                     </div>
-                    <h1 class="h4 mb-1">Учёт аренды</h1>
-                    <div class="text-muted small">Войдите в систему</div>
+                    <h1 class="h4 mb-1">{% trans "Учёт аренды" %}</h1>
+                    <div class="text-muted small">{% trans "Войдите в систему" %}</div>
                 </div>
 
                 <form method="post" novalidate>
@@ -20,12 +21,12 @@
                     {% if form.non_field_errors %}
                         <div class="alert alert-danger py-2 small">
                             <i class="bi bi-exclamation-circle me-1"></i>
-                            Неверный логин или пароль.
+                            {% trans "Неверный логин или пароль." %}
                         </div>
                     {% endif %}
                     <div class="mb-3">
                         <label for="{{ form.username.id_for_label }}" class="form-label">
-                            Логин
+                            {% trans "Логин" %}
                         </label>
                         <div class="input-group">
                             <span class="input-group-text bg-body-tertiary">
@@ -40,7 +41,7 @@
                     </div>
                     <div class="mb-4">
                         <label for="{{ form.password.id_for_label }}" class="form-label">
-                            Пароль
+                            {% trans "Пароль" %}
                         </label>
                         <div class="input-group">
                             <span class="input-group-text bg-body-tertiary">
@@ -53,7 +54,7 @@
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">
-                        Войти
+                        {% trans "Войти" %}
                     </button>
                 </form>
             </div>

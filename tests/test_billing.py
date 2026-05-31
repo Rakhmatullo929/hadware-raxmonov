@@ -10,8 +10,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from core.billing import compute_item_unit_days, compute_rental_billing
-from core.models import (
+from config.billing import compute_item_unit_days, compute_rental_billing
+from config.models import (
     Category,
     Customer,
     Movement,
@@ -43,7 +43,7 @@ def _make_rental(actors, due_in_days=30):
     today = timezone.localdate()
     return Rental.objects.create(
         customer=actors['customer'],
-        due_date=today + timedelta(days=due_in_days),
+        due_date=timezone.now() + timedelta(days=due_in_days),
         created_by=actors['user'],
     )
 
@@ -151,7 +151,7 @@ def test_rental_billing_includes_overdue_fine_and_subtracts_payments(actors):
     today = timezone.localdate()
     rental = Rental.objects.create(
         customer=actors['customer'],
-        due_date=today - timedelta(days=3),  # 3 days overdue
+        due_date=timezone.now() - timedelta(days=3),  # 3 days overdue
         created_by=actors['user'],
     )
     item = RentalItem.objects.create(
@@ -182,7 +182,7 @@ def test_rental_billing_no_fine_after_close(actors):
     today = timezone.localdate()
     rental = Rental.objects.create(
         customer=actors['customer'],
-        due_date=today - timedelta(days=5),
+        due_date=timezone.now() - timedelta(days=5),
         created_by=actors['user'],
         status=Rental.Status.CLOSED,
     )

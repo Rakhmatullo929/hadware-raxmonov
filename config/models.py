@@ -54,6 +54,18 @@ class Product(models.Model):
         default=Decimal('0.00'),
     )
     is_active = models.BooleanField(_('Активен'), default=True)
+    # Окно ожидаемой длительности проката. Используется как «подозрение»:
+    # если позиция всё ещё на руках после max_days — на дашборде/в карточке
+    # показывается красный индикатор, за день до — жёлтый. Поля
+    # необязательные: если не заполнены, проверка не выполняется.
+    expected_min_days = models.PositiveIntegerField(
+        _('Норма, дней (мин)'), null=True, blank=True,
+        help_text=_('Если задано, помогает оператору заметить превышение.'),
+    )
+    expected_max_days = models.PositiveIntegerField(
+        _('Норма, дней (макс)'), null=True, blank=True,
+        help_text=_('После этого срока позиция подсвечивается красным.'),
+    )
 
     class Meta:
         verbose_name = _('Товар')
@@ -62,6 +74,15 @@ class Product(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.unit})'
+
+    def expected_window_label(self) -> str:
+        """Удобная строка для UI: «1–2 дн.», «3 дн.», «—»."""
+        lo, hi = self.expected_min_days, self.expected_max_days
+        if not lo and not hi:
+            return '—'
+        if lo and hi and lo != hi:
+            return f'{lo}–{hi} дн.'
+        return f'{lo or hi} дн.'
 
     @property
     def outstanding_qty(self) -> int:
@@ -168,7 +189,7 @@ class Rental(models.Model):
         verbose_name=_('Клиент'),
     )
     created_at = models.DateTimeField(_('Создана'), default=timezone.now)
-    due_date = models.DateField(_('Срок возврата'))
+    due_date = models.DateTimeField(_('Срок возврата'))
     status = models.CharField(
         _('Статус'),
         max_length=10,
@@ -204,7 +225,7 @@ class Rental(models.Model):
     def is_overdue(self) -> bool:
         if self.status == self.Status.CLOSED:
             return False
-        return self.due_date < timezone.localdate() and self.outstanding_items().exists()
+        return self.due_date < timezone.now() and self.outstanding_items().exists()
 
     def outstanding_items(self):
         """Позиции аренды, по которым ещё не всё возвращено."""
@@ -290,6 +311,50 @@ class RentalItem(models.Model):
     def outstanding_qty(self) -> int:
         return self.issued_qty - self.returned_qty
 
+    @property
+    def days_since_first_issue(self):
+        """Сколько календарных суток прошло с первой выдачи позиции.
+        ``None``, если ничего не выдавалось."""
+        first = (
+            self.movements
+            .filter(kind=Movement.Kind.ISSUE)
+            .order_by('date').first()
+        )
+        if first is None:
+            return None
+        # Берём локальную дату обеих сторон, иначе UTC-сдвиг даёт ±1 день.
+        issued_date = timezone.localtime(first.date).date()
+        return (timezone.localdate() - issued_date).days
+
+    def expected_status(self):
+        """Сравнить срок «на руках» с нормой товара.
+
+        Возвращает один из: ``'ok'``, ``'warn'``, ``'over'``, ``'unknown'``.
+
+        * ``unknown`` — у товара не задано окно (``expected_max_days is None``)
+                        или позиция ещё не выдавалась.
+        * ``ok``      — срок в пределах нормы.
+        * ``warn``    — позиция «на грани»: день равен max — последний нормальный
+                        день, после него пойдёт просрочка по норме товара.
+        * ``over``    — позиция уже сверх нормы.
+
+        Если позиция полностью возвращена — тоже ``ok`` (нет смысла подсвечивать).
+        """
+        if self.outstanding_qty <= 0:
+            return 'ok'
+        max_days = self.product.expected_max_days
+        if not max_days:
+            return 'unknown'
+        elapsed = self.days_since_first_issue
+        if elapsed is None:
+            return 'unknown'
+        if elapsed > max_days:
+            return 'over'
+        if elapsed >= max_days:
+            # последний нормальный день — предупреждение
+            return 'warn'
+        return 'ok'
+
 
 class Movement(models.Model):
     class Kind(models.TextChoices):
@@ -325,9 +390,14 @@ class Movement(models.Model):
 class Payment(models.Model):
     class Kind(models.TextChoices):
         DEPOSIT = 'deposit', _('Залог')
+        ADVANCE = 'advance', _('Аванс')
         RENT = 'rent', _('Аренда')
         FINE = 'fine', _('Штраф')
         REFUND = 'refund', _('Возврат залога')
+
+    class Method(models.TextChoices):
+        CASH = 'cash', _('Наличные')
+        CARD = 'card', _('Карта')
 
     rental = models.ForeignKey(
         Rental,
@@ -338,6 +408,12 @@ class Payment(models.Model):
     amount = models.DecimalField(_('Сумма'), max_digits=12, decimal_places=2)
     date = models.DateTimeField(_('Дата'), default=timezone.now)
     kind = models.CharField(_('Тип'), max_length=10, choices=Kind.choices)
+    method = models.CharField(
+        _('Способ оплаты'),
+        max_length=10,
+        choices=Method.choices,
+        default=Method.CASH,
+    )
     note = models.CharField(_('Примечание'), max_length=255, blank=True)
 
     class Meta:
@@ -379,3 +455,70 @@ class DebtorNotification(models.Model):
 
     def __str__(self):
         return f'{self.get_kind_display()} → {self.target_chat_id} ({self.sent_at:%Y-%m-%d %H:%M})'
+
+
+class Worker(models.Model):
+    """Рабочий, посещаемость которого ведётся в журнале.
+
+    Это не пользователь системы (`User`) — это физическое лицо, чьи
+    присутствия мы отмечаем. Связи с `User` нет намеренно: рабочий
+    обычно не имеет доступа к интерфейсу.
+    """
+    full_name = models.CharField(_('ФИО'), max_length=200)
+    position = models.CharField(_('Должность'), max_length=120, blank=True)
+    phone = models.CharField(_('Телефон'), max_length=32, blank=True)
+    is_active = models.BooleanField(_('Активен'), default=True, db_index=True)
+    note = models.CharField(_('Примечание'), max_length=255, blank=True)
+    created_at = models.DateTimeField(_('Создан'), default=timezone.now,
+                                       editable=False)
+
+    class Meta:
+        verbose_name = _('Рабочий')
+        verbose_name_plural = _('Рабочие')
+        ordering = ['full_name']
+
+    def __str__(self):
+        return self.full_name
+
+
+class Attendance(models.Model):
+    """Отметка посещаемости рабочего на конкретную дату.
+
+    Один (worker, date) — одна запись. Отсутствие записи означает,
+    что в этот день ещё не отмечали (нейтральный «—»). Запись со
+    `is_present=False` — явный «минус» (отсутствовал).
+    """
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name='attendances',
+        verbose_name=_('Рабочий'),
+    )
+    date = models.DateField(_('Дата'), default=timezone.localdate, db_index=True)
+    is_present = models.BooleanField(_('Присутствовал'), default=True)
+    note = models.CharField(_('Примечание'), max_length=255, blank=True)
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='attendance_marks',
+        verbose_name=_('Кто отметил'),
+        null=True, blank=True,
+    )
+    marked_at = models.DateTimeField(_('Когда отметили'), default=timezone.now)
+
+    class Meta:
+        verbose_name = _('Посещаемость')
+        verbose_name_plural = _('Посещаемость')
+        ordering = ['-date', 'worker__full_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['worker', 'date'], name='uniq_worker_date_attendance',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['date', 'is_present']),
+        ]
+
+    def __str__(self):
+        sign = '+' if self.is_present else '−'
+        return f'{self.worker.full_name} · {self.date:%d.%m.%Y} {sign}'

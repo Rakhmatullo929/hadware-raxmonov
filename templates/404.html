@@ -1,14 +1,15 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Не найдено — Учёт аренды{% endblock %}
+{% block title %}{% trans "Не найдено" %} — {% trans "Учёт аренды" %}{% endblock %}
 
 {% block content %}
 <div class="text-center py-5">
     <div class="display-1 text-muted">404</div>
-    <h1 class="h3 mt-3">Страница не найдена</h1>
+    <h1 class="h3 mt-3">{% trans "Страница не найдена" %}</h1>
     <p class="text-muted">
-        То, что вы искали, не существует или было удалено.
+        {% trans "То, что вы искали, не существует или было удалено." %}
     </p>
-    <a href="{% url 'dashboard' %}" class="btn btn-primary mt-3">На дашборд</a>
+    <a href="{% url 'dashboard' %}" class="btn btn-primary mt-3">{% trans "На дашборд" %}</a>
 </div>
 {% endblock %}

@@ -81,7 +81,7 @@
         </thead>
         <tbody>
             {% for r in rentals %}
-                {% if r.status == 'active' and r.due_date < today and r.outstanding_total > 0 %}
+                {% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}
                     <tr class="overdue-row">
                         <td>
                             <a href="{% url 'rental_detail' r.pk %}"
@@ -100,8 +100,8 @@
                                 </a>
                             </div>
                         </td>
-                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
-                        <td class="text-danger fw-semibold">{{ r.due_date|date:"d.m.Y" }}</td>
+                        <td class="text-muted text-nowrap" title="{{ r.created_at|date:'d.m.Y H:i' }}">{{ r.created_at|date:"d.m.Y H:i" }}</td>
+                        <td class="text-danger fw-semibold text-nowrap" title="{{ r.due_date|date:'d.m.Y H:i' }}">{{ r.due_date|date:"d.m.Y H:i" }}</td>
                         <td class="text-end">{{ r.items_count }}</td>
                         <td class="text-end font-monospace small">
                             {{ r.paid_total }}
@@ -133,8 +133,8 @@
                                 </a>
                             </div>
                         </td>
-                        <td class="text-muted">{{ r.created_at|date:"d.m.Y" }}</td>
-                        <td>{{ r.due_date|date:"d.m.Y" }}</td>
+                        <td class="text-muted text-nowrap" title="{{ r.created_at|date:'d.m.Y H:i' }}">{{ r.created_at|date:"d.m.Y H:i" }}</td>
+                        <td class="text-nowrap" title="{{ r.due_date|date:'d.m.Y H:i' }}">{{ r.due_date|date:"d.m.Y H:i" }}</td>
                         <td class="text-end">{{ r.items_count }}</td>
                         <td class="text-end font-monospace small">
                             {{ r.paid_total }}

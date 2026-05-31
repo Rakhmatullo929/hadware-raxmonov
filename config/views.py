@@ -42,8 +42,10 @@ from .forms import (
     ProductForm,
     RentalCreateForm,
     RentalEditForm,
+    WorkerForm,
 )
 from .models import (
+    Attendance,
     Category,
     Customer,
     Movement,
@@ -51,6 +53,7 @@ from .models import (
     Product,
     Rental,
     RentalItem,
+    Worker,
 )
 
 
@@ -112,13 +115,15 @@ def dashboard(request):
     # 1) Cards
     active_count = Rental.objects.filter(status__in=active_statuses).count()
 
-    overdue_qs = rentals_open.filter(due_date__lt=today, _outstanding__gt=0)
+    now = timezone.now()
+    overdue_qs = rentals_open.filter(due_date__lt=now, _outstanding__gt=0)
     overdue_count = overdue_qs.count()
     overdue_outstanding_qty = overdue_qs.aggregate(s=Sum('_outstanding'))['s'] or 0
 
+    # due_date теперь DateTimeField — сравниваем дневную часть.
     returns_today_count = (
         Rental.objects
-        .filter(status__in=active_statuses, due_date=today)
+        .filter(status__in=active_statuses, due_date__date=today)
         .count()
     )
 
@@ -194,12 +199,12 @@ def dashboard(request):
         .order_by('due_date')[:50]
     )
     for r in overdue_list:
-        r.days_overdue = (today - r.due_date).days
+        r.days_overdue = (today - r.due_date.date()).days
 
     # 3) Returns today/tomorrow
     returns_soon = list(
         Rental.objects
-        .filter(status__in=active_statuses, due_date__in=[today, tomorrow])
+        .filter(status__in=active_statuses, due_date__date__in=[today, tomorrow])
         .select_related('customer')
         .annotate(items_count=Count('items', distinct=True))
         .order_by('due_date', 'id')
@@ -216,6 +221,10 @@ def dashboard(request):
         .order_by('-date')[:20]
     )
 
+    # 5) «Подозрения по нормам товаров» — берём готовый helper, который
+    # шарим со страницей в сайдбаре, и обрезаем дашборд первыми 30.
+    suspicious_rows = _collect_product_suspicions()[:30]
+
     return render(request, 'config/dashboard.html', {
         'active_count': active_count,
         'overdue_count': overdue_count,
@@ -225,8 +234,10 @@ def dashboard(request):
         'overdue_list': overdue_list,
         'returns_soon': returns_soon,
         'last_movements': last_movements,
+        'suspicious_rows': suspicious_rows,
         'today': today,
         'tomorrow': tomorrow,
+        'now': now,
     })
 
 
@@ -306,6 +317,76 @@ def report_revenue(request):
     })
 
 
+# ---------- reports: payment methods ----------
+
+
+@role_required('admin')
+def report_payment_methods(request):
+    """Сводка по способам оплаты: сколько прошло наличными / картой,
+    с разбивкой по типу платежа (залог/аванс/аренда/штраф/возврат)."""
+    date_from, date_to = _parse_period(request)
+
+    qs = (
+        Payment.objects
+        .filter(date__date__gte=date_from, date__date__lte=date_to)
+    )
+
+    # Сводка по (method, kind) — Σ amount + N
+    rows = (
+        qs.values('method', 'kind')
+        .annotate(total=Sum('amount'), count=Count('id'))
+        .order_by('method', 'kind')
+    )
+
+    # Перегруппируем под удобный шаблон.
+    kinds_order = [
+        Payment.Kind.DEPOSIT, Payment.Kind.ADVANCE, Payment.Kind.RENT,
+        Payment.Kind.FINE, Payment.Kind.REFUND,
+    ]
+    methods_order = [Payment.Method.CASH, Payment.Method.CARD]
+
+    matrix = {m: {k: {'total': Decimal('0.00'), 'count': 0}
+                  for k in kinds_order} for m in methods_order}
+    for r in rows:
+        m = r['method']
+        k = r['kind']
+        if m in matrix and k in matrix[m]:
+            matrix[m][k]['total'] = r['total'] or Decimal('0.00')
+            matrix[m][k]['count'] = r['count'] or 0
+
+    # Итоги по способам и по типам.
+    by_method = {m: sum((matrix[m][k]['total'] for k in kinds_order),
+                        Decimal('0.00')) for m in methods_order}
+    by_kind = {k: sum((matrix[m][k]['total'] for m in methods_order),
+                      Decimal('0.00')) for k in kinds_order}
+    grand_total = sum(by_method.values(), Decimal('0.00'))
+
+    method_labels = {
+        Payment.Method.CASH: _('Наличные'),
+        Payment.Method.CARD: _('Карта'),
+    }
+    kind_labels = {
+        Payment.Kind.DEPOSIT: _('Залог'),
+        Payment.Kind.ADVANCE: _('Аванс'),
+        Payment.Kind.RENT: _('Аренда'),
+        Payment.Kind.FINE: _('Штраф'),
+        Payment.Kind.REFUND: _('Возврат залога'),
+    }
+
+    return render(request, 'config/reports/payment_methods.html', {
+        'date_from': date_from,
+        'date_to': date_to,
+        'methods': methods_order,
+        'kinds': kinds_order,
+        'matrix': matrix,
+        'by_method': by_method,
+        'by_kind': by_kind,
+        'grand_total': grand_total,
+        'method_labels': method_labels,
+        'kind_labels': kind_labels,
+    })
+
+
 # ---------- reports: top products ----------
 
 @role_required('admin')
@@ -363,7 +444,7 @@ def _debtors_rows():
     for r in rentals:
         summary = billing.compute_rental_billing(r)
         outstanding_qty = sum(it.outstanding_qty for it in r.items.all())
-        days_overdue = max(0, (today - r.due_date).days)
+        days_overdue = max(0, (today - r.due_date.date()).days)
         bucket = by_cust.setdefault(r.customer_id, {
             'customer': r.customer,
             'rentals': 0,
@@ -747,12 +828,12 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
         elif status == 'overdue':
             qs = qs.filter(
                 status=Rental.Status.ACTIVE,
-                due_date__lt=today,
+                due_date__lt=timezone.now(),
                 outstanding_total__gt=0,
             )
         elif status == Rental.Status.ACTIVE:
             qs = qs.filter(status=Rental.Status.ACTIVE).filter(
-                Q(due_date__gte=today) | Q(outstanding_total=0)
+                Q(due_date__gte=timezone.now()) | Q(outstanding_total=0)
             )
 
         date_from = self.request.GET.get('date_from', '').strip()
@@ -777,6 +858,7 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['today'] = timezone.localdate()
+        ctx['now'] = timezone.now()
         ctx['filters'] = {
             'status': self.request.GET.get('status', ''),
             'date_from': self.request.GET.get('date_from', ''),
@@ -809,6 +891,7 @@ def _rental_card_context(rental):
         'summary': summary,
         'has_outstanding': has_outstanding,
         'today': timezone.localdate(),
+        'now': timezone.now(),
     }
 
 
@@ -834,21 +917,54 @@ class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
         return ctx
 
 
+def _return_modal_context(rental, outstanding_items, *, inputs, errors, note):
+    """Контекст для модалки возврата.
+
+    Для каждой позиции считаем:
+      * unit_days  — накопленные unit-days (qty × дни, FIFO) до сих пор;
+      * days_avg   — округлённые «дни на единицу» (unit_days / outstanding) —
+                     удобно показывать оператору «за сколько дней оплачено»;
+      * billed     — Σ к оплате за эту позицию за период (unit_days × price/day).
+    Всё это даёт оператору цельную картину «сколько он вернёт и за какой
+    период», как просил пользователь.
+    """
+    rows = []
+    total_billed = Decimal('0.00')
+    for it in outstanding_items:
+        unit_days = billing.compute_item_unit_days(it)
+        billed = (Decimal(unit_days) * it.price_per_day).quantize(Decimal('0.01'))
+        out = it.outstanding_qty
+        days_avg = (unit_days // out) if out > 0 else 0
+        rows.append({
+            'item': it,
+            'outstanding': out,
+            'value': (inputs or {}).get(it.pk, ''),
+            'unit_days': unit_days,
+            'days_avg': days_avg,
+            'billed': billed,
+            'price_per_day': it.price_per_day,
+        })
+        total_billed += billed
+    return {
+        'rental': rental,
+        'rows': rows,
+        'errors': errors,
+        'note': note,
+        'total_billed': total_billed.quantize(Decimal('0.01')),
+        'period_from': rental.created_at,
+        'period_to': timezone.now(),
+    }
+
+
 class RentalReturnView(StaffOrAdminRequiredMixin, View):
     def get(self, request, pk):
         rental = get_object_or_404(Rental, pk=pk)
         if rental.status == Rental.Status.CLOSED:
             return HttpResponse(status=204)
         outstanding = list(rental.outstanding_items().select_related('product'))
-        return render(request, 'config/rentals/_return_modal.html', {
-            'rental': rental,
-            'rows': [
-                {'item': it, 'outstanding': it.outstanding_qty, 'value': ''}
-                for it in outstanding
-            ],
-            'errors': [],
-            'note': '',
-        })
+        return render(request, 'config/rentals/_return_modal.html',
+                      _return_modal_context(rental, outstanding,
+                                            inputs=None, errors=[], note=''))
 
     def post(self, request, pk):
         rental = get_object_or_404(Rental, pk=pk)
@@ -900,19 +1016,10 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
             errors.append(_('Укажите количество хотя бы по одной позиции.'))
 
         if errors:
-            return render(request, 'config/rentals/_return_modal.html', {
-                'rental': rental,
-                'rows': [
-                    {
-                        'item': it,
-                        'outstanding': it.outstanding_qty,
-                        'value': inputs.get(it.pk, ''),
-                    }
-                    for it in outstanding_items
-                ],
-                'errors': errors,
-                'note': note,
-            })
+            return render(request, 'config/rentals/_return_modal.html',
+                          _return_modal_context(rental, outstanding_items,
+                                                inputs=inputs, errors=errors,
+                                                note=note))
 
         with transaction.atomic():
             for it, qty in plan:
@@ -1050,6 +1157,7 @@ def rental_contract_pdf(request, pk):
     A4 / A5 / A6 соответственно.
     """
     from .contract_pdf import (
+        ContractDependencyMissing,
         ContractFontMissing,
         build_contract_pdf,
         normalize_size,
@@ -1064,7 +1172,7 @@ def rental_contract_pdf(request, pk):
     size = normalize_size(request.GET.get('size'))
     try:
         pdf_bytes = build_contract_pdf(rental, size=size)
-    except ContractFontMissing as e:
+    except (ContractFontMissing, ContractDependencyMissing) as e:
         messages.error(request, str(e))
         return HttpResponseRedirect(reverse('rental_detail', args=[rental.pk]))
 
@@ -1292,12 +1400,65 @@ class ProductInfoView(View):
                       {'product': product})
 
 
+# ---------- product picker (typeahead для позиций аренды) ----------
+
+
+def _safe_row_id(raw):
+    """Защита от XSS/injection: row_id используется в HTML id и hx-target,
+    поэтому пропускаем только короткие hex-токены, как их выдаёт uuid4."""
+    import re
+    raw = (raw or '').strip()
+    if re.fullmatch(r'[a-fA-F0-9]{4,16}', raw):
+        return raw
+    return ''
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ItemProductSearchView(View):
+    def get(self, request):
+        q = (request.GET.get('item_product_q') or '').strip()
+        row_id = _safe_row_id(request.GET.get('row_id'))
+        if len(q) < 2:
+            return render(request,
+                          'config/rentals/_item_product_results.html',
+                          {'products': [], 'q': q, 'too_short': True,
+                           'row_id': row_id})
+        products = (
+            Product.objects
+            .filter(is_active=True)
+            .filter(Q(name__icontains=q))
+            .order_by('name')[:10]
+        )
+        return render(request,
+                      'config/rentals/_item_product_results.html',
+                      {'products': products, 'q': q, 'too_short': False,
+                       'row_id': row_id})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ItemProductPickView(View):
+    def get(self, request, pk):
+        product = get_object_or_404(Product, pk=pk, is_active=True)
+        row_id = _safe_row_id(request.GET.get('row_id'))
+        return render(request,
+                      'config/rentals/_item_product_picked.html',
+                      {'product': product, 'row_id': row_id})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
+class ItemProductClearView(View):
+    def get(self, request):
+        row_id = _safe_row_id(request.GET.get('row_id'))
+        return render(request,
+                      'config/rentals/_item_product_search.html',
+                      {'row_id': row_id})
+
+
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
 class ItemRowNewView(View):
     def get(self, request):
         return render(request, 'config/rentals/_item_row.html', {
             'row': {'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''},
-            'products': Product.objects.filter(is_active=True).order_by('name'),
         })
 
 
@@ -1551,3 +1712,212 @@ class RentalItemRemoveView(AdminRequiredMixin, View):
             request, _('Позиция «%(name)s» удалена.') % {'name': name},
         )
         return _oob_response(request, _reload_rental(rental.pk))
+
+
+# ---------- product suspicions (превышение нормы проката) ----------
+
+
+def _collect_product_suspicions(*, only_over=False):
+    """Собрать список позиций, превышающих свою норму (warn/over).
+
+    Возвращает list-of-dicts уже отсортированный: сначала ``over``,
+    внутри — по убыванию превышения. Используется и страницей-листингом,
+    и контекст-процессором (для счётчика в сайдбаре, там нужен только
+    `len`).
+    """
+    items = (
+        RentalItem.objects
+        .filter(
+            rental__status__in=[Rental.Status.ACTIVE, Rental.Status.OVERDUE],
+            product__expected_max_days__isnull=False,
+        )
+        .select_related('product', 'rental', 'rental__customer')
+        .prefetch_related('movements')
+    )
+    rows = []
+    for it in items:
+        status = it.expected_status()
+        if only_over and status != 'over':
+            continue
+        if not only_over and status not in ('warn', 'over'):
+            continue
+        if it.outstanding_qty <= 0:
+            continue
+        rows.append({
+            'item': it,
+            'status': status,
+            'days_elapsed': it.days_since_first_issue,
+            'max_days': it.product.expected_max_days,
+            'over_by': max(0, it.days_since_first_issue - it.product.expected_max_days),
+        })
+    rows.sort(
+        key=lambda r: (0 if r['status'] == 'over' else 1, -r['over_by']),
+    )
+    return rows
+
+
+@role_required('staff', 'admin')
+def product_suspicions(request):
+    """Отдельная страница «Подозрения по нормам товаров».
+
+    Доступна из сайдбара. По умолчанию показывает и warn (на грани),
+    и over (превышение). ``?only=over`` оставляет только просрочки.
+    """
+    only_over = (request.GET.get('only') or '').strip() == 'over'
+    rows = _collect_product_suspicions(only_over=only_over)
+    warn_count = sum(1 for r in rows if r['status'] == 'warn')
+    over_count = sum(1 for r in rows if r['status'] == 'over')
+    return render(request, 'config/suspicions/list.html', {
+        'rows': rows,
+        'only_over': only_over,
+        'warn_count': warn_count,
+        'over_count': over_count,
+        'total': len(rows),
+    })
+
+
+# ---------- attendance ----------
+
+
+def _parse_attendance_date(request):
+    """Прочитать ?date=YYYY-MM-DD; по умолчанию — сегодня."""
+    raw = (request.GET.get('date') or '').strip()
+    try:
+        return datetime.strptime(raw, '%Y-%m-%d').date()
+    except ValueError:
+        return timezone.localdate()
+
+
+@role_required('staff', 'admin')
+def attendance_journal(request):
+    """Главная страница посещаемости: дата + таблица активных рабочих
+    с отметками +/−. Каждая строка интерактивна через htmx."""
+    date = _parse_attendance_date(request)
+    workers = list(Worker.objects.filter(is_active=True))
+    by_worker = {
+        a.worker_id: a for a in
+        Attendance.objects.filter(date=date, worker__in=workers)
+    }
+    rows = [{
+        'worker': w,
+        'attendance': by_worker.get(w.pk),
+    } for w in workers]
+
+    present = sum(1 for r in rows if r['attendance'] and r['attendance'].is_present)
+    absent = sum(1 for r in rows
+                 if r['attendance'] and not r['attendance'].is_present)
+    unmarked = len(rows) - present - absent
+
+    return render(request, 'config/attendance/journal.html', {
+        'date': date,
+        'date_iso': date.isoformat(),
+        'rows': rows,
+        'total': len(rows),
+        'present': present,
+        'absent': absent,
+        'unmarked': unmarked,
+        'prev_date': (date - timedelta(days=1)).isoformat(),
+        'next_date': (date + timedelta(days=1)).isoformat(),
+        'today_iso': timezone.localdate().isoformat(),
+    })
+
+
+@role_required('staff', 'admin')
+def attendance_toggle(request, worker_id):
+    """htmx POST: переключить отметку рабочего на дату ?date=YYYY-MM-DD.
+
+    Тело принимает ``status``: ``present`` | ``absent`` | ``clear``.
+    Возвращает HTML-фрагмент новой строки (одна `<tr>`).
+    """
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    date = _parse_attendance_date(request)
+    status = (request.POST.get('status') or '').strip()
+
+    if status == 'clear':
+        Attendance.objects.filter(worker=worker, date=date).delete()
+        attendance = None
+    elif status in ('present', 'absent'):
+        attendance, _created = Attendance.objects.update_or_create(
+            worker=worker, date=date,
+            defaults={
+                'is_present': (status == 'present'),
+                'marked_by': request.user,
+                'marked_at': timezone.now(),
+            },
+        )
+    else:
+        return HttpResponse(status=400)
+
+    return render(request, 'config/attendance/_row.html', {
+        'row': {'worker': worker, 'attendance': attendance},
+        'date_iso': date.isoformat(),
+    })
+
+
+# ---------- workers (CRUD, admin) ----------
+
+
+class WorkerListView(StaffOrAdminRequiredMixin, ListView):
+    model = Worker
+    template_name = 'config/workers/list.html'
+    context_object_name = 'workers'
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = Worker.objects.all()
+        q = (self.request.GET.get('q') or '').strip()
+        if q:
+            qs = qs.filter(
+                Q(full_name__icontains=q)
+                | Q(position__icontains=q)
+                | Q(phone__icontains=q)
+            )
+        status = (self.request.GET.get('status') or '').strip()
+        if status == 'active':
+            qs = qs.filter(is_active=True)
+        elif status == 'archived':
+            qs = qs.filter(is_active=False)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['filters'] = {
+            'q': self.request.GET.get('q', ''),
+            'status': self.request.GET.get('status', ''),
+        }
+        return ctx
+
+
+class WorkerCreateView(AdminRequiredMixin, CreateView):
+    model = Worker
+    form_class = WorkerForm
+    template_name = 'config/workers/form.html'
+    success_url = reverse_lazy('worker_list')
+
+    def form_valid(self, form):
+        messages.success(
+            self.request,
+            _('Рабочий «%(n)s» добавлен.') % {'n': form.instance.full_name},
+        )
+        return super().form_valid(form)
+
+
+class WorkerUpdateView(AdminRequiredMixin, UpdateView):
+    model = Worker
+    form_class = WorkerForm
+    template_name = 'config/workers/form.html'
+    success_url = reverse_lazy('worker_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, _('Изменения сохранены.'))
+        return super().form_valid(form)
+
+
+class WorkerToggleActiveView(AdminRequiredMixin, View):
+    def post(self, request, pk):
+        w = get_object_or_404(Worker, pk=pk)
+        w.is_active = not w.is_active
+        w.save(update_fields=['is_active'])
+        return HttpResponseRedirect(reverse('worker_list'))

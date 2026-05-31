@@ -5,7 +5,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from core.models import Customer, Movement, Rental, RentalItem
+from config.models import Customer, Movement, Rental, RentalItem
 
 
 # Endpoints accessible to both staff and admin (login required only)
@@ -66,7 +66,7 @@ def test_staff_cannot_close_rental_early(
     # build a rental with outstanding qty (issue done)
     rental = Rental.objects.create(
         customer=customer,
-        due_date=timezone.localdate() + timedelta(days=5),
+        due_date=timezone.now() + timedelta(days=5),
         created_by=admin_user,
     )
     item = RentalItem.objects.create(

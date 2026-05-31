@@ -24,8 +24,29 @@
         </thead>
         <tbody>
             {% for it in items %}
-                <tr>
-                    <td>{{ it.product.name }}</td>
+                {% with status=it.expected_status %}
+                <tr {% if status == 'over' %}class="table-danger"{% elif status == 'warn' %}class="table-warning"{% endif %}>
+                    <td>
+                        {{ it.product.name }}
+                        {% if it.product.expected_max_days %}
+                            {% if status == 'over' %}
+                                <span class="badge bg-danger ms-1"
+                                      title="{% blocktrans with n=it.days_since_first_issue m=it.product.expected_max_days %}На руках {{ n }} дн., норма {{ m }} дн. — просрочка{% endblocktrans %}">
+                                    <i class="bi bi-exclamation-octagon-fill me-1"></i>{{ it.days_since_first_issue }}/{{ it.product.expected_max_days }} {% trans "дн." %}
+                                </span>
+                            {% elif status == 'warn' %}
+                                <span class="badge bg-warning text-dark ms-1"
+                                      title="{% trans 'Последний нормальный день — после станет просрочкой' %}">
+                                    <i class="bi bi-hourglass-split me-1"></i>{{ it.days_since_first_issue }}/{{ it.product.expected_max_days }} {% trans "дн." %}
+                                </span>
+                            {% elif status == 'ok' and it.days_since_first_issue is not None and it.outstanding_qty > 0 %}
+                                <span class="badge bg-light text-muted border ms-1"
+                                      title="{% trans 'Срок проката в норме' %}">
+                                    {{ it.days_since_first_issue }}/{{ it.product.expected_max_days }} {% trans "дн." %}
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td class="text-end">{{ it.price_per_day }}</td>
                     <td class="text-end">{{ it.issued_qty }}</td>
@@ -55,6 +76,7 @@
                         </td>
                     {% endif %}
                 </tr>
+                {% endwith %}
             {% endfor %}
         </tbody>
     </table>

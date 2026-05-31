@@ -1,0 +1,46 @@
+{% load i18n %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <form class="modal-content"
+              hx-post="{% url 'rental_item_edit' rental.pk item.pk %}"
+              hx-target="#modal-slot"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    {% blocktrans with name=item.product.name %}Изменить количество · {{ name }}{% endblocktrans %}
+                </h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML"></button>
+            </div>
+            <div class="modal-body">
+                {% if errors %}
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                <p class="text-muted small mb-2">
+                    {% blocktrans with i=item.issued_qty r=item.returned_qty %}Выдано {{ i }}, возвращено {{ r }}. Заказанное количество нельзя сделать меньше выданного.{% endblocktrans %}
+                </p>
+                <label class="form-label">{% trans "Количество (заказано)" %}</label>
+                <input type="number" name="qty" min="1" step="1"
+                       class="form-control" value="{{ item.qty }}">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML">
+                    {% trans "Отмена" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    {% trans "Сохранить" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

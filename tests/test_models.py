@@ -5,13 +5,13 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 
-from core.models import Movement, Rental, RentalItem
+from config.models import Movement, Rental, RentalItem
 
 
 def _make_rental(customer, user, due_in_days=7, status=Rental.Status.ACTIVE):
     return Rental.objects.create(
         customer=customer,
-        due_date=timezone.localdate() + timedelta(days=due_in_days),
+        due_date=timezone.now() + timedelta(days=due_in_days),
         status=status,
         created_by=user,
     )
@@ -96,14 +96,19 @@ def test_is_overdue_true_when_past_due_with_outstanding(admin_user, customer, pr
     assert rental.is_overdue is True
 
 
-def test_is_overdue_false_when_due_today(admin_user, customer, product):
-    rental = _make_rental(customer, admin_user, due_in_days=0)
+def test_is_overdue_false_when_due_in_future(admin_user, customer, product):
+    """due_date теперь datetime — пока время возврата ещё не наступило,
+    аренда не считается просроченной."""
+    rental = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(minutes=30),
+        created_by=admin_user,
+    )
     item = RentalItem.objects.create(
         rental=rental, product=product, qty=5,
         price_per_day=product.daily_price,
     )
     _issue(item, 5, admin_user)
-    # due_date == today: not yet overdue per Rental.is_overdue (uses <)
     assert rental.is_overdue is False
 
 
@@ -131,7 +136,7 @@ def test_is_overdue_false_when_closed(admin_user, customer, product):
 
 
 def test_outstanding_items_lists_only_unsettled(admin_user, customer, product, category):
-    from core.models import Product
+    from config.models import Product
     p2 = Product.objects.create(
         name='Other', category=category, unit='шт', stock_total=50,
         daily_price=Decimal('50.00'), deposit_per_unit=Decimal('0'),
@@ -166,7 +171,7 @@ def test_maybe_auto_close_triggers_when_all_returned(admin_user, customer, produ
 
 
 def test_customer_code_auto_assigned_on_create(db):
-    from core.models import Customer
+    from config.models import Customer
     c = Customer.objects.create(full_name='Без кода')
     c.refresh_from_db()
     assert c.code is not None
@@ -174,7 +179,7 @@ def test_customer_code_auto_assigned_on_create(db):
 
 
 def test_customer_code_manual_override_kept(db):
-    from core.models import Customer
+    from config.models import Customer
     c = Customer.objects.create(full_name='Свой код', code='VIP-001')
     c.refresh_from_db()
     assert c.code == 'VIP-001'
@@ -182,7 +187,7 @@ def test_customer_code_manual_override_kept(db):
 
 def test_customer_code_unique(db):
     from django.db import IntegrityError
-    from core.models import Customer
+    from config.models import Customer
     Customer.objects.create(full_name='A', code='SAME')
     with pytest.raises(IntegrityError):
         Customer.objects.create(full_name='B', code='SAME')

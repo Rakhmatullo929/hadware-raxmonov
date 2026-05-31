@@ -1,0 +1,62 @@
+{% load i18n %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <form class="modal-content"
+              hx-post="{% url 'rental_item_add' rental.pk %}"
+              hx-target="#modal-slot"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    {% blocktrans with rid=rental.id %}Добавить позицию · Аренда #{{ rid }}{% endblocktrans %}
+                </h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML"></button>
+            </div>
+            <div class="modal-body">
+                {% if errors %}
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                {% if rental.status == 'closed' %}
+                    <div class="alert alert-warning small">
+                        {% trans "Аренда закрыта — после добавления позиции она снова станет активной." %}
+                    </div>
+                {% endif %}
+                <div class="mb-3">
+                    <label class="form-label">{% trans "Товар" %}</label>
+                    <select name="product" class="form-select">
+                        <option value="">{% trans "— Выберите товар —" %}</option>
+                        {% for p in products %}
+                            <option value="{{ p.pk }}">
+                                {{ p.name }} ({{ p.unit }}) ·
+                                {% trans "доступно" %} {{ p.available_stock }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">{% trans "Количество" %}</label>
+                    <input type="number" name="qty" min="1" step="1"
+                           class="form-control" placeholder="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML">
+                    {% trans "Отмена" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    {% trans "Добавить и выдать" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

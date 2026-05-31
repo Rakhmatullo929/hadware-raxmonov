@@ -1,0 +1,54 @@
+{% load i18n %}
+{% with a=row.attendance w=row.worker %}
+<tr id="att-row-{{ w.pk }}" class="att-row{% if a and a.is_present %} att-row-present{% elif a and not a.is_present %} att-row-absent{% endif %}">
+    <td class="fw-semibold">
+        {{ w.full_name }}
+        {% if w.position %}
+            <div class="text-muted small">{{ w.position }}</div>
+        {% endif %}
+    </td>
+    <td class="text-muted small">{{ w.phone|default:"—" }}</td>
+    <td class="text-end">
+        {% if a %}
+            {% if a.is_present %}
+                <span class="badge bg-success">+ {% trans "Присутствовал" %}</span>
+            {% else %}
+                <span class="badge bg-danger">− {% trans "Отсутствовал" %}</span>
+            {% endif %}
+            <div class="text-muted small mt-1">
+                {{ a.marked_at|date:"d.m.Y H:i" }}
+                {% if a.marked_by %} · {{ a.marked_by.username }}{% endif %}
+            </div>
+        {% else %}
+            <span class="badge bg-light text-dark border">— {% trans "Не отмечен" %}</span>
+        {% endif %}
+    </td>
+    <td class="text-end" style="width: 14rem;">
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button"
+                    class="btn btn-success{% if not a or not a.is_present %} btn-outline-success{% endif %}"
+                    hx-post="{% url 'attendance_toggle' w.pk %}?date={{ date_iso }}"
+                    hx-vals='{"status":"present"}'
+                    hx-target="#att-row-{{ w.pk }}"
+                    hx-swap="outerHTML"
+                    title="{% trans 'Отметить присутствие' %}">+</button>
+            <button type="button"
+                    class="btn btn-danger{% if not a or a.is_present %} btn-outline-danger{% endif %}"
+                    hx-post="{% url 'attendance_toggle' w.pk %}?date={{ date_iso }}"
+                    hx-vals='{"status":"absent"}'
+                    hx-target="#att-row-{{ w.pk }}"
+                    hx-swap="outerHTML"
+                    title="{% trans 'Отметить отсутствие' %}">−</button>
+            {% if a %}
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        hx-post="{% url 'attendance_toggle' w.pk %}?date={{ date_iso }}"
+                        hx-vals='{"status":"clear"}'
+                        hx-target="#att-row-{{ w.pk }}"
+                        hx-swap="outerHTML"
+                        title="{% trans 'Сбросить отметку' %}">×</button>
+            {% endif %}
+        </div>
+    </td>
+</tr>
+{% endwith %}

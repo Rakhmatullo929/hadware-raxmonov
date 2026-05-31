@@ -1,0 +1,21 @@
+{% load i18n l10n %}
+<div class="item-picker" id="picker-{{ row_id }}">
+    <div class="form-control bg-light d-flex justify-content-between align-items-center">
+        <div>
+            <strong>{{ product.name }}</strong>
+            <span class="text-muted small ms-2">
+                · {{ product.daily_price }}/{% trans "сут." %}
+                · {% trans "доступно" %} {{ product.available_stock }} {{ product.unit }}
+            </span>
+        </div>
+        <button type="button" class="btn btn-sm btn-link p-0"
+                hx-get="{% url 'rental_item_product_clear' %}?row_id={{ row_id }}"
+                hx-target="#picker-{{ row_id }}"
+                hx-swap="outerHTML">
+            {% trans "сменить" %}
+        </button>
+    </div>
+    <input type="hidden" name="item_product"
+           value="{{ product.pk }}"
+           data-price="{{ product.daily_price|unlocalize }}">
+</div>

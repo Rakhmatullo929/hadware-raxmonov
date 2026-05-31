@@ -25,12 +25,22 @@
                 {% endif %}
 
                 {% if rows %}
+                    <div class="alert alert-info py-2 mb-3 small">
+                        <i class="bi bi-clock-history me-1"></i>
+                        {% blocktrans with d1=period_from|date:"d.m.Y H:i" d2=period_to|date:"d.m.Y H:i" %}
+                            Период: <strong>{{ d1 }}</strong> — <strong>{{ d2 }}</strong>
+                        {% endblocktrans %}
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table table-sm align-middle">
                             <thead>
                                 <tr>
                                     <th>{% trans "Товар" %}</th>
                                     <th class="text-end">{% trans "К возврату" %}</th>
+                                    <th class="text-end">{% trans "Дн." %}</th>
+                                    <th class="text-end">{% trans "Цена/сут." %}</th>
+                                    <th class="text-end">{% trans "Σ за период" %}</th>
                                     <th class="text-end" style="width: 9rem;">{% trans "Возвращаю" %}</th>
                                 </tr>
                             </thead>
@@ -39,6 +49,9 @@
                                     <tr>
                                         <td>{{ row.item.product.name }}</td>
                                         <td class="text-end">{{ row.outstanding }} {{ row.item.product.unit }}</td>
+                                        <td class="text-end">{{ row.days_avg }}</td>
+                                        <td class="text-end font-monospace">{{ row.price_per_day }}</td>
+                                        <td class="text-end fw-semibold font-monospace">{{ row.billed }}</td>
                                         <td>
                                             <input type="number"
                                                    class="form-control form-control-sm text-end"
@@ -51,6 +64,15 @@
                                     </tr>
                                 {% endfor %}
                             </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <th colspan="4" class="text-end">{% trans "Итого за период (накоплено)" %}</th>
+                                    <th class="text-end text-primary fw-bold font-monospace">
+                                        {{ total_billed }} {% trans "сум" %}
+                                    </th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 

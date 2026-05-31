@@ -1,0 +1,47 @@
+{% load i18n %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <form class="modal-content"
+              hx-post="{% url 'rental_edit' rental.pk %}"
+              hx-target="#modal-slot"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    {% blocktrans with rid=rental.id %}Изменить аренду #{{ rid }}{% endblocktrans %}
+                </h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML"></button>
+            </div>
+            <div class="modal-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                {% endif %}
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% for err in field.errors %}
+                            <div class="invalid-feedback d-block">{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        hx-get="{% url 'rental_modal_close' %}"
+                        hx-target="#modal-slot" hx-swap="innerHTML">
+                    {% trans "Отмена" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    {% trans "Сохранить" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

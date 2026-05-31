@@ -1,6 +1,8 @@
 {% load i18n %}
-{# Empty top-level body (modal-slot becomes empty → modal closes).
-   Each OOB block replaces its matching wrapper on the detail page. #}
+{% comment %}
+  Empty top-level body (modal-slot becomes empty → modal closes).
+  Each OOB block replaces its matching wrapper on the detail page.
+{% endcomment %}
 <div id="rental-summary" hx-swap-oob="outerHTML">
     {% include 'config/rentals/_summary.html' %}
 </div>

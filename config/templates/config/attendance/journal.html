@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Посещаемость" %} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Посещаемость рабочих" %}</h1>
+    {% if is_admin %}
+        <a href="{% url 'worker_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-people me-1"></i>{% trans "Список рабочих" %}
+        </a>
+    {% endif %}
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <a href="?date={{ prev_date }}" class="btn btn-outline-secondary btn-sm" title="{% trans 'Предыдущий день' %}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Дата" %}</label>
+            <input type="date" name="date" value="{{ date_iso }}" class="form-control form-control-sm"
+                   onchange="this.form.submit()">
+        </div>
+        <div class="col-auto">
+            <a href="?date={{ next_date }}" class="btn btn-outline-secondary btn-sm" title="{% trans 'Следующий день' %}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </div>
+        <div class="col-auto">
+            <a href="?date={{ today_iso }}" class="btn btn-link btn-sm">{% trans "Сегодня" %}</a>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Всего рабочих" %}</div>
+            <div class="h4 mb-0">{{ total }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 border-success">
+            <div class="small text-muted"><i class="bi bi-check-lg text-success"></i> {% trans "Присутствуют" %}</div>
+            <div class="h4 mb-0 text-success">{{ present }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 border-danger">
+            <div class="small text-muted"><i class="bi bi-x-lg text-danger"></i> {% trans "Отсутствуют" %}</div>
+            <div class="h4 mb-0 text-danger">{{ absent }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Не отмечены" %}</div>
+            <div class="h4 mb-0 text-muted">{{ unmarked }}</div>
+        </div>
+    </div>
+</div>
+
+{% if rows %}
+    <div class="table-responsive">
+        <table class="table align-middle attendance-table">
+            <thead class="table-light">
+                <tr>
+                    <th>{% trans "Рабочий" %}</th>
+                    <th>{% trans "Телефон" %}</th>
+                    <th class="text-end">{% trans "Статус" %}</th>
+                    <th class="text-end">{% trans "Отметить" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    {% include 'config/attendance/_row.html' with row=row date_iso=date_iso %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="alert alert-light border">
+        {% trans "В системе нет активных рабочих." %}
+        {% if is_admin %}
+            <a href="{% url 'worker_create' %}" class="ms-2">{% trans "Добавить →" %}</a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<style>
+    .att-row-present td { background-color: rgba(25, 135, 84, 0.06); }
+    .att-row-absent td  { background-color: rgba(220, 53, 69, 0.06); }
+</style>
+{% endblock %}
