@@ -26,6 +26,7 @@
             z-index: 0;
             pointer-events: none;
         }
+        {% comment %}--half и --quarter уменьшают размер; --full берёт базовое правило выше.{% endcomment %}
         .print-watermark--half,
         .print-watermark--quarter { width: 45%; max-width: 9cm; }
         .sig-line { border-top: 1px solid #000; margin-top: 2rem;

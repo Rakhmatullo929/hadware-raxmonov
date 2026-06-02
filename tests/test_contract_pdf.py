@@ -162,14 +162,15 @@ def test_draw_watermark_keeps_single_page_and_restores_state():
     pdf.add_page()
     pdf.set_xy(25, 40)
     x0, y0 = pdf.get_x(), pdf.get_y()
-    draw0, lw0 = pdf.draw_color, pdf.line_width
+    draw0, text0, lw0 = pdf.draw_color, pdf.text_color, pdf.line_width
 
     draw_watermark(pdf)
 
     assert pdf.page_no() == 1                      # страниц не прибавилось
     assert round(pdf.get_x(), 2) == round(x0, 2)   # курсор X восстановлен
     assert round(pdf.get_y(), 2) == round(y0, 2)   # курсор Y восстановлен
-    assert pdf.draw_color == draw0                 # серый не «протёк» в контент
+    assert pdf.draw_color == draw0                 # серый не «протёк» в контур
+    assert pdf.text_color == text0                 # серый не «протёк» в текст
     assert round(pdf.line_width, 4) == round(lw0, 4)
 
 
