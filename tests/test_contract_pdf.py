@@ -1,8 +1,10 @@
 """Тесты PDF-договора (fpdf2, без системных зависимостей)."""
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
+from django.conf import settings
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -129,3 +131,12 @@ def test_pdf_handles_rental_without_note(client_staff, customer, product, staff_
     resp = client_staff.get(reverse('rental_contract_pdf', args=[r.pk]))
     assert resp.status_code == 200
     assert resp.content[:5] == b'%PDF-'
+
+
+def test_logo_svg_asset_exists():
+    """Монохромный знак-логотип для водяного знака должен быть в static/img/."""
+    p = Path(settings.BASE_DIR) / 'static' / 'img' / 'logo.svg'
+    assert p.is_file(), 'static/img/logo.svg отсутствует'
+    content = p.read_text(encoding='utf-8')
+    assert '<svg' in content
+    assert 'R</text>' in content  # буква-марка присутствует
