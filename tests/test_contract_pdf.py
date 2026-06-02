@@ -140,3 +140,12 @@ def test_logo_svg_asset_exists():
     content = p.read_text(encoding='utf-8')
     assert '<svg' in content
     assert 'R</text>' in content  # буква-марка присутствует
+
+
+def test_contract_html_has_background_watermark(client_staff, rental):
+    """HTML-страница печати договора содержит фоновый знак и ссылку на лого."""
+    url = reverse('rental_contract', args=[rental.pk])
+    r = client_staff.get(url)
+    assert r.status_code == 200
+    assert b'print-watermark' in r.content
+    assert b'img/logo.svg' in r.content

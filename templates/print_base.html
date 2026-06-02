@@ -1,4 +1,4 @@
-{% load i18n %}<!doctype html>
+{% load i18n static %}<!doctype html>
 <html lang="ru">
 <head>
     <meta charset="utf-8">
@@ -9,7 +9,25 @@
         body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
         .print-toolbar { background: #f8f9fa; border-bottom: 1px solid #dee2e6;
                           padding: .5rem 1rem; position: sticky; top: 0; z-index: 10; }
-        .print-page { margin: 1rem auto; padding: 1.5cm 2cm; background: white; }
+        .print-page { margin: 1rem auto; padding: 1.5cm 2cm; background: white;
+                       position: relative; z-index: 1; }
+        {% comment %}
+        Бледный диагональный водяной знак-лого на заднем фоне печати.
+        Именно <img> (а не background-image): браузеры не печатают CSS-фон
+        без включённой «Фоновой графики», а передний <img> печатается всегда.
+        {% endcomment %}
+        .print-watermark {
+            position: fixed;
+            top: 50%; left: 50%;
+            width: 60%; max-width: 16cm;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            opacity: .08;
+            filter: grayscale(1);
+            z-index: 0;
+            pointer-events: none;
+        }
+        .print-watermark--half,
+        .print-watermark--quarter { width: 45%; max-width: 9cm; }
         .sig-line { border-top: 1px solid #000; margin-top: 2rem;
                      padding-top: .25rem; }
         .contract-h1 { font-size: 1.6rem; font-weight: 600; }
@@ -54,6 +72,9 @@
         {% endif %}
     </div>
 </div>
+
+<img class="print-watermark print-watermark--{{ size }}"
+     src="{% static 'img/logo.svg' %}" alt="" aria-hidden="true">
 
 <div class="print-page shadow-sm {% block page_class %}{% endblock %}">
     {% block content %}{% endblock %}
