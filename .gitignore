@@ -39,3 +39,6 @@ htmlcov/
 
 # Backups
 backups/
+
+# Generated nginx active config
+deploy/nginx/conf.d/default.conf

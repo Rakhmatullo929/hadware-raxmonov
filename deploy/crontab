@@ -1,0 +1,5 @@
+# rental_track scheduled tasks (supercronic; 5-field cron). Jobs inherit container env.
+# mark_overdue: keep Rental.status in sync (idempotent; dashboard also computes on the fly)
+0 * * * * cd /app && python manage.py mark_overdue
+# notify_debtors: Telegram reminders; internally gated by TELEGRAM_REMINDER_HOUR; no-op without a token
+5 * * * * cd /app && python manage.py notify_debtors

@@ -5,3 +5,4 @@ fpdf2>=2.8
 pytest-django>=4.8
 coverage>=7.4
 gunicorn>=21.2
+psycopg[binary]>=3.1

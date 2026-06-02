@@ -22,6 +22,26 @@ ALLOWED_HOSTS = [
 ]
 
 
+# --- Production hardening (active only when DEBUG is off) ---
+if not DEBUG:
+    # nginx terminates TLS and forwards X-Forwarded-Proto.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    X_FRAME_OPTIONS = 'DENY'
+    # nginx already redirects 80->443; SECURE_SSL_REDIRECT is intentionally
+    # left off to avoid a redirect loop behind the proxy.
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.getenv(
+            'DJANGO_CSRF_TRUSTED_ORIGINS', 'https://rakhmonov-arenda.uz'
+        ).split(',')
+        if o.strip()
+    ]
+
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -70,12 +90,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'rental_track.wsgi.application'
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# PostgreSQL in production (POSTGRES_DB set via env); SQLite for local dev.
+if os.getenv('POSTGRES_DB'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('POSTGRES_DB'),
+            'USER': os.getenv('POSTGRES_USER', 'rental'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', ''),
+            'HOST': os.getenv('POSTGRES_HOST', 'db'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', '60')),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [
