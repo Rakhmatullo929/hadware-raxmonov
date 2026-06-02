@@ -150,6 +150,53 @@ def _money(value) -> str:
     return ('-' if neg else '') + ' '.join(groups) + '.' + frac
 
 
+# Основные «ручки» подстройки заметности водяного знака:
+#   _WATERMARK_GRAY          — серый тон (0 — чёрный … 255 — белый); чем выше, тем бледнее;
+#   _WATERMARK_RADIUS_FACTOR — радиус знака как доля от меньшей стороны листа.
+_WATERMARK_GRAY = 205
+_WATERMARK_RADIUS_FACTOR = 0.33
+
+
+def draw_watermark(pdf):
+    """Бледный диагональный водяной знак (окружность + «R») по центру
+    текущей страницы PDF.
+
+    Вызывается из ``header()`` — поэтому ложится ПОД контент. Цвет
+    светло-серый (``_WATERMARK_GRAY``), что даёт «малозаметность» без
+    альфа-канала.
+
+    Знак рисуется встроенным core-шрифтом Helvetica (ASCII «R» рендерится
+    без TTF), поэтому функция не зависит от загруженного шрифта договора и
+    тестируется на «голом» ``fpdf.FPDF``.
+
+    ``pdf.rotation(...)`` создаёт локальное графическое состояние, так что
+    цвет, толщина линии и шрифт восстанавливаются автоматически на выходе из
+    блока. Курсор ``rotation`` не трогает, а ``set_xy``/``cell`` внутри блока
+    его сдвигают — поэтому позицию курсора возвращаем явно.
+
+    Направление наклона согласовано с HTML-печатью (там ``rotate(-30deg)``);
+    в fpdf2 положительный угол вращает в обратную сторону, поэтому здесь −30.
+    """
+    g = _WATERMARK_GRAY
+    x0, y0 = pdf.get_x(), pdf.get_y()
+    cx, cy = pdf.w / 2, pdf.h / 2
+    r = min(pdf.w, pdf.h) * _WATERMARK_RADIUS_FACTOR
+
+    with pdf.rotation(-30, cx, cy):
+        pdf.set_draw_color(g, g, g)
+        pdf.set_line_width(max(0.6, r * 0.03))
+        pdf.ellipse(cx - r, cy - r, 2 * r, 2 * r, style='D')
+
+        pdf.set_text_color(g, g, g)
+        pdf.set_font('Helvetica', 'B', int(r * 2.0))
+        pdf.set_xy(cx - r, cy - r * 0.7)
+        pdf.cell(2 * r, r * 1.4, 'R', align='C')
+
+    # Цвет/линию/шрифт вернул сам rotation() (локальный graphics state);
+    # курсор он не трогает — возвращаем его явно.
+    pdf.set_xy(x0, y0)
+
+
 def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
     """Создать инстанс FPDF, сконфигурированный под выбранный layout.
 
@@ -174,6 +221,10 @@ def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
                 self.add_font('Body', 'B', font_regular)
             self.set_font('Body', size=layout['font_base'])
             self._layout = layout
+
+        def header(self):
+            # Водяной знак рисуется первым на каждой странице → под контентом.
+            draw_watermark(self)
 
         def footer(self):
             self.set_y(-12)

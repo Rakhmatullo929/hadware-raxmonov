@@ -149,3 +149,45 @@ def test_contract_html_has_background_watermark(client_staff, rental):
     assert r.status_code == 200
     assert b'print-watermark' in r.content
     assert b'img/logo.svg' in r.content
+
+
+def test_draw_watermark_keeps_single_page_and_restores_state():
+    """draw_watermark рисует знак, не добавляя страниц, не сдвигая курсор и
+    не оставляя «протёкшего» серого цвета/толщины линии в контенте."""
+    import fpdf
+
+    from config.contract_pdf import draw_watermark
+
+    pdf = fpdf.FPDF(format='A4')
+    pdf.add_page()
+    pdf.set_xy(25, 40)
+    x0, y0 = pdf.get_x(), pdf.get_y()
+    draw0, lw0 = pdf.draw_color, pdf.line_width
+
+    draw_watermark(pdf)
+
+    assert pdf.page_no() == 1                      # страниц не прибавилось
+    assert round(pdf.get_x(), 2) == round(x0, 2)   # курсор X восстановлен
+    assert round(pdf.get_y(), 2) == round(y0, 2)   # курсор Y восстановлен
+    assert pdf.draw_color == draw0                 # серый не «протёк» в контент
+    assert round(pdf.line_width, 4) == round(lw0, 4)
+
+
+def test_pdf_multipage_with_watermark_is_valid(
+    client_staff, customer, product, staff_user,
+):
+    """Многостраничный договор (много позиций) собирается валидно —
+    header() рисует водяной знак на каждой странице, не ломая вёрстку."""
+    r = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=staff_user,
+    )
+    for _ in range(60):
+        RentalItem.objects.create(
+            rental=r, product=product, qty=1,
+            price_per_day=product.daily_price,
+        )
+    pdf = build_contract_pdf(r, size='full')
+    assert pdf[:5] == b'%PDF-'
+    assert len(pdf) > 1000
