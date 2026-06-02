@@ -139,7 +139,7 @@ def test_logo_svg_asset_exists():
     assert p.is_file(), 'static/img/logo.svg отсутствует'
     content = p.read_text(encoding='utf-8')
     assert '<svg' in content
-    assert 'R</text>' in content  # буква-марка присутствует
+    assert 'Raxmonov</text>' in content  # слово-марка присутствует
 
 
 def test_contract_html_has_background_watermark(client_staff, rental):
