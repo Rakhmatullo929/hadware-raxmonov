@@ -116,7 +116,6 @@ class Customer(models.Model):
         unique=True,
         null=True,
         blank=True,
-        db_index=True,
         help_text=_(
             'Внутренний номер для прикрепления паспорта/документов. '
             'Если оставить пустым — присвоится автоматически.'

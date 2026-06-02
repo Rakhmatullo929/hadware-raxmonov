@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
             model_name='customer',
             name='code',
             field=models.CharField(
-                blank=True, db_index=True, max_length=16, null=True,
+                blank=True, max_length=16, null=True,
                 verbose_name='Код клиента',
             ),
         ),
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
             model_name='customer',
             name='code',
             field=models.CharField(
-                blank=True, db_index=True, max_length=16, null=True,
+                blank=True, max_length=16, null=True,
                 unique=True, verbose_name='Код клиента',
                 help_text='Внутренний номер для прикрепления '
                           'паспорта/документов. Если оставить пустым — '
