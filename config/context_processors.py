@@ -65,12 +65,11 @@ def navigation(request):
     elif name.startswith('product_suspicion'):
         section = 'suspicions'
 
+    from .decorators import user_is_admin
+
     user = getattr(request, 'user', None)
     is_authenticated = bool(user and user.is_authenticated)
-    is_admin = bool(
-        is_authenticated
-        and (user.is_superuser or user.groups.filter(name='admin').exists())
-    )
+    is_admin = user_is_admin(user)
     is_staff_or_admin = bool(
         is_authenticated
         and (user.is_superuser

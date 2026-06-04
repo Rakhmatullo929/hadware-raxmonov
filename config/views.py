@@ -34,7 +34,7 @@ from django.views.generic import (
 )
 
 from . import billing
-from .decorators import role_required
+from .decorators import role_required, user_is_admin
 from .forms import (
     CategoryForm,
     CustomerForm,
@@ -1044,10 +1044,7 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
             .get(pk=rental.pk)
         )
         ctx = _rental_card_context(rental)
-        ctx['is_admin'] = (
-            request.user.is_superuser
-            or request.user.groups.filter(name='admin').exists()
-        )
+        ctx['is_admin'] = user_is_admin(request.user)
         return render(request, 'config/rentals/_oob_refresh.html', ctx)
 
 
@@ -1486,10 +1483,7 @@ def _reload_rental(pk):
 
 def _oob_response(request, rental):
     ctx = _rental_card_context(rental)
-    ctx['is_admin'] = (
-        request.user.is_superuser
-        or request.user.groups.filter(name='admin').exists()
-    )
+    ctx['is_admin'] = user_is_admin(request.user)
     return render(request, 'config/rentals/_oob_refresh.html', ctx)
 
 
