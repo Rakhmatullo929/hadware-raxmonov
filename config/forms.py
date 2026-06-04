@@ -1,8 +1,58 @@
+import re
+from decimal import Decimal
+
 from django import forms
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from .models import Category, Customer, Payment, Product, Rental, Worker
+
+
+# Корректная группировка тысяч: «40 000», «1 234 567», «40 000.50».
+# \s покрывает обычный/неразрывный/тонкий пробелы. Группы — ровно по 3 цифры.
+_MONEY_GROUPED_RE = re.compile(r'^-?\d{1,3}(?:\s\d{3})+(?:[.,]\d+)?$')
+
+
+def _strip_money_spaces(raw):
+    """JS показывает «40 000», но юзер может отправить значение руками или
+    копипастом. Убираем пробелы-разделители тысяч ТОЛЬКО если группировка
+    корректная. Кривой ввод вроде «40 00 0 5» оставляем как есть — пусть
+    Decimal-валидация его отвергнет, а не молча склеит в «400005» (значение
+    другого порядка)."""
+    if not isinstance(raw, str):
+        return raw
+    s = raw.strip()
+    if not re.search(r'\s', s):
+        return s
+    if _MONEY_GROUPED_RE.match(s):
+        return re.sub(r'\s+', '', s)
+    return s
+
+
+class MoneyDecimalField(forms.DecimalField):
+    """DecimalField, который терпит пробелы-разделители в исходном значении.
+
+    Виджет (money-input) показывает «40 000» — JS снимает пробелы перед
+    submit'ом, но если он не отработал (старый браузер, копипаст в
+    devtools, отправка curl'ом), бэкенд тоже должен принять значение.
+    """
+    def to_python(self, value):
+        return super().to_python(_strip_money_spaces(value))
+
+
+def _money_widget(**extra):
+    """TextInput для денежных полей: единый набор атрибутов + класс
+    ``money-input`` (его ловит static/js/money-input.js). ``type=text``,
+    а не ``number`` — иначе браузер не даст вводить пробелы-разделители."""
+    attrs = {
+        'class': 'form-control money-input',
+        'inputmode': 'decimal',
+        'placeholder': '0',
+        'autocomplete': 'off',
+    }
+    attrs.update(extra)
+    return forms.TextInput(attrs=attrs)
+
 
 
 class BootstrapFormMixin:
@@ -98,13 +148,13 @@ class RentalCreateForm(BootstrapFormMixin, forms.ModelForm):
         widget=_datetime_local_widget(),
         input_formats=_DT_INPUT_FORMATS,
     )
-    initial_deposit = forms.DecimalField(
+    initial_deposit = MoneyDecimalField(
         label=_('Начальный платёж/залог (опционально)'),
         required=False,
         min_value=0,
         max_digits=12,
         decimal_places=2,
-        widget=forms.NumberInput(attrs={'step': '0.01', 'placeholder': '0.00'}),
+        widget=_money_widget(),
     )
 
     class Meta:
@@ -184,13 +234,17 @@ class RentalEditForm(BootstrapFormMixin, forms.ModelForm):
 class PaymentForm(BootstrapFormMixin, forms.ModelForm):
     """Платёж по существующей аренде (клиент внёс деньги / возврат залога)."""
 
+    amount = MoneyDecimalField(
+        label=_('Сумма'),
+        max_digits=12,
+        decimal_places=2,
+        widget=_money_widget(),
+    )
+
     class Meta:
         model = Payment
         fields = ['kind', 'method', 'amount', 'note']
         widgets = {
-            'amount': forms.NumberInput(attrs={
-                'step': '0.01', 'min': '0.01', 'placeholder': '0.00',
-            }),
             'note': forms.TextInput(attrs={
                 'placeholder': _('необязательно'),
             }),
