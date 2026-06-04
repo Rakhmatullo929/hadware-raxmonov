@@ -1,5 +1,5 @@
 {% load i18n %}
-<div id="customer-section">
+<div id="customer-section"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
     <label class="form-label">{% trans "Клиент" %}</label>
     <div class="form-control bg-light d-flex justify-content-between align-items-center">
         <div>

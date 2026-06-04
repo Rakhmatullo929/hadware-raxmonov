@@ -1,0 +1,10 @@
+{% load i18n %}
+{% comment %}
+  Ответ после успешного создания клиента: модалка получает пустой
+  innerHTML (закрывается), а основная форма страницы получает
+  customer-section в picked-state через hx-swap-oob.
+
+  oob=True ставит hx-swap-oob на собственный корневой <div id="customer-section">
+  партиала — без отдельной обёртки, иначе в DOM был бы дубль id (невалидно).
+{% endcomment %}
+{% include 'config/rentals/_customer_picked.html' with oob=True %}

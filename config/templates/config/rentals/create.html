@@ -102,6 +102,9 @@
     <button type="submit" class="btn btn-primary">{% trans "Создать аренду" %}</button>
     <a href="{% url 'rental_list' %}" class="btn btn-link">{% trans "Отмена" %}</a>
 </form>
+
+{# Слот для htmx-модалок (создание клиента и т.п.). #}
+<div id="modal-slot"></div>
 {% endblock %}
 
 {% block extra_js %}

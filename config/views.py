@@ -1390,6 +1390,36 @@ class CustomerClearView(View):
 
 
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
+class CustomerCreateInlineView(View):
+    """Создание клиента прямо со страницы аренды.
+
+    GET — открывает модалку (опционально с предзаполненным ФИО из поисковой
+    строки `customer_q`).
+    POST — валидирует и сохраняет; в случае успеха возвращает HTML, который
+    одновременно закрывает модалку и подставляет нового клиента как выбранного
+    (через hx-swap-oob по `#customer-section`).
+    """
+
+    def get(self, request):
+        prefill = (request.GET.get('customer_q') or '').strip()
+        form = CustomerForm(initial={'full_name': prefill} if prefill else None)
+        return render(request,
+                      'config/rentals/_customer_create_modal.html',
+                      {'form': form})
+
+    def post(self, request):
+        form = CustomerForm(request.POST)
+        if not form.is_valid():
+            return render(request,
+                          'config/rentals/_customer_create_modal.html',
+                          {'form': form})
+        customer = form.save()
+        return render(request,
+                      'config/rentals/_customer_create_oob.html',
+                      {'picked_customer': customer})
+
+
+@method_decorator(role_required('staff', 'admin'), name='dispatch')
 class ProductInfoView(View):
     def get(self, request):
         pid = request.GET.get('item_product') or ''

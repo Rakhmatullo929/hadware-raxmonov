@@ -137,6 +137,11 @@ urlpatterns = [
         name='rental_customer_clear',
     ),
     path(
+        'rentals/_/customer-create/',
+        views.CustomerCreateInlineView.as_view(),
+        name='rental_customer_create',
+    ),
+    path(
         'rentals/_/product-info/',
         views.ProductInfoView.as_view(),
         name='rental_product_info',
