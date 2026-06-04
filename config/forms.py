@@ -141,9 +141,13 @@ class RentalCreateForm(BootstrapFormMixin, forms.ModelForm):
     created_at = forms.DateTimeField(
         label=_('Дата и время выдачи'),
         required=False,
+        # Предзаполняем текущим временем (локальным), чтобы оператору не нужно
+        # было ничего вводить; значение остаётся редактируемым. callable —
+        # чтобы «сейчас» вычислялось при каждом открытии формы, а не на старте.
+        initial=timezone.localtime,
         widget=_datetime_local_widget(),
         input_formats=_DT_INPUT_FORMATS,
-        help_text=_('Оставьте пустым — будет проставлено текущее время.'),
+        help_text=_('По умолчанию — текущее время; измените при необходимости.'),
     )
     due_date = forms.DateTimeField(
         label=_('Срок и время возврата'),
