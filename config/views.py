@@ -1437,12 +1437,23 @@ class ProductInfoView(View):
 
 def _safe_row_id(raw):
     """Защита от XSS/injection: row_id используется в HTML id и hx-target,
-    поэтому пропускаем только короткие hex-токены, как их выдаёт uuid4."""
+    поэтому пропускаем только короткие alphanumeric-токены (uuid4-хвосты
+    или явные литералы вроде 'modal')."""
     import re
     raw = (raw or '').strip()
-    if re.fullmatch(r'[a-fA-F0-9]{4,16}', raw):
+    if re.fullmatch(r'[a-zA-Z0-9]{4,16}', raw):
         return raw
     return ''
+
+
+def _safe_field_name(raw):
+    """Имя поля используется как `name=` у скрытого input. Допускаем только
+    латиницу, цифры и подчёркивания. Пустое — отдаём дефолт."""
+    import re
+    raw = (raw or '').strip()
+    if re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_]{0,31}', raw):
+        return raw
+    return 'item_product'
 
 
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
@@ -1450,21 +1461,21 @@ class ItemProductSearchView(View):
     def get(self, request):
         q = (request.GET.get('item_product_q') or '').strip()
         row_id = _safe_row_id(request.GET.get('row_id'))
+        field_name = _safe_field_name(request.GET.get('field_name'))
+        ctx = {'q': q, 'row_id': row_id, 'field_name': field_name}
         if len(q) < 2:
+            ctx.update(products=[], too_short=True)
             return render(request,
-                          'config/rentals/_item_product_results.html',
-                          {'products': [], 'q': q, 'too_short': True,
-                           'row_id': row_id})
+                          'config/rentals/_item_product_results.html', ctx)
         products = (
             Product.objects
             .filter(is_active=True)
             .filter(Q(name__icontains=q))
             .order_by('name')[:10]
         )
+        ctx.update(products=products, too_short=False)
         return render(request,
-                      'config/rentals/_item_product_results.html',
-                      {'products': products, 'q': q, 'too_short': False,
-                       'row_id': row_id})
+                      'config/rentals/_item_product_results.html', ctx)
 
 
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
@@ -1472,18 +1483,21 @@ class ItemProductPickView(View):
     def get(self, request, pk):
         product = get_object_or_404(Product, pk=pk, is_active=True)
         row_id = _safe_row_id(request.GET.get('row_id'))
+        field_name = _safe_field_name(request.GET.get('field_name'))
         return render(request,
                       'config/rentals/_item_product_picked.html',
-                      {'product': product, 'row_id': row_id})
+                      {'product': product, 'row_id': row_id,
+                       'field_name': field_name})
 
 
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
 class ItemProductClearView(View):
     def get(self, request):
         row_id = _safe_row_id(request.GET.get('row_id'))
+        field_name = _safe_field_name(request.GET.get('field_name'))
         return render(request,
                       'config/rentals/_item_product_search.html',
-                      {'row_id': row_id})
+                      {'row_id': row_id, 'field_name': field_name})
 
 
 @method_decorator(role_required('staff', 'admin'), name='dispatch')
@@ -1612,13 +1626,13 @@ class RentalItemAddView(AdminRequiredMixin, View):
         rental = get_object_or_404(Rental, pk=pk)
         return render(request, 'config/rentals/_item_modal.html', {
             'rental': rental,
-            'products': Product.objects.filter(is_active=True).order_by('name'),
             'errors': [],
+            'picked_product': None,
+            'qty_value': '',
         })
 
     def post(self, request, pk):
         rental = get_object_or_404(Rental, pk=pk)
-        products = Product.objects.filter(is_active=True).order_by('name')
         pid = (request.POST.get('product') or '').strip()
         qty_raw = (request.POST.get('qty') or '').strip()
         errors = []
@@ -1649,7 +1663,10 @@ class RentalItemAddView(AdminRequiredMixin, View):
 
         if errors:
             return render(request, 'config/rentals/_item_modal.html', {
-                'rental': rental, 'products': products, 'errors': errors,
+                'rental': rental,
+                'errors': errors,
+                'picked_product': product,
+                'qty_value': qty_raw,
             })
 
         with transaction.atomic():

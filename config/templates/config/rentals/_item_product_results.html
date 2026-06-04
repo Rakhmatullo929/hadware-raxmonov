@@ -8,7 +8,7 @@
         {% for p in products %}
             <li class="list-group-item list-group-item-action p-2"
                 style="cursor: pointer;"
-                hx-get="{% url 'rental_item_product_pick' p.pk %}?row_id={{ row_id }}"
+                hx-get="{% url 'rental_item_product_pick' p.pk %}?row_id={{ row_id }}&field_name={{ field_name|default:'item_product' }}"
                 hx-target="#picker-{{ row_id }}"
                 hx-swap="outerHTML">
                 <div class="d-flex justify-content-between align-items-baseline">

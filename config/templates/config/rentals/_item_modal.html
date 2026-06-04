@@ -31,20 +31,16 @@
                 {% endif %}
                 <div class="mb-3">
                     <label class="form-label">{% trans "Товар" %}</label>
-                    <select name="product" class="form-select">
-                        <option value="">{% trans "— Выберите товар —" %}</option>
-                        {% for p in products %}
-                            <option value="{{ p.pk }}">
-                                {{ p.name }} ({{ p.unit }}) ·
-                                {% trans "доступно" %} {{ p.available_stock }}
-                            </option>
-                        {% endfor %}
-                    </select>
+                    {% if picked_product %}
+                        {% include 'config/rentals/_item_product_picked.html' with product=picked_product row_id='modal' field_name='product' %}
+                    {% else %}
+                        {% include 'config/rentals/_item_product_search.html' with row_id='modal' field_name='product' %}
+                    {% endif %}
                 </div>
                 <div class="mb-3">
                     <label class="form-label">{% trans "Количество" %}</label>
                     <input type="number" name="qty" min="1" step="1"
-                           class="form-control" placeholder="0">
+                           class="form-control" value="{{ qty_value }}" placeholder="0">
                 </div>
             </div>
             <div class="modal-footer">

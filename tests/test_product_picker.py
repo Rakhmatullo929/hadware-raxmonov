@@ -159,3 +159,84 @@ def test_create_form_renders_search_input_not_select(client_staff, kolonna):
     # Если бы остался старый select — был бы option со значением товара.
     # Проверяем, что массивного дропдауна нет.
     assert '<option value="' not in body or 'item_product' not in body
+
+
+# ---------- field_name parametrisation (модалка «Добавить позицию») ----------
+
+def test_search_forwards_field_name(client_staff, kolonna):
+    """Скрытый input в search-партиале должен иметь имя из field_name."""
+    url = (reverse('rental_item_product_search')
+           + '?item_product_q=&row_id=modal&field_name=product')
+    r = client_staff.get(url)
+    # Search-результаты не содержат hidden input — они только список.
+    # Но clear возвращает search-input, проверяем там.
+    url2 = reverse('rental_item_product_clear') + '?row_id=modal&field_name=product'
+    r2 = client_staff.get(url2)
+    body = r2.content.decode()
+    assert 'name="product"' in body
+    assert 'name="item_product"' not in body
+
+
+def test_pick_uses_field_name(client_staff, kolonna):
+    url = (reverse('rental_item_product_pick', args=[kolonna.pk])
+           + '?row_id=modal&field_name=product')
+    r = client_staff.get(url)
+    body = r.content.decode()
+    assert 'name="product"' in body
+    assert f'value="{kolonna.pk}"' in body
+
+
+def test_safe_field_name_rejects_garbage(client_staff, kolonna):
+    """Невалидное field_name должно откатываться на дефолт, не вставляться
+    в HTML «как есть» (защита от инъекции атрибута)."""
+    url = (reverse('rental_item_product_pick', args=[kolonna.pk])
+           + '?row_id=modal&field_name=" onfocus="alert(1)')
+    r = client_staff.get(url)
+    body = r.content.decode()
+    assert 'onfocus' not in body
+    # fallback — дефолтное имя.
+    assert 'name="item_product"' in body
+
+
+def test_safe_row_id_accepts_modal_literal(client_staff, kolonna):
+    """row_id='modal' (не hex) теперь разрешён — нужно для модалки."""
+    url = (reverse('rental_item_product_pick', args=[kolonna.pk])
+           + '?row_id=modal&field_name=product')
+    r = client_staff.get(url)
+    body = r.content.decode()
+    assert 'id="picker-modal"' in body
+
+
+# ---------- модалка «Добавить позицию» ----------
+
+@pytest.fixture
+def client_admin(admin_user):
+    c = Client(SERVER_NAME='localhost')
+    c.login(username='bob', password='pwpwpwpw')
+    return c
+
+
+@pytest.fixture
+def rental_for_admin(db, customer, admin_user):
+    from datetime import timedelta
+    from django.utils import timezone
+    from config.models import Rental
+    return Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=admin_user,
+    )
+
+
+def test_add_item_modal_uses_picker_not_select(client_admin, rental_for_admin,
+                                               kolonna, lesa):
+    url = reverse('rental_item_add', args=[rental_for_admin.pk])
+    r = client_admin.get(url, HTTP_HX_REQUEST='true')
+    body = r.content.decode()
+    # search-вход вместо большого select.
+    assert 'name="item_product_q"' in body
+    # Сами товары не должны висеть статично в DOM.
+    assert 'Колонна 3.0м' not in body
+    assert 'Леса рамные' not in body
+    # И поле должно называться `product` для бэкенда.
+    assert 'name="product"' in body

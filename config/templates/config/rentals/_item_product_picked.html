@@ -9,13 +9,13 @@
             </span>
         </div>
         <button type="button" class="btn btn-sm btn-link p-0"
-                hx-get="{% url 'rental_item_product_clear' %}?row_id={{ row_id }}"
+                hx-get="{% url 'rental_item_product_clear' %}?row_id={{ row_id }}&field_name={{ field_name|default:'item_product' }}"
                 hx-target="#picker-{{ row_id }}"
                 hx-swap="outerHTML">
             {% trans "сменить" %}
         </button>
     </div>
-    <input type="hidden" name="item_product"
+    <input type="hidden" name="{{ field_name|default:'item_product' }}"
            value="{{ product.pk }}"
            data-price="{{ product.daily_price|unlocalize }}">
 </div>

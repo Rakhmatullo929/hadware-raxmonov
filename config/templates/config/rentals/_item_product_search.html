@@ -5,7 +5,7 @@
            name="item_product_q"
            autocomplete="off"
            placeholder="{% trans 'Начните вводить название товара…' %}"
-           hx-get="{% url 'rental_item_product_search' %}?row_id={{ row_id }}"
+           hx-get="{% url 'rental_item_product_search' %}?row_id={{ row_id }}&field_name={{ field_name|default:'item_product' }}"
            hx-target="#picker-{{ row_id }}-results"
            hx-trigger="input changed delay:200ms, search"
            hx-include="this">
@@ -14,5 +14,5 @@
       Скрытое поле обязательно даже при пустом значении — иначе getlist
       сместит индексы между строками и qty окажется не у того товара.
     {% endcomment %}
-    <input type="hidden" name="item_product" value="" data-price="0">
+    <input type="hidden" name="{{ field_name|default:'item_product' }}" value="" data-price="0">
 </div>
