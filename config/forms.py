@@ -5,7 +5,9 @@ from django import forms
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from .models import Category, Customer, Payment, Product, Rental, Worker
+from .models import (
+    Category, Customer, Payment, Product, Rental, SalaryEntry, Worker,
+)
 
 
 # Корректная группировка тысяч: «40 000», «1 234 567», «40 000.50».
@@ -258,11 +260,53 @@ class PaymentForm(BootstrapFormMixin, forms.ModelForm):
 
 
 class WorkerForm(BootstrapFormMixin, forms.ModelForm):
+    monthly_salary = MoneyDecimalField(
+        label=_('Оклад за месяц'),
+        min_value=0,
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        widget=_money_widget(),
+    )
+
     class Meta:
         model = Worker
-        fields = ['full_name', 'position', 'phone', 'note', 'is_active']
+        fields = ['full_name', 'position', 'phone', 'monthly_salary',
+                  'note', 'is_active']
         widgets = {
             'note': forms.TextInput(attrs={
                 'placeholder': _('необязательно'),
             }),
         }
+
+    def clean_monthly_salary(self):
+        value = self.cleaned_data.get('monthly_salary')
+        if value is None:
+            return Decimal('0.00')
+        return value
+
+
+class SalaryEntryForm(BootstrapFormMixin, forms.ModelForm):
+    amount = MoneyDecimalField(
+        label=_('Сумма'),
+        min_value=0,
+        max_digits=12,
+        decimal_places=2,
+        widget=_money_widget(autofocus='autofocus'),
+    )
+
+    class Meta:
+        model = SalaryEntry
+        fields = ['kind', 'amount', 'reason']
+        widgets = {
+            'reason': forms.TextInput(attrs={
+                'placeholder': _('за что (необязательно)'),
+                'maxlength': '255',
+            }),
+        }
+
+    def clean_amount(self):
+        value = self.cleaned_data.get('amount') or Decimal('0.00')
+        if value <= 0:
+            raise forms.ValidationError(_('Сумма должна быть больше нуля.'))
+        return value

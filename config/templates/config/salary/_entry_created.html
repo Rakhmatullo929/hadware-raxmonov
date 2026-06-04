@@ -1,0 +1,12 @@
+{% load i18n %}
+{% comment %}
+  Ответ на htmx-добавление/удаление премии или штрафа.
+  Главный target — #modal-slot: перерисовываем модалку, чтобы был виден
+  обновлённый список начислений. Параллельно OOB-меняем <tr> в таблице
+  зарплат — пользователь увидит свежие суммы, когда закроет модалку.
+{% endcomment %}
+{% include 'config/salary/_entries_modal.html' %}
+
+<template>
+    {% include 'config/salary/_row.html' with swap_oob=True %}
+</template>

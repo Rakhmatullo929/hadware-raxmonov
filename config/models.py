@@ -468,6 +468,12 @@ class Worker(models.Model):
     phone = models.CharField(_('Телефон'), max_length=32, blank=True)
     is_active = models.BooleanField(_('Активен'), default=True, db_index=True)
     note = models.CharField(_('Примечание'), max_length=255, blank=True)
+    monthly_salary = models.DecimalField(
+        _('Оклад за месяц'),
+        max_digits=12, decimal_places=2,
+        default=Decimal('0.00'),
+        help_text=_('Стандартная зарплата за полный месяц (без премий).'),
+    )
     created_at = models.DateTimeField(_('Создан'), default=timezone.now,
                                        editable=False)
 
@@ -521,3 +527,109 @@ class Attendance(models.Model):
     def __str__(self):
         sign = '+' if self.is_present else '−'
         return f'{self.worker.full_name} · {self.date:%d.%m.%Y} {sign}'
+
+
+class SalaryEntry(models.Model):
+    """Премия или штраф/вычет рабочего за конкретный месяц.
+
+    База (оклад × явка) считается отдельно; здесь — только ручные
+    начисления и удержания. Знак выводится из ``kind``: ``BONUS`` — плюс,
+    ``PENALTY`` — минус. ``amount`` всегда хранится положительной.
+    """
+    class Kind(models.TextChoices):
+        BONUS = 'bonus', _('Премия')
+        PENALTY = 'penalty', _('Штраф/вычет')
+
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name='salary_entries',
+        verbose_name=_('Рабочий'),
+    )
+    year = models.PositiveSmallIntegerField(_('Год'), db_index=True)
+    month = models.PositiveSmallIntegerField(_('Месяц'), db_index=True)
+    kind = models.CharField(
+        _('Тип'), max_length=10, choices=Kind.choices, default=Kind.BONUS,
+    )
+    amount = models.DecimalField(
+        _('Сумма'), max_digits=12, decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    reason = models.CharField(_('Причина'), max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='salary_entries',
+        verbose_name=_('Кто добавил'),
+        null=True, blank=True,
+    )
+    created_at = models.DateTimeField(_('Когда'), default=timezone.now,
+                                       editable=False)
+
+    class Meta:
+        verbose_name = _('Начисление/удержание')
+        verbose_name_plural = _('Начисления/удержания')
+        ordering = ['-year', '-month', '-created_at']
+        indexes = [
+            models.Index(fields=['worker', 'year', 'month']),
+        ]
+
+    def __str__(self):
+        sign = '+' if self.kind == self.Kind.BONUS else '−'
+        return (f'{self.worker.full_name} · {self.year}-{self.month:02d} '
+                f'{sign}{self.amount}')
+
+    @property
+    def signed_amount(self):
+        return self.amount if self.kind == self.Kind.BONUS else -self.amount
+
+
+class MonthlySalaryBase(models.Model):
+    """Снимок базового оклада рабочего за конкретный месяц.
+
+    По умолчанию база считается от текущего ``Worker.monthly_salary``. Но
+    когда оклад правят прямо в таблице зарплат за конкретный месяц, мы
+    фиксируем значение здесь — чтобы правка одного месяца не переписывала
+    расчёт за все остальные (уже выплаченные месяцы не должны меняться
+    задним числом). Месяц без снимка использует текущий оклад рабочего.
+    """
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.CASCADE,
+        related_name='salary_bases',
+        verbose_name=_('Рабочий'),
+    )
+    year = models.PositiveSmallIntegerField(_('Год'), db_index=True)
+    month = models.PositiveSmallIntegerField(_('Месяц'), db_index=True)
+    amount = models.DecimalField(
+        _('Оклад за месяц'), max_digits=12, decimal_places=2,
+        default=Decimal('0.00'),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='salary_bases',
+        verbose_name=_('Кто изменил'),
+        null=True, blank=True,
+    )
+    created_at = models.DateTimeField(_('Создан'), default=timezone.now,
+                                       editable=False)
+    updated_at = models.DateTimeField(_('Обновлён'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Оклад за месяц')
+        verbose_name_plural = _('Оклады за месяц')
+        ordering = ['-year', '-month']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['worker', 'year', 'month'],
+                name='uniq_worker_month_salary_base',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['worker', 'year', 'month']),
+        ]
+
+    def __str__(self):
+        return (f'{self.worker.full_name} · {self.year}-{self.month:02d} '
+                f'· {self.amount}')

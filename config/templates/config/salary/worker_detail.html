@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}
+    {% blocktrans with name=worker.full_name %}Зарплата · {{ name }}{% endblocktrans %}
+    — {% trans "Учёт аренды" %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">
+        {% trans "Зарплата" %} · {{ worker.full_name }}
+        {% if worker.position %}
+            <small class="text-muted">· {{ worker.position }}</small>
+        {% endif %}
+    </h1>
+    <div>
+        <a href="{% url 'salary_index' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>{% trans "К таблице" %}
+        </a>
+        {% if is_admin %}
+            <a href="{% url 'worker_update' worker.pk %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-pencil me-1"></i>{% trans "Профиль" %}
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-sm-3">
+            <label class="form-label small text-muted mb-1">{% trans "Показать месяцев" %}</label>
+            <select name="months" class="form-select form-select-sm"
+                    onchange="this.form.submit()">
+                <option value="3"  {% if months_back == 3  %}selected{% endif %}>3</option>
+                <option value="6"  {% if months_back == 6  %}selected{% endif %}>6</option>
+                <option value="12" {% if months_back == 12 %}selected{% endif %}>12</option>
+                <option value="24" {% if months_back == 24 %}selected{% endif %}>24</option>
+                <option value="36" {% if months_back == 36 %}selected{% endif %}>36</option>
+            </select>
+        </div>
+        <div class="col-sm-3">
+            <div class="small text-muted">{% trans "Текущий оклад" %}</div>
+            <div class="fw-semibold font-monospace">{{ worker.monthly_salary }}</div>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Период" %}</div>
+            <div class="h5 mb-0">{{ months_back }} {% trans "мес." %}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Явка (всего)" %}</div>
+            <div class="h5 mb-0">{{ grand_present }} / {{ grand_working }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 border-success">
+            <div class="small text-success">{% trans "Премии" %}</div>
+            <div class="h5 mb-0 font-monospace text-success">+{{ grand_bonuses }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-body py-2 border-danger">
+            <div class="small text-danger">{% trans "Штрафы" %}</div>
+            <div class="h5 mb-0 font-monospace text-danger">−{{ grand_penalties }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-primary py-2 mb-3 d-flex justify-content-between align-items-center">
+    <span>{% trans "Итого за период" %}</span>
+    <span class="fw-bold font-monospace fs-4">{{ grand_total }}</span>
+</div>
+
+<div class="table-responsive">
+    <table class="table align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>{% trans "Месяц" %}</th>
+                <th class="text-end">{% trans "Оклад" %}</th>
+                <th class="text-end">{% trans "Дни (П/Раб.)" %}</th>
+                <th class="text-end">{% trans "База" %}</th>
+                <th class="text-end">{% trans "Премии" %}</th>
+                <th class="text-end">{% trans "Штрафы" %}</th>
+                <th class="text-end">{% trans "Итого" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+                <tr>
+                    <td>
+                        <a href="{% url 'salary_index' %}?month={{ r.year }}-{{ r.month|stringformat:'02d' }}"
+                           class="text-decoration-none">
+                            {{ r.month|stringformat:"02d" }}.{{ r.year }}
+                        </a>
+                    </td>
+                    <td class="text-end font-monospace">{{ r.monthly_salary }}</td>
+                    <td class="text-end">
+                        <span class="text-success">{{ r.present_days }}</span>
+                        <span class="text-muted">/ {{ r.working_days }}</span>
+                    </td>
+                    <td class="text-end font-monospace">{{ r.base }}</td>
+                    <td class="text-end font-monospace text-success">
+                        {% if r.bonuses %}+{{ r.bonuses }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end font-monospace text-danger">
+                        {% if r.penalties %}−{{ r.penalties }}{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end font-monospace fw-bold text-primary">{{ r.total }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

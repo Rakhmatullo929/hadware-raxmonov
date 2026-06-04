@@ -50,6 +50,29 @@ urlpatterns = [
         name='worker_toggle_active',
     ),
 
+    # Зарплата сотрудников
+    path('salary/', views.salary_index, name='salary_index'),
+    path(
+        'salary/<int:worker_id>/base/',
+        views.salary_base_update, name='salary_base_update',
+    ),
+    path(
+        'salary/<int:worker_id>/entries/',
+        views.salary_entries_modal, name='salary_entries_modal',
+    ),
+    path(
+        'salary/<int:worker_id>/entries/add/',
+        views.salary_entry_create, name='salary_entry_create',
+    ),
+    path(
+        'salary/entries/<int:entry_id>/delete/',
+        views.salary_entry_delete, name='salary_entry_delete',
+    ),
+    path(
+        'salary/<int:worker_id>/detail/',
+        views.salary_worker_detail, name='salary_worker_detail',
+    ),
+
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
     path('customers/new/', views.CustomerCreateView.as_view(), name='customer_create'),
     path('customers/<int:pk>/', views.CustomerDetailView.as_view(), name='customer_detail'),

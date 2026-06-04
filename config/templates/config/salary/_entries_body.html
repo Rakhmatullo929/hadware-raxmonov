@@ -1,0 +1,118 @@
+{% load i18n %}
+{% with w=row.worker %}
+<div class="row g-3 mb-3">
+    <div class="col-sm-4">
+        <div class="border rounded p-2">
+            <div class="small text-muted">{% trans "База за месяц" %}</div>
+            <div class="font-monospace">{{ row.base }}</div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="border rounded p-2">
+            <div class="small text-success">{% trans "Премии" %}</div>
+            <div class="font-monospace text-success">+{{ row.bonuses }}</div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="border rounded p-2">
+            <div class="small text-danger">{% trans "Штрафы" %}</div>
+            <div class="font-monospace text-danger">−{{ row.penalties }}</div>
+        </div>
+    </div>
+</div>
+<div class="alert alert-primary py-2 mb-3 d-flex justify-content-between align-items-center">
+    <span>{% trans "Итого к выплате" %}</span>
+    <span class="fw-bold font-monospace fs-5">{{ row.total }}</span>
+</div>
+
+<h6 class="mt-3">{% trans "Добавить премию или штраф" %}</h6>
+<form hx-post="{% url 'salary_entry_create' w.pk %}?month={{ row.year }}-{{ row.month|stringformat:'02d' }}"
+      hx-target="#modal-slot"
+      hx-swap="innerHTML"
+      class="row g-2 align-items-end">
+    {% csrf_token %}
+    <div class="col-sm-3">
+        <label class="form-label small mb-1">{% trans "Тип" %}</label>
+        {{ entry_form.kind }}
+        {% if entry_form.kind.errors %}
+            <div class="invalid-feedback d-block">{{ entry_form.kind.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-3">
+        <label class="form-label small mb-1">{% trans "Сумма" %}</label>
+        {{ entry_form.amount }}
+        {% if entry_form.amount.errors %}
+            <div class="invalid-feedback d-block">{{ entry_form.amount.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-5">
+        <label class="form-label small mb-1">{% trans "Причина" %}</label>
+        {{ entry_form.reason }}
+        {% if entry_form.reason.errors %}
+            <div class="invalid-feedback d-block">{{ entry_form.reason.errors.0 }}</div>
+        {% endif %}
+    </div>
+    <div class="col-sm-1 d-grid">
+        <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i>
+        </button>
+    </div>
+</form>
+
+<hr class="my-3">
+
+<h6>{% trans "Записи за месяц" %}</h6>
+{% if row.entries %}
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>{% trans "Тип" %}</th>
+                    <th class="text-end">{% trans "Сумма" %}</th>
+                    <th>{% trans "Причина" %}</th>
+                    <th>{% trans "Кто / когда" %}</th>
+                    <th class="text-end"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in row.entries %}
+                    <tr>
+                        <td>
+                            {% if e.kind == 'bonus' %}
+                                <span class="badge bg-success-subtle text-success">
+                                    {% trans "Премия" %}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger">
+                                    {% trans "Штраф" %}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace
+                            {% if e.kind == 'bonus' %}text-success{% else %}text-danger{% endif %}">
+                            {% if e.kind == 'bonus' %}+{% else %}−{% endif %}{{ e.amount }}
+                        </td>
+                        <td>{{ e.reason|default:"—" }}</td>
+                        <td class="text-muted small">
+                            {{ e.created_at|date:"d.m.Y H:i" }}
+                            {% if e.created_by %} · {{ e.created_by.username }}{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    hx-post="{% url 'salary_entry_delete' e.pk %}?month={{ row.year }}-{{ row.month|stringformat:'02d' }}"
+                                    hx-target="#modal-slot"
+                                    hx-swap="innerHTML"
+                                    hx-confirm="{% trans 'Удалить запись?' %}"
+                                    title="{% trans 'Удалить' %}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="text-muted small mb-0">{% trans "Премий и штрафов за этот месяц пока нет." %}</p>
+{% endif %}
+{% endwith %}

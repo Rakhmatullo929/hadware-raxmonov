@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timedelta
-from decimal import Decimal
+from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import (
     Count,
@@ -38,21 +39,25 @@ from .decorators import role_required, user_is_admin
 from .forms import (
     CategoryForm,
     CustomerForm,
+    MoneyDecimalField,
     PaymentForm,
     ProductForm,
     RentalCreateForm,
     RentalEditForm,
+    SalaryEntryForm,
     WorkerForm,
 )
 from .models import (
     Attendance,
     Category,
     Customer,
+    MonthlySalaryBase,
     Movement,
     Payment,
     Product,
     Rental,
     RentalItem,
+    SalaryEntry,
     Worker,
 )
 
@@ -1915,3 +1920,417 @@ class WorkerToggleActiveView(AdminRequiredMixin, View):
         w.is_active = not w.is_active
         w.save(update_fields=['is_active'])
         return HttpResponseRedirect(reverse('worker_list'))
+
+
+# ---------- payroll / salary ----------
+
+
+def _parse_year_month(request):
+    """Прочитать ?month=YYYY-MM; по умолчанию — текущий месяц."""
+    raw = (request.GET.get('month') or '').strip()
+    today = timezone.localdate()
+    try:
+        d = datetime.strptime(raw, '%Y-%m').date()
+        return d.year, d.month
+    except ValueError:
+        return today.year, today.month
+
+
+def _month_bounds(year, month):
+    """Начало месяца и эксклюзивная верхняя граница (1-е число следующего)."""
+    start = datetime(year, month, 1).date()
+    if month == 12:
+        end = datetime(year + 1, 1, 1).date()
+    else:
+        end = datetime(year, month + 1, 1).date()
+    return start, end
+
+
+def _working_days_in_month(year, month):
+    """Количество будних дней (Пн–Пт) в месяце."""
+    start, end = _month_bounds(year, month)
+    days = (end - start).days
+    return sum(
+        1 for i in range(days)
+        if (start + timedelta(days=i)).weekday() < 5
+    )
+
+
+def _month_nav(year, month):
+    """Соседние месяцы строкой YYYY-MM (для кнопок «‹ / ›»)."""
+    if month == 1:
+        prev_y, prev_m = year - 1, 12
+    else:
+        prev_y, prev_m = year, month - 1
+    if month == 12:
+        next_y, next_m = year + 1, 1
+    else:
+        next_y, next_m = year, month + 1
+    return f'{prev_y}-{prev_m:02d}', f'{next_y}-{next_m:02d}'
+
+
+def _quantize_money(value):
+    # ROUND_HALF_UP — общепринятое денежное округление; дефолтный для Decimal
+    # ROUND_HALF_EVEN (банковский) даёт расхождение с ручным расчётом ЗП.
+    return Decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def _resolve_month_base(worker, year, month):
+    """Базовый оклад за месяц: снимок ``MonthlySalaryBase`` если он есть,
+    иначе текущий контрактный ``Worker.monthly_salary``."""
+    snapshot = (
+        MonthlySalaryBase.objects
+        .filter(worker=worker, year=year, month=month)
+        .values_list('amount', flat=True)
+        .first()
+    )
+    if snapshot is not None:
+        return snapshot
+    return worker.monthly_salary
+
+
+def _compute_payroll(worker, year, month, present_days=None,
+                     entries=None, working_days=None, monthly_base=None):
+    """Свод за месяц: оклад × явка + премии − штрафы.
+
+    Параметры ``present_days``, ``entries``, ``working_days``,
+    ``monthly_base`` можно передать заранее (когда мы посчитали их пакетом
+    по всем рабочим / месяцам), чтобы не дёргать БД на каждого.
+    """
+    if working_days is None:
+        working_days = _working_days_in_month(year, month)
+    if monthly_base is None:
+        monthly_base = _resolve_month_base(worker, year, month)
+    if present_days is None:
+        start, end = _month_bounds(year, month)
+        present_dates = Attendance.objects.filter(
+            worker=worker, date__gte=start, date__lt=end, is_present=True,
+        ).values_list('date', flat=True)
+        # Считаем только будни — пропорция base = оклад × явка / рабочие дни,
+        # а рабочие дни (_working_days_in_month) это Пн–Пт. Явка в выходные не
+        # должна раздувать базу выше полного оклада (числитель и знаменатель
+        # должны опираться на один и тот же набор дней).
+        present_days = sum(1 for d in present_dates if d.weekday() < 5)
+    if entries is None:
+        # select_related('created_by') — модалка начислений рендерит
+        # e.created_by.username; иначе был бы N+1 на каждую запись.
+        entries = list(SalaryEntry.objects.filter(
+            worker=worker, year=year, month=month,
+        ).select_related('created_by').order_by('-created_at'))
+
+    # monthly_base здесь всегда задан (резолвится выше); Decimal(...) сохраняет
+    # 0.00 как Decimal('0.00') — `or 0` схлопнул бы реальный нулевой снимок в '0'.
+    base_full = Decimal(monthly_base)
+    if working_days > 0:
+        base = _quantize_money(
+            base_full * Decimal(present_days) / Decimal(working_days)
+        )
+    else:
+        base = _quantize_money(0)
+
+    bonuses = sum(
+        (e.amount for e in entries if e.kind == SalaryEntry.Kind.BONUS),
+        Decimal('0.00'),
+    )
+    penalties = sum(
+        (e.amount for e in entries if e.kind == SalaryEntry.Kind.PENALTY),
+        Decimal('0.00'),
+    )
+    total = _quantize_money(base + bonuses - penalties)
+
+    return {
+        'worker': worker,
+        'year': year,
+        'month': month,
+        'monthly_salary': base_full,
+        'working_days': working_days,
+        'present_days': present_days,
+        'absent_days': max(0, working_days - present_days),
+        'base': base,
+        'bonuses': _quantize_money(bonuses),
+        'penalties': _quantize_money(penalties),
+        'total': total,
+        'entries': entries,
+    }
+
+
+def _row_context(worker, year, month):
+    """Контекст для одной строки таблицы зарплат (используется и в htmx).
+
+    is_admin=True задаём явно: _row.html гейтит редактор оклада по is_admin, а
+    раздел зарплат admin-only — не полагаемся на context-processor в htmx-фрагменте.
+    """
+    payroll = _compute_payroll(worker, year, month)
+    return {
+        'row': payroll,
+        'year': year,
+        'month': month,
+        'month_iso': f'{year}-{month:02d}',
+        'is_admin': True,
+    }
+
+
+@role_required('admin')
+def salary_index(request):
+    """Таблица зарплат на месяц: оклад × явка, премии/штрафы, итого.
+
+    Весь раздел зарплат — только для админов: оклады/премии/штрафы это
+    чувствительные данные (роль staff к ним доступа не имеет).
+    """
+    year, month = _parse_year_month(request)
+    workers = list(Worker.objects.filter(is_active=True))
+    working_days = _working_days_in_month(year, month)
+
+    start, end = _month_bounds(year, month)
+
+    # Явка батчем — считаем только будни (Пн–Пт), согласованно с working_days.
+    present_rows = (
+        Attendance.objects
+        .filter(worker__in=workers, date__gte=start, date__lt=end,
+                is_present=True)
+        .values_list('worker_id', 'date')
+    )
+    present_map = {}
+    for wid, d in present_rows:
+        if d.weekday() < 5:
+            present_map[wid] = present_map.get(wid, 0) + 1
+
+    # Начисления/удержания батчем. created_by здесь НЕ нужен (таблица
+    # показывает только счётчик записей), поэтому без select_related —
+    # JOIN на auth_user был бы лишней работой на этом пути.
+    entries_qs = (
+        SalaryEntry.objects
+        .filter(worker__in=workers, year=year, month=month)
+        .order_by('-created_at')
+    )
+    entries_map = {}
+    for e in entries_qs:
+        entries_map.setdefault(e.worker_id, []).append(e)
+
+    # Помесячные снимки оклада батчем (месяц без снимка → текущий оклад).
+    base_rows = (
+        MonthlySalaryBase.objects
+        .filter(worker__in=workers, year=year, month=month)
+        .values_list('worker_id', 'amount')
+    )
+    base_map = {wid: amt for wid, amt in base_rows}
+
+    rows = [
+        _compute_payroll(
+            w, year, month,
+            present_days=present_map.get(w.pk, 0),
+            entries=entries_map.get(w.pk, []),
+            working_days=working_days,
+            monthly_base=base_map[w.pk] if w.pk in base_map
+            else w.monthly_salary,
+        )
+        for w in workers
+    ]
+
+    totals = {
+        'base': _quantize_money(sum((r['base'] for r in rows), Decimal('0'))),
+        'bonuses': _quantize_money(
+            sum((r['bonuses'] for r in rows), Decimal('0'))
+        ),
+        'penalties': _quantize_money(
+            sum((r['penalties'] for r in rows), Decimal('0'))
+        ),
+        'total': _quantize_money(
+            sum((r['total'] for r in rows), Decimal('0'))
+        ),
+    }
+
+    prev_month, next_month = _month_nav(year, month)
+    today = timezone.localdate()
+    return render(request, 'config/salary/index.html', {
+        'rows': rows,
+        'totals': totals,
+        'year': year,
+        'month': month,
+        'month_iso': f'{year}-{month:02d}',
+        'month_label': f'{month:02d}.{year}',
+        'working_days': working_days,
+        'prev_month': prev_month,
+        'next_month': next_month,
+        'this_month': f'{today.year}-{today.month:02d}',
+    })
+
+
+@role_required('admin')
+def salary_base_update(request, worker_id):
+    """htmx POST: зафиксировать оклад рабочего ЗА ЭТОТ МЕСЯЦ, вернуть строку.
+
+    Пишем снимок ``MonthlySalaryBase`` для (worker, year, month), а не
+    глобальный ``Worker.monthly_salary`` — иначе правка одного месяца
+    меняла бы расчёт за все остальные.
+    """
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    year, month = _parse_year_month(request)
+
+    # Переиспользуем MoneyDecimalField: один и тот же парсинг пробелов,
+    # диапазон (>=0) и предел max_digits=12, что и у WorkerForm.
+    field = MoneyDecimalField(max_digits=12, decimal_places=2, min_value=0)
+    try:
+        new_value = field.clean(request.POST.get('monthly_salary') or '0')
+    except ValidationError:
+        return HttpResponse(_('Некорректная сумма'), status=400)
+
+    MonthlySalaryBase.objects.update_or_create(
+        worker=worker, year=year, month=month,
+        defaults={
+            'amount': _quantize_money(new_value),
+            'created_by': request.user,
+        },
+    )
+
+    ctx = _row_context(worker, year, month)
+    return render(request, 'config/salary/_row.html', ctx)
+
+
+@role_required('admin')
+def salary_entry_create(request, worker_id):
+    """htmx POST: добавить премию/штраф; возвращает строку рабочего."""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    year, month = _parse_year_month(request)
+
+    form = SalaryEntryForm(request.POST)
+    if not form.is_valid():
+        ctx = _row_context(worker, year, month)
+        ctx['entry_form'] = form
+        return render(request, 'config/salary/_entries_modal.html', ctx)
+
+    entry = form.save(commit=False)
+    entry.worker = worker
+    entry.year = year
+    entry.month = month
+    entry.created_by = request.user
+    entry.save()
+
+    ctx = _row_context(worker, year, month)
+    ctx['entry_form'] = SalaryEntryForm()
+    return render(request, 'config/salary/_entry_created.html', ctx)
+
+
+@role_required('admin')
+def salary_entry_delete(request, entry_id):
+    """htmx POST: удалить запись начисления, вернуть строку.
+
+    Раздел зарплат admin-only, поэтому отдельная проверка «админ или автор»
+    больше не нужна — до сюда доходят только админы.
+    """
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    entry = get_object_or_404(SalaryEntry, pk=entry_id)
+    worker = entry.worker
+    year, month = entry.year, entry.month
+    entry.delete()
+
+    ctx = _row_context(worker, year, month)
+    ctx['entry_form'] = SalaryEntryForm()
+    return render(request, 'config/salary/_entry_created.html', ctx)
+
+
+@role_required('admin')
+def salary_entries_modal(request, worker_id):
+    """Открыть модалку со списком начислений за месяц + форма добавления."""
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    year, month = _parse_year_month(request)
+    ctx = _row_context(worker, year, month)
+    ctx['entry_form'] = SalaryEntryForm()
+    return render(request, 'config/salary/_entries_modal.html', ctx)
+
+
+@role_required('admin')
+def salary_worker_detail(request, worker_id):
+    """Помесячная история и статистика по одному рабочему."""
+    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    today = timezone.localdate()
+
+    # Сколько месяцев показать (по умолчанию 12)
+    try:
+        months_back = int(request.GET.get('months') or 12)
+    except ValueError:
+        months_back = 12
+    months_back = max(1, min(36, months_back))
+
+    months = []
+    y, m = today.year, today.month
+    for _i in range(months_back):
+        months.append((y, m))
+        if m == 1:
+            y -= 1
+            m = 12
+        else:
+            m -= 1
+
+    # --- пакетные выборки, чтобы не плодить N+1 по месяцам ---
+    oldest_y, oldest_m = months[-1]
+    newest_y, newest_m = months[0]
+    range_start = date(oldest_y, oldest_m, 1)
+    range_end = _month_bounds(newest_y, newest_m)[1]
+
+    # Явка по месяцам (только будни — как в _compute_payroll).
+    present_map = {}
+    for d in (Attendance.objects
+              .filter(worker=worker, date__gte=range_start, date__lt=range_end,
+                      is_present=True)
+              .values_list('date', flat=True)):
+        if d.weekday() < 5:
+            key = (d.year, d.month)
+            present_map[key] = present_map.get(key, 0) + 1
+
+    # Запрос по нужным (year, month) — строим OR-условие из явного списка.
+    month_q = Q(year=months[0][0], month=months[0][1])
+    for (yy, mm) in months[1:]:
+        month_q |= Q(year=yy, month=mm)
+
+    entries_map = {}
+    for e in (SalaryEntry.objects.filter(worker=worker).filter(month_q)
+              .select_related('created_by').order_by('-created_at')):
+        entries_map.setdefault((e.year, e.month), []).append(e)
+
+    base_map = {
+        (yy, mm): amt
+        for yy, mm, amt in (
+            MonthlySalaryBase.objects.filter(worker=worker).filter(month_q)
+            .values_list('year', 'month', 'amount')
+        )
+    }
+
+    rows = [
+        _compute_payroll(
+            worker, yy, mm,
+            present_days=present_map.get((yy, mm), 0),
+            entries=entries_map.get((yy, mm), []),
+            working_days=_working_days_in_month(yy, mm),
+            monthly_base=base_map[(yy, mm)] if (yy, mm) in base_map
+            else worker.monthly_salary,
+        )
+        for (yy, mm) in months
+    ]
+    grand_total = _quantize_money(
+        sum((r['total'] for r in rows), Decimal('0'))
+    )
+    grand_bonuses = _quantize_money(
+        sum((r['bonuses'] for r in rows), Decimal('0'))
+    )
+    grand_penalties = _quantize_money(
+        sum((r['penalties'] for r in rows), Decimal('0'))
+    )
+    grand_present = sum(r['present_days'] for r in rows)
+    grand_working = sum(r['working_days'] for r in rows)
+
+    return render(request, 'config/salary/worker_detail.html', {
+        'worker': worker,
+        'rows': rows,
+        'months_back': months_back,
+        'grand_total': grand_total,
+        'grand_bonuses': grand_bonuses,
+        'grand_penalties': grand_penalties,
+        'grand_present': grand_present,
+        'grand_working': grand_working,
+    })

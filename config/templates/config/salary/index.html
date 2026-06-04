@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Зарплата" %} — {% trans "Учёт аренды" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Зарплата сотрудников" %}</h1>
+    <a href="{% url 'attendance_journal' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-calendar-check me-1"></i>{% trans "Журнал посещаемости" %}
+    </a>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <a href="?month={{ prev_month }}" class="btn btn-outline-secondary btn-sm"
+               title="{% trans 'Предыдущий месяц' %}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Месяц" %}</label>
+            <input type="month" name="month" value="{{ month_iso }}"
+                   class="form-control form-control-sm"
+                   onchange="this.form.submit()">
+        </div>
+        <div class="col-auto">
+            <a href="?month={{ next_month }}" class="btn btn-outline-secondary btn-sm"
+               title="{% trans 'Следующий месяц' %}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </div>
+        <div class="col-auto">
+            <a href="?month={{ this_month }}" class="btn btn-link btn-sm">
+                {% trans "Текущий" %}
+            </a>
+        </div>
+        <div class="col-auto ms-auto small text-muted">
+            {% blocktrans with d=working_days %}Рабочих дней в месяце: <strong>{{ d }}</strong>{% endblocktrans %}
+        </div>
+    </div>
+</form>
+
+{% if rows %}
+<div class="table-responsive">
+    <table class="table align-middle salary-table">
+        <thead class="table-light">
+            <tr>
+                <th>{% trans "Сотрудник" %}</th>
+                <th class="text-end">{% trans "Оклад/мес." %}</th>
+                <th class="text-end">{% trans "Дни (П/Раб.)" %}</th>
+                <th class="text-end">{% trans "База за месяц" %}</th>
+                <th class="text-end">{% trans "Премии" %}</th>
+                <th class="text-end">{% trans "Штрафы" %}</th>
+                <th class="text-end">{% trans "Итого" %}</th>
+                <th class="text-end" style="width: 8rem;">{% trans "Действия" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                {% include 'config/salary/_row.html' with row=row month_iso=month_iso year=year month=month %}
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="table-light">
+                <th class="text-end" colspan="3">{% trans "Итого по всем" %}</th>
+                <th class="text-end font-monospace">{{ totals.base }}</th>
+                <th class="text-end font-monospace text-success">+{{ totals.bonuses }}</th>
+                <th class="text-end font-monospace text-danger">−{{ totals.penalties }}</th>
+                <th class="text-end font-monospace fw-bold text-primary">{{ totals.total }}</th>
+                <th></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+    <div class="alert alert-light border">
+        {% trans "В системе нет активных сотрудников." %}
+        {% if is_admin %}
+            <a href="{% url 'worker_create' %}" class="ms-2">{% trans "Добавить →" %}</a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<div id="modal-slot"></div>
+
+<style>
+    .salary-table .editable-salary {
+        width: 9rem;
+        text-align: right;
+    }
+    .salary-table tr.no-salary td { color: var(--bs-secondary); }
+</style>
+{% endblock %}

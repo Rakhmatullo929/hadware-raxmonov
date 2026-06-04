@@ -62,6 +62,8 @@ def navigation(request):
         section = 'reports'
     elif name.startswith('attendance') or name.startswith('worker'):
         section = 'attendance'
+    elif name.startswith('salary'):
+        section = 'salary'
     elif name.startswith('product_suspicion'):
         section = 'suspicions'
 

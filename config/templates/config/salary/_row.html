@@ -1,0 +1,70 @@
+{% load i18n %}
+{% with w=row.worker %}
+<tr id="salary-row-{{ w.pk }}"
+    {% if swap_oob %}hx-swap-oob="true"{% endif %}
+    {% if row.monthly_salary == 0 %}class="no-salary"{% endif %}>
+    <td class="fw-semibold">
+        <a href="{% url 'salary_worker_detail' w.pk %}"
+           class="text-decoration-none">
+            {{ w.full_name }}
+        </a>
+        {% if w.position %}
+            <div class="text-muted small">{{ w.position }}</div>
+        {% endif %}
+    </td>
+    <td class="text-end">
+        {% if is_admin %}
+            <form class="d-inline-flex align-items-center justify-content-end"
+                  hx-post="{% url 'salary_base_update' w.pk %}?month={{ month_iso }}"
+                  hx-target="#salary-row-{{ w.pk }}"
+                  hx-swap="outerHTML">
+                {% csrf_token %}
+                <input type="text"
+                       name="monthly_salary"
+                       value="{{ row.monthly_salary }}"
+                       class="form-control form-control-sm money-input editable-salary text-end"
+                       inputmode="decimal">
+                <button type="submit" class="btn btn-sm btn-link p-1 ms-1"
+                        title="{% trans 'Сохранить оклад' %}">
+                    <i class="bi bi-check2"></i>
+                </button>
+            </form>
+        {% else %}
+            <span class="font-monospace">{{ row.monthly_salary }}</span>
+        {% endif %}
+    </td>
+    <td class="text-end">
+        <span class="badge bg-success-subtle text-success border border-success-subtle">
+            {{ row.present_days }}
+        </span>
+        <span class="text-muted">/</span>
+        <span class="badge bg-light text-dark border">{{ row.working_days }}</span>
+        {% if row.absent_days %}
+            <div class="small text-danger mt-1">
+                −{{ row.absent_days }} {% trans "дн." %}
+            </div>
+        {% endif %}
+    </td>
+    <td class="text-end font-monospace">{{ row.base }}</td>
+    <td class="text-end font-monospace text-success">
+        {% if row.bonuses %}+{{ row.bonuses }}{% else %}—{% endif %}
+    </td>
+    <td class="text-end font-monospace text-danger">
+        {% if row.penalties %}−{{ row.penalties }}{% else %}—{% endif %}
+    </td>
+    <td class="text-end font-monospace fw-bold text-primary">{{ row.total }}</td>
+    <td class="text-end">
+        <button type="button"
+                class="btn btn-sm btn-outline-primary"
+                hx-get="{% url 'salary_entries_modal' w.pk %}?month={{ month_iso }}"
+                hx-target="#modal-slot"
+                hx-swap="innerHTML"
+                title="{% trans 'Премии и штрафы' %}">
+            <i class="bi bi-cash-stack"></i>
+            {% if row.entries %}
+                <span class="badge bg-primary ms-1">{{ row.entries|length }}</span>
+            {% endif %}
+        </button>
+    </td>
+</tr>
+{% endwith %}
