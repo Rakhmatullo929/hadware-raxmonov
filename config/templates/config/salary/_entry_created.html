@@ -7,6 +7,12 @@
 {% endcomment %}
 {% include 'config/salary/_entries_modal.html' %}
 
+{% comment %}
+  Обёртка <template> здесь ОБЯЗАТЕЛЬНА: одиночный <tr> на верхнем уровне
+  HTML-парсер выбрасывает (tr допустим только внутри table), и htmx не успел
+  бы обработать hx-swap-oob. Внутри <template> разметка парсится «как есть»,
+  htmx достаёт из неё OOB-строку и подменяет <tr id="salary-row-…"> в таблице.
+{% endcomment %}
 <template>
     {% include 'config/salary/_row.html' with swap_oob=True %}
 </template>

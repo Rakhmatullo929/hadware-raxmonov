@@ -12,9 +12,11 @@
 </div>
 
 <form method="get" class="card card-body bg-body-tertiary mb-3">
+    {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
     <div class="row g-2 align-items-end">
         <div class="col-auto">
-            <a href="?month={{ prev_month }}" class="btn btn-outline-secondary btn-sm"
+            <a href="?month={{ prev_month }}{% if show_archived %}&amp;archived=1{% endif %}"
+               class="btn btn-outline-secondary btn-sm"
                title="{% trans 'Предыдущий месяц' %}">
                 <i class="bi bi-chevron-left"></i>
             </a>
@@ -26,18 +28,31 @@
                    onchange="this.form.submit()">
         </div>
         <div class="col-auto">
-            <a href="?month={{ next_month }}" class="btn btn-outline-secondary btn-sm"
+            <a href="?month={{ next_month }}{% if show_archived %}&amp;archived=1{% endif %}"
+               class="btn btn-outline-secondary btn-sm"
                title="{% trans 'Следующий месяц' %}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </div>
         <div class="col-auto">
-            <a href="?month={{ this_month }}" class="btn btn-link btn-sm">
+            <a href="?month={{ this_month }}{% if show_archived %}&amp;archived=1{% endif %}"
+               class="btn btn-link btn-sm">
                 {% trans "Текущий" %}
             </a>
         </div>
+        <div class="col-auto">
+            {% if show_archived %}
+                <a href="?month={{ month_iso }}" class="btn btn-link btn-sm">
+                    {% trans "Скрыть архивных" %}
+                </a>
+            {% else %}
+                <a href="?month={{ month_iso }}&amp;archived=1" class="btn btn-link btn-sm">
+                    {% trans "Показать архивных" %}
+                </a>
+            {% endif %}
+        </div>
         <div class="col-auto ms-auto small text-muted">
-            {% blocktrans with d=working_days %}Рабочих дней в месяце: <strong>{{ d }}</strong>{% endblocktrans %}
+            {% trans "Рабочих дней в месяце:" %} <strong>{{ working_days }}</strong>
         </div>
     </div>
 </form>
@@ -68,7 +83,7 @@
                 <th class="text-end font-monospace">{{ totals.base }}</th>
                 <th class="text-end font-monospace text-success">+{{ totals.bonuses }}</th>
                 <th class="text-end font-monospace text-danger">−{{ totals.penalties }}</th>
-                <th class="text-end font-monospace fw-bold text-primary">{{ totals.total }}</th>
+                <th class="text-end font-monospace fw-bold {% if totals.total < 0 %}text-danger{% else %}text-primary{% endif %}">{{ totals.total }}</th>
                 <th></th>
             </tr>
         </tfoot>

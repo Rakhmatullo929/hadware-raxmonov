@@ -7,7 +7,9 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from config.models import Attendance, SalaryEntry, Worker
+from config.models import (
+    Attendance, MonthlySalaryBase, SalaryEntry, Worker,
+)
 from config.views import (
     _compute_payroll, _quantize_money, _working_days_in_month,
 )
@@ -203,7 +205,10 @@ def test_base_update_is_per_month_snapshot(client_admin, worker):
 def test_base_update_rejects_too_many_digits(client_admin, worker):
     url = reverse('salary_base_update', args=[worker.pk]) + '?month=2026-06'
     r = client_admin.post(url, {'monthly_salary': '99999999999999'})  # 14 цифр
-    assert r.status_code == 400
+    # htmx не свапает 4xx → отдаём 200 со строкой + inline-ошибкой; оклад
+    # при этом НЕ меняется.
+    assert r.status_code == 200
+    assert 'Некорректная сумма' in r.content.decode()
     assert _compute_payroll(worker, 2026, 6)['monthly_salary'] \
         == Decimal('3000000.00')
 
@@ -211,12 +216,23 @@ def test_base_update_rejects_too_many_digits(client_admin, worker):
 def test_base_update_rejects_negative(client_admin, worker):
     url = reverse('salary_base_update', args=[worker.pk]) + '?month=2026-06'
     r = client_admin.post(url, {'monthly_salary': '-100'})
-    assert r.status_code == 400
+    assert r.status_code == 200
+    assert 'Некорректная сумма' in r.content.decode()
+    assert _compute_payroll(worker, 2026, 6)['monthly_salary'] \
+        == Decimal('3000000.00')
 
 
 def test_base_update_rejects_get(client_admin, worker):
     url = reverse('salary_base_update', args=[worker.pk]) + '?month=2026-06'
     assert client_admin.get(url).status_code == 405
+
+
+def test_base_update_requires_month(client_admin, worker):
+    # Без ?month денежная запись не должна молча уехать в текущий месяц.
+    url = reverse('salary_base_update', args=[worker.pk])  # нет ?month
+    r = client_admin.post(url, {'monthly_salary': '5000000'})
+    assert r.status_code == 400
+    assert not MonthlySalaryBase.objects.filter(worker=worker).exists()
 
 
 def test_delete_entry_denies_staff_allows_admin(client_admin, client_staff,
@@ -309,18 +325,99 @@ def test_entry_delete_rejects_get(client_admin, worker):
     assert client_admin.get(url).status_code == 405
 
 
-@pytest.mark.parametrize('view_name,kwargs', [
-    ('salary_entries_modal', {}),
-    ('salary_worker_detail', {}),
-])
-def test_inactive_worker_is_404(client_admin, inactive_worker, view_name, kwargs):
-    url = reverse(view_name, args=[inactive_worker.pk]) + '?month=2026-06'
+def test_inactive_worker_entries_modal_is_404(client_admin, inactive_worker):
+    # Правки/начисления для архивных закрыты…
+    url = reverse('salary_entries_modal', args=[inactive_worker.pk]) + '?month=2026-06'
     assert client_admin.get(url).status_code == 404
 
 
 def test_base_update_inactive_worker_is_404(client_admin, inactive_worker):
     url = reverse('salary_base_update', args=[inactive_worker.pk]) + '?month=2026-06'
     assert client_admin.post(url, {'monthly_salary': '100'}).status_code == 404
+
+
+def test_worker_detail_readable_for_inactive(client_admin, inactive_worker):
+    # …но история (worker_detail) для архивных доступна на чтение.
+    r = client_admin.get(reverse('salary_worker_detail',
+                                 args=[inactive_worker.pk]))
+    assert r.status_code == 200
+    assert inactive_worker.full_name in r.content.decode()
+
+
+def test_index_archived_toggle(client_admin, worker, inactive_worker):
+    base = reverse('salary_index') + '?month=2026-06'
+    # По умолчанию архивных нет.
+    assert inactive_worker.full_name not in client_admin.get(base).content.decode()
+    # С ?archived=1 — появляются (read-only).
+    body = client_admin.get(base + '&archived=1').content.decode()
+    assert inactive_worker.full_name in body
+
+
+def test_index_bad_month_does_not_500(client_admin, worker):
+    # ?month=9999-12 раньше падал 500 (datetime year 10000) — теперь fallback.
+    assert client_admin.get(
+        reverse('salary_index') + '?month=9999-12').status_code == 200
+
+
+def test_entry_create_requires_month(client_admin, worker):
+    url = reverse('salary_entry_create', args=[worker.pk])  # нет ?month
+    r = client_admin.post(url, {'kind': 'bonus', 'amount': '1000', 'reason': ''})
+    assert r.status_code == 400
+    assert not SalaryEntry.objects.filter(worker=worker).exists()
+
+
+def test_entry_create_success_body_has_oob_row(client_admin, worker):
+    url = reverse('salary_entry_create', args=[worker.pk]) + '?month=2026-06'
+    r = client_admin.post(url, {'kind': 'bonus', 'amount': '5000', 'reason': 'ок'})
+    assert r.status_code == 200
+    body = r.content.decode()
+    assert 'hx-swap-oob' in body            # OOB-строка для обновления таблицы
+    assert f'salary-row-{worker.pk}' in body
+
+
+def test_negative_total_marked_as_debt(client_admin, worker):
+    SalaryEntry.objects.create(
+        worker=worker, year=2026, month=6, kind=SalaryEntry.Kind.PENALTY,
+        amount=Decimal('50000.00'),
+    )
+    body = client_admin.get(
+        reverse('salary_index') + '?month=2026-06').content.decode()
+    assert 'долг' in body
+    assert 'text-danger' in body
+
+
+def test_raising_contract_salary_freezes_prior_months(client_admin, worker):
+    # Явка в прошлом месяце (май, при сегодня=июнь) → месяц «с данными».
+    Attendance.objects.create(worker=worker, date=date(2026, 5, 4),
+                              is_present=True)
+    r = client_admin.post(reverse('worker_update', args=[worker.pk]), {
+        'full_name': worker.full_name, 'position': worker.position,
+        'phone': '', 'monthly_salary': '5 000 000', 'note': '',
+        'is_active': 'on',
+    })
+    assert r.status_code in (200, 302)
+    worker.refresh_from_db()
+    assert worker.monthly_salary == Decimal('5000000.00')
+    # Прошлый месяц с данными заморожен на СТАРОМ окладе…
+    assert _compute_payroll(worker, 2026, 5)['monthly_salary'] \
+        == Decimal('3000000.00')
+    # …будущий месяц — по НОВОМУ окладу.
+    assert _compute_payroll(worker, 2026, 7)['monthly_salary'] \
+        == Decimal('5000000.00')
+
+
+def test_raising_salary_freezes_current_month_at_old(client_admin, worker):
+    # Осознанное решение: повышение действует со СЛЕДУЮЩЕГО месяца — текущий
+    # месяц с данными замораживается на старом окладе.
+    Attendance.objects.create(worker=worker, date=date(2026, 6, 1),
+                              is_present=True)  # текущий месяц (сегодня = июнь)
+    client_admin.post(reverse('worker_update', args=[worker.pk]), {
+        'full_name': worker.full_name, 'position': worker.position,
+        'phone': '', 'monthly_salary': '5 000 000', 'note': '',
+        'is_active': 'on',
+    })
+    assert _compute_payroll(worker, 2026, 6)['monthly_salary'] \
+        == Decimal('3000000.00')
 
 
 def test_compute_payroll_rounds_fractional_cent(db, worker):

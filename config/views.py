@@ -1957,8 +1957,20 @@ class WorkerUpdateView(AdminRequiredMixin, UpdateView):
     success_url = reverse_lazy('worker_list')
 
     def form_valid(self, form):
+        # Старый оклад ДО сохранения: если он меняется, замораживаем прошлые
+        # месяцы по старому значению, чтобы расчёт за них не уехал задним числом.
+        old_salary = (
+            Worker.objects.filter(pk=self.object.pk)
+            .values_list('monthly_salary', flat=True).first()
+        )
+        response = super().form_valid(form)
+        new_salary = form.instance.monthly_salary
+        if old_salary is not None and old_salary != new_salary:
+            _freeze_salary_snapshots(
+                form.instance, old_salary, created_by=self.request.user,
+            )
         messages.success(self.request, _('Изменения сохранены.'))
-        return super().form_valid(form)
+        return response
 
 
 class WorkerToggleActiveView(AdminRequiredMixin, View):
@@ -1972,15 +1984,27 @@ class WorkerToggleActiveView(AdminRequiredMixin, View):
 # ---------- payroll / salary ----------
 
 
-def _parse_year_month(request):
-    """Прочитать ?month=YYYY-MM; по умолчанию — текущий месяц."""
-    raw = (request.GET.get('month') or '').strip()
-    today = timezone.localdate()
+def _coerce_year_month(raw):
+    """'YYYY-MM' -> (year, month) или None, если строка пустая/кривая/год вне
+    разумного диапазона. Диапазон 2000–2100 защищает _month_bounds от overflow
+    (datetime(10000, …) на ?month=9999-12 иначе бросает ValueError → 500)."""
+    raw = (raw or '').strip()
     try:
         d = datetime.strptime(raw, '%Y-%m').date()
-        return d.year, d.month
     except ValueError:
+        return None
+    if not (2000 <= d.year <= 2100):
+        return None
+    return d.year, d.month
+
+
+def _parse_year_month(request):
+    """Для read-страниц: ?month=YYYY-MM, по умолчанию — текущий месяц."""
+    ym = _coerce_year_month(request.GET.get('month'))
+    if ym is None:
+        today = timezone.localdate()
         return today.year, today.month
+    return ym
 
 
 def _month_bounds(year, month):
@@ -1993,13 +2017,19 @@ def _month_bounds(year, month):
     return start, end
 
 
+def _is_working_day(d):
+    """Рабочий день для расчёта зарплаты — будни (Пн–Пт). Единый источник
+    правды: и числитель (явка), и знаменатель (норма) опираются на него."""
+    return d.weekday() < 5
+
+
 def _working_days_in_month(year, month):
-    """Количество будних дней (Пн–Пт) в месяце."""
+    """Количество рабочих дней (будней) в месяце."""
     start, end = _month_bounds(year, month)
     days = (end - start).days
     return sum(
         1 for i in range(days)
-        if (start + timedelta(days=i)).weekday() < 5
+        if _is_working_day(start + timedelta(days=i))
     )
 
 
@@ -2036,6 +2066,41 @@ def _resolve_month_base(worker, year, month):
     return worker.monthly_salary
 
 
+def _freeze_salary_snapshots(worker, amount, created_by=None):
+    """Зафиксировать снимок оклада ``amount`` за все месяцы с данными (явка или
+    начисления) ≤ текущего, у которых снимка ещё нет.
+
+    Вызывается при смене оклада в профиле: иначе месяцы без снимка пересчитались
+    бы задним числом по новому окладу (см. _resolve_month_base). Будущие месяцы
+    снимком не трогаем — они должны идти уже по новому окладу.
+    """
+    today = timezone.localdate()
+    cur = (today.year, today.month)
+    months = set()
+    # .dates(...,'month') — DISTINCT по месяцам на стороне БД (не тянем все
+    # строки явки); ограничиваем прошлым/текущим (date__lte=today).
+    for d in (Attendance.objects.filter(worker=worker, date__lte=today)
+              .dates('date', 'month')):
+        months.add((d.year, d.month))
+    for ym in (SalaryEntry.objects.filter(worker=worker)
+               .values_list('year', 'month').distinct()):
+        months.add(ym)
+    existing = set(
+        MonthlySalaryBase.objects.filter(worker=worker)
+        .values_list('year', 'month')
+    )
+    to_create = [
+        MonthlySalaryBase(worker=worker, year=y, month=m,
+                          amount=amount, created_by=created_by)
+        for (y, m) in months
+        if (y, m) <= cur and (y, m) not in existing
+    ]
+    if to_create:
+        # ignore_conflicts — защита от гонки двух одновременных правок оклада
+        # (UniqueConstraint на (worker, year, month)).
+        MonthlySalaryBase.objects.bulk_create(to_create, ignore_conflicts=True)
+
+
 def _compute_payroll(worker, year, month, present_days=None,
                      entries=None, working_days=None, monthly_base=None):
     """Свод за месяц: оклад × явка + премии − штрафы.
@@ -2057,7 +2122,7 @@ def _compute_payroll(worker, year, month, present_days=None,
         # а рабочие дни (_working_days_in_month) это Пн–Пт. Явка в выходные не
         # должна раздувать базу выше полного оклада (числитель и знаменатель
         # должны опираться на один и тот же набор дней).
-        present_days = sum(1 for d in present_dates if d.weekday() < 5)
+        present_days = sum(1 for d in present_dates if _is_working_day(d))
     if entries is None:
         # select_related('created_by') — модалка начислений рендерит
         # e.created_by.username; иначе был бы N+1 на каждую запись.
@@ -2097,6 +2162,9 @@ def _compute_payroll(worker, year, month, present_days=None,
         'bonuses': _quantize_money(bonuses),
         'penalties': _quantize_money(penalties),
         'total': total,
+        # Отрицательный итог = долг (штрафы > база+премии); шаблоны красят его
+        # красным и подписывают, чтобы не спутать с выплатой к выдаче.
+        'is_debt': total < 0,
         'entries': entries,
     }
 
@@ -2125,7 +2193,12 @@ def salary_index(request):
     чувствительные данные (роль staff к ним доступа не имеет).
     """
     year, month = _parse_year_month(request)
-    workers = list(Worker.objects.filter(is_active=True))
+    # ?archived=1 — показать и уволенных (read-only-строки), чтобы свести их
+    # историю/долги; по умолчанию только активные.
+    show_archived = request.GET.get('archived') == '1'
+    workers_qs = Worker.objects.all() if show_archived \
+        else Worker.objects.filter(is_active=True)
+    workers = list(workers_qs)
     working_days = _working_days_in_month(year, month)
 
     start, end = _month_bounds(year, month)
@@ -2139,7 +2212,7 @@ def salary_index(request):
     )
     present_map = {}
     for wid, d in present_rows:
-        if d.weekday() < 5:
+        if _is_working_day(d):
             present_map[wid] = present_map.get(wid, 0) + 1
 
     # Начисления/удержания батчем. created_by здесь НЕ нужен (таблица
@@ -2200,6 +2273,7 @@ def salary_index(request):
         'prev_month': prev_month,
         'next_month': next_month,
         'this_month': f'{today.year}-{today.month:02d}',
+        'show_archived': show_archived,
     })
 
 
@@ -2214,7 +2288,12 @@ def salary_base_update(request, worker_id):
     if request.method != 'POST':
         return HttpResponse(status=405)
     worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
-    year, month = _parse_year_month(request)
+    # Месяц для денежной записи обязателен и валиден — не подставляем «текущий»
+    # молча, иначе оклад уехал бы не в тот период.
+    ym = _coerce_year_month(request.GET.get('month'))
+    if ym is None:
+        return HttpResponse(_('Не указан месяц'), status=400)
+    year, month = ym
 
     # Переиспользуем MoneyDecimalField: один и тот же парсинг пробелов,
     # диапазон (>=0) и предел max_digits=12, что и у WorkerForm.
@@ -2222,7 +2301,11 @@ def salary_base_update(request, worker_id):
     try:
         new_value = field.clean(request.POST.get('monthly_salary') or '0')
     except ValidationError:
-        return HttpResponse(_('Некорректная сумма'), status=400)
+        # Возвращаем строку (200) с inline-ошибкой: htmx 1.9.12 не свапает
+        # 4xx, поэтому 400 был бы «тихим» — админ не увидел бы отказа.
+        ctx = _row_context(worker, year, month)
+        ctx['base_error'] = _('Некорректная сумма')
+        return render(request, 'config/salary/_row.html', ctx)
 
     MonthlySalaryBase.objects.update_or_create(
         worker=worker, year=year, month=month,
@@ -2242,7 +2325,12 @@ def salary_entry_create(request, worker_id):
     if request.method != 'POST':
         return HttpResponse(status=405)
     worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
-    year, month = _parse_year_month(request)
+    # Месяц обязателен и валиден — премия/штраф не должны молча уехать в
+    # «текущий» месяц при потере ?month.
+    ym = _coerce_year_month(request.GET.get('month'))
+    if ym is None:
+        return HttpResponse(_('Не указан месяц'), status=400)
+    year, month = ym
 
     form = SalaryEntryForm(request.POST)
     if not form.is_valid():
@@ -2293,8 +2381,12 @@ def salary_entries_modal(request, worker_id):
 
 @role_required('admin')
 def salary_worker_detail(request, worker_id):
-    """Помесячная история и статистика по одному рабочему."""
-    worker = get_object_or_404(Worker, pk=worker_id, is_active=True)
+    """Помесячная история и статистика по одному рабочему.
+
+    Доступна и для архивных (неактивных) рабочих — только для чтения, чтобы
+    можно было посмотреть/свести историю и долги уволенного сотрудника.
+    """
+    worker = get_object_or_404(Worker, pk=worker_id)
     today = timezone.localdate()
 
     # Сколько месяцев показать (по умолчанию 12)
@@ -2326,7 +2418,7 @@ def salary_worker_detail(request, worker_id):
               .filter(worker=worker, date__gte=range_start, date__lt=range_end,
                       is_present=True)
               .values_list('date', flat=True)):
-        if d.weekday() < 5:
+        if _is_working_day(d):
             key = (d.year, d.month)
             present_map[key] = present_map.get(key, 0) + 1
 

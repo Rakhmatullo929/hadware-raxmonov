@@ -37,6 +37,21 @@ def test_strip_keeps_decimal_point():
     assert _strip_money_spaces('40 000.50') == '40000.50'
 
 
+def test_strip_normalizes_grouped_comma_decimal():
+    # ru-локаль: «40 000,50» — корректная группировка с запятой-разделителем
+    # дроби. Нормализуем запятую в точку, чтобы Decimal-парсер принял значение
+    # и без JS (money-input.js делает то же на клиенте).
+    assert _strip_money_spaces('40 000,50') == '40000.50'
+
+
+def test_strip_normalizes_bare_comma_decimal():
+    # «Голая» запятая-дробь без группировки тоже должна приниматься без JS.
+    assert _strip_money_spaces('40000,50') == '40000.50'
+    assert _strip_money_spaces('500,50') == '500.50'
+    # Две запятые/уже есть точка — не трогаем (пусть валидация отвергнет).
+    assert _strip_money_spaces('1,2,3') == '1,2,3'
+
+
 def test_strip_rejects_irregular_grouping():
     # Кривая группировка не должна молча «склеиваться» в число другого
     # порядка — оставляем пробелы, чтобы Decimal-валидация её отвергла.
@@ -74,6 +89,11 @@ def test_money_field_still_rejects_garbage():
     from django.core.exceptions import ValidationError
     with pytest.raises(ValidationError):
         f.clean('abc')
+
+
+def test_money_field_accepts_grouped_comma_decimal():
+    f = MoneyDecimalField(max_digits=12, decimal_places=2)
+    assert f.to_python('40 000,50') == Decimal('40000.50')
 
 
 def test_money_field_rejects_irregular_grouping():

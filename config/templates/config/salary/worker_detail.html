@@ -13,6 +13,11 @@
         {% if worker.position %}
             <small class="text-muted">· {{ worker.position }}</small>
         {% endif %}
+        {% if not worker.is_active %}
+            <span class="badge bg-secondary-subtle text-secondary align-middle">
+                {% trans "архив" %}
+            </span>
+        {% endif %}
     </h1>
     <div>
         <a href="{% url 'salary_index' %}" class="btn btn-outline-secondary btn-sm">
@@ -73,8 +78,8 @@
     </div>
 </div>
 
-<div class="alert alert-primary py-2 mb-3 d-flex justify-content-between align-items-center">
-    <span>{% trans "Итого за период" %}</span>
+<div class="alert {% if grand_total < 0 %}alert-danger{% else %}alert-primary{% endif %} py-2 mb-3 d-flex justify-content-between align-items-center">
+    <span>{% if grand_total < 0 %}{% trans "Долг за период" %}{% else %}{% trans "Итого за период" %}{% endif %}</span>
     <span class="fw-bold font-monospace fs-4">{{ grand_total }}</span>
 </div>
 
@@ -112,7 +117,7 @@
                     <td class="text-end font-monospace text-danger">
                         {% if r.penalties %}−{{ r.penalties }}{% else %}—{% endif %}
                     </td>
-                    <td class="text-end font-monospace fw-bold text-primary">{{ r.total }}</td>
+                    <td class="text-end font-monospace fw-bold {% if r.is_debt %}text-danger{% else %}text-primary{% endif %}">{{ r.total }}</td>
                 </tr>
             {% endfor %}
         </tbody>

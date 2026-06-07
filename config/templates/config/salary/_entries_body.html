@@ -20,8 +20,8 @@
         </div>
     </div>
 </div>
-<div class="alert alert-primary py-2 mb-3 d-flex justify-content-between align-items-center">
-    <span>{% trans "Итого к выплате" %}</span>
+<div class="alert {% if row.is_debt %}alert-danger{% else %}alert-primary{% endif %} py-2 mb-3 d-flex justify-content-between align-items-center">
+    <span>{% if row.is_debt %}{% trans "Долг работника" %}{% else %}{% trans "Итого к выплате" %}{% endif %}</span>
     <span class="fw-bold font-monospace fs-5">{{ row.total }}</span>
 </div>
 

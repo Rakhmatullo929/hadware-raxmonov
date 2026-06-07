@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n l10n %}
 {% with w=row.worker %}
 <tr id="salary-row-{{ w.pk }}"
     {% if swap_oob %}hx-swap-oob="true"{% endif %}
@@ -8,27 +8,37 @@
            class="text-decoration-none">
             {{ w.full_name }}
         </a>
+        {% if not w.is_active %}
+            <span class="badge bg-secondary-subtle text-secondary ms-1">
+                {% trans "архив" %}
+            </span>
+        {% endif %}
         {% if w.position %}
             <div class="text-muted small">{{ w.position }}</div>
         {% endif %}
     </td>
     <td class="text-end">
-        {% if is_admin %}
+        {% if is_admin and w.is_active %}
             <form class="d-inline-flex align-items-center justify-content-end"
                   hx-post="{% url 'salary_base_update' w.pk %}?month={{ month_iso }}"
                   hx-target="#salary-row-{{ w.pk }}"
                   hx-swap="outerHTML">
                 {% csrf_token %}
+                {# localize off — иначе ru-локаль вписала бы запятую в value, #}
+                {# а бэкенд её не примет без JS (см. ревью). #}
                 <input type="text"
                        name="monthly_salary"
-                       value="{{ row.monthly_salary }}"
-                       class="form-control form-control-sm money-input editable-salary text-end"
+                       value="{% localize off %}{{ row.monthly_salary }}{% endlocalize %}"
+                       class="form-control form-control-sm money-input editable-salary text-end{% if base_error %} is-invalid{% endif %}"
                        inputmode="decimal">
                 <button type="submit" class="btn btn-sm btn-link p-1 ms-1"
                         title="{% trans 'Сохранить оклад' %}">
                     <i class="bi bi-check2"></i>
                 </button>
             </form>
+            {% if base_error %}
+                <div class="invalid-feedback d-block text-end">{{ base_error }}</div>
+            {% endif %}
         {% else %}
             <span class="font-monospace">{{ row.monthly_salary }}</span>
         {% endif %}
@@ -52,19 +62,28 @@
     <td class="text-end font-monospace text-danger">
         {% if row.penalties %}−{{ row.penalties }}{% else %}—{% endif %}
     </td>
-    <td class="text-end font-monospace fw-bold text-primary">{{ row.total }}</td>
+    <td class="text-end font-monospace fw-bold {% if row.is_debt %}text-danger{% else %}text-primary{% endif %}">
+        {{ row.total }}
+        {% if row.is_debt %}
+            <span class="badge bg-danger-subtle text-danger ms-1">{% trans "долг" %}</span>
+        {% endif %}
+    </td>
     <td class="text-end">
-        <button type="button"
-                class="btn btn-sm btn-outline-primary"
-                hx-get="{% url 'salary_entries_modal' w.pk %}?month={{ month_iso }}"
-                hx-target="#modal-slot"
-                hx-swap="innerHTML"
-                title="{% trans 'Премии и штрафы' %}">
-            <i class="bi bi-cash-stack"></i>
-            {% if row.entries %}
-                <span class="badge bg-primary ms-1">{{ row.entries|length }}</span>
-            {% endif %}
-        </button>
+        {% if w.is_active %}
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    hx-get="{% url 'salary_entries_modal' w.pk %}?month={{ month_iso }}"
+                    hx-target="#modal-slot"
+                    hx-swap="innerHTML"
+                    title="{% trans 'Премии и штрафы' %}">
+                <i class="bi bi-cash-stack"></i>
+                {% if row.entries %}
+                    <span class="badge bg-primary ms-1">{{ row.entries|length }}</span>
+                {% endif %}
+            </button>
+        {% elif row.entries %}
+            <span class="badge bg-secondary-subtle text-secondary">{{ row.entries|length }}</span>
+        {% endif %}
     </td>
 </tr>
 {% endwith %}
