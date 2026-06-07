@@ -34,6 +34,12 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('category', 'unit', 'is_active')
     search_fields = ('name',)
     list_select_related = ('category',)
+    fields = (
+        'name', 'category', 'unit', 'stock_total',
+        'daily_price', 'deposit_per_unit',
+        'expected_min_days', 'expected_max_days',
+        'is_active', 'included_kit',
+    )
 
     @admin.display(description='Доступно')
     def available_stock_display(self, obj):

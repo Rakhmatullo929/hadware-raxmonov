@@ -21,6 +21,11 @@
                         {% if not p.is_active %}
                             <span class="badge bg-secondary ms-1">{% trans "отключён" %}</span>
                         {% endif %}
+                        {% if p.included_kit %}
+                            <div class="small text-muted">
+                                {% trans "в комплекте" %}: {{ p.included_kit }}
+                            </div>
+                        {% endif %}
                     </td>
                     <td>{{ p.category.name }}</td>
                     <td>{{ p.unit }}</td>
