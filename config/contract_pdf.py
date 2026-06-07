@@ -300,6 +300,20 @@ def _draw_items_table(pdf, layout, items, total_deposit_due):
         for text, frac, align in row:
             pdf.cell(w * frac, row_h, str(text), border=1, align=align)
         pdf.ln()
+        kit = (it.product.included_kit or '').strip()
+        if kit:
+            pdf.set_font('Body', '', max(base - 1, 6))
+            pdf.set_text_color(110, 110, 110)
+            pdf.multi_cell(
+                w, row_h - 1,
+                _('в комплекте') + ': ' + kit,
+                border='LR', align='L',
+            )
+            # multi_cell оставляет курсор справа — возвращаем к левому полю,
+            # иначе последующие multi_cell(0, ...) получат нулевую ширину.
+            pdf.set_x(pdf.l_margin)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font('Body', size=base)
 
     # Итоговая строка с суммой залога — только когда есть колонка залога.
     if layout['item_columns'] != 'compact':

@@ -54,6 +54,13 @@ class Product(models.Model):
         default=Decimal('0.00'),
     )
     is_active = models.BooleanField(_('Активен'), default=True)
+    included_kit = models.TextField(
+        _('В комплекте'),
+        blank=True,
+        default='',
+        help_text=_('Что входит в комплект на 1 шт (справочно). '
+                    'Напр.: Зажим ×3, Фиксатор ×3, Штир/шайба ×3'),
+    )
     # Окно ожидаемой длительности проката. Используется как «подозрение»:
     # если позиция всё ещё на руках после max_days — на дашборде/в карточке
     # показывается красный индикатор, за день до — жёлтый. Поля
@@ -578,10 +585,6 @@ class SalaryEntry(models.Model):
         sign = '+' if self.kind == self.Kind.BONUS else '−'
         return (f'{self.worker.full_name} · {self.year}-{self.month:02d} '
                 f'{sign}{self.amount}')
-
-    @property
-    def signed_amount(self):
-        return self.amount if self.kind == self.Kind.BONUS else -self.amount
 
 
 class MonthlySalaryBase(models.Model):

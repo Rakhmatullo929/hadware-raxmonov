@@ -25,9 +25,15 @@ def _strip_money_spaces(raw):
         return raw
     s = raw.strip()
     if not re.search(r'\s', s):
+        # Без пробелов: «голая» запятая-дробь в ru («40000,50»). Нормализуем
+        # запятую в точку, только если она одна и точки нет (иначе не трогаем).
+        if s.count(',') == 1 and '.' not in s:
+            return s.replace(',', '.')
         return s
     if _MONEY_GROUPED_RE.match(s):
-        return re.sub(r'\s+', '', s)
+        # Убираем пробелы-разделители тысяч и нормализуем запятую (ru) в точку,
+        # чтобы Decimal-парсер принял значение и на пути без JS.
+        return re.sub(r'\s+', '', s).replace(',', '.')
     return s
 
 
@@ -88,6 +94,7 @@ class ProductForm(BootstrapFormMixin, forms.ModelForm):
             'expected_min_days',
             'expected_max_days',
             'is_active',
+            'included_kit',
         ]
 
     def clean(self):

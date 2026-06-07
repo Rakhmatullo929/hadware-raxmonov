@@ -207,3 +207,49 @@ def test_customer_outstanding_qty_aggregates_active_rentals(
     # closed contributes 0; active rentals contribute 5 + 7 = 12
     assert customer.outstanding_qty == 12
     assert customer.active_rentals_count == 2
+
+
+def test_product_included_kit_defaults_to_empty(category):
+    from decimal import Decimal
+    from config.models import Product
+    p = Product.objects.create(
+        name='Без комплекта',
+        category=category,
+        unit='шт',
+        daily_price=Decimal('0.00'),
+        deposit_per_unit=Decimal('0.00'),
+    )
+    assert p.included_kit == ''
+
+
+def test_product_included_kit_stores_text(category):
+    from decimal import Decimal
+    from config.models import Product
+    p = Product.objects.create(
+        name='С комплектом',
+        category=category,
+        unit='шт',
+        daily_price=Decimal('0.00'),
+        deposit_per_unit=Decimal('0.00'),
+        included_kit='Зажим ×3, Фиксатор ×3',
+    )
+    p.refresh_from_db()
+    assert p.included_kit == 'Зажим ×3, Фиксатор ×3'
+
+
+def test_product_form_has_included_kit_and_saves(category):
+    from config.forms import ProductForm
+    assert 'included_kit' in ProductForm.base_fields
+    form = ProductForm(data={
+        'name': 'Корейская опалубка 2×1',
+        'category': category.pk,
+        'unit': 'шт',
+        'stock_total': '0',
+        'daily_price': '0',
+        'deposit_per_unit': '0',
+        'included_kit': 'Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3',
+        'is_active': 'on',
+    })
+    assert form.is_valid(), form.errors
+    obj = form.save()
+    assert obj.included_kit.startswith('Зажим ×3')
