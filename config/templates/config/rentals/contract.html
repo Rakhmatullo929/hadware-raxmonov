@@ -33,7 +33,12 @@
             {% for it in items %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
-                    <td>{{ it.product.name }}</td>
+                    <td>
+                        {{ it.product.name }}
+                        {% if it.product.included_kit %}
+                            <div class="small fst-italic">{% trans "в комплекте" %}: {{ it.product.included_kit }}</div>
+                        {% endif %}
+                    </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td>{{ it.product.unit }}</td>
                 </tr>
@@ -94,7 +99,12 @@
             {% for it in items %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
-                    <td>{{ it.product.name }}</td>
+                    <td>
+                        {{ it.product.name }}
+                        {% if it.product.included_kit %}
+                            <div class="small fst-italic">{% trans "в комплекте" %}: {{ it.product.included_kit }}</div>
+                        {% endif %}
+                    </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td>{{ it.product.unit }}</td>
                     <td class="text-end">{{ it.price_per_day }}</td>
