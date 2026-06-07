@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-13 04:38+0500\n"
+"POT-Creation-Date: 2026-06-07 16:41+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,31 +16,250 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-#: config/forms.py:46
+
+#: config/contract_pdf.py:242
+msgid "стр."
+msgstr "bet."
+
+#: config/contract_pdf.py:260 config/contract_pdf.py:267
+#: config/templates/config/rentals/contract.html:27
+#: config/templates/config/rentals/contract.html:91
+msgid "Наименование"
+msgstr "Nomi"
+
+#: config/contract_pdf.py:261 config/contract_pdf.py:268
+#: config/templates/config/rentals/_item_row.html:12
+#: config/templates/config/rentals/_items_table.html:17
+#: config/templates/config/rentals/contract.html:28
+#: config/templates/config/rentals/contract.html:92
+msgid "Кол-во"
+msgstr "Miqdor"
+
+#: config/contract_pdf.py:262 config/contract_pdf.py:269
+#: config/templates/config/products/_table.html:8
+#: config/templates/config/rentals/contract.html:29
+#: config/templates/config/rentals/contract.html:93
+#: config/templates/config/reports/stock.html:36
+msgid "Ед."
+msgstr "Birl."
+
+#: config/contract_pdf.py:270
+#: config/templates/config/rentals/_items_table.html:18
+#: config/templates/config/rentals/_return_modal.html:42
+msgid "Цена/сут."
+msgstr "Narx/kun"
+
+#: config/contract_pdf.py:271
+msgid "Залог/ед."
+msgstr "Garov/dona"
+
+#: config/contract_pdf.py:309 config/templates/config/products/_table.html:26
+#: config/templates/config/rentals/contract.html:39
+#: config/templates/config/rentals/contract.html:105
+msgid "в комплекте"
+msgstr "to'plamda"
+
+#: config/contract_pdf.py:321 config/templates/config/rentals/contract.html:117
+msgid "Залог суммарно"
+msgstr "Garov jami"
+
+#: config/contract_pdf.py:340 config/templates/config/rentals/contract.html:151
+msgid "Арендодатель / подпись · печать"
+msgstr "Ijaraga beruvchi / imzo · muhr"
+
+#: config/contract_pdf.py:343 config/templates/config/rentals/contract.html:154
+msgid "Арендатор / подпись"
+msgstr "Ijaraga oluvchi / imzo"
+
+#: config/contract_pdf.py:397
+#, python-format
+msgid "ДОГОВОР АРЕНДЫ № %(n)s"
+msgstr "IJARA SHARTNOMASI № %(n)s"
+
+#: config/contract_pdf.py:403 config/templates/config/rentals/contract.html:11
+#, python-format
+msgid "от %(d)s, г. Ташкент"
+msgstr "%(d)s sanadan, Toshkent sh."
+
+#: config/contract_pdf.py:416 config/templates/config/rentals/contract.html:59
+msgid "Арендодатель:"
+msgstr "Ijaraga beruvchi:"
+
+#: config/contract_pdf.py:419 config/contract_pdf.py:449
+#: config/templates/config/rentals/contract.html:17
+#: config/templates/config/rentals/contract.html:65
+msgid "Арендатор:"
+msgstr "Ijaraga oluvchi:"
+
+#: config/contract_pdf.py:425 config/templates/config/rentals/contract.html:60
+msgid "ООО «Rakhmonov — учёт аренды»"
+msgstr "«Rakhmonov — ijara hisobi» MChJ"
+
+#: config/contract_pdf.py:426 config/templates/config/rentals/contract.html:61
+msgid "ИНН ____________"
+msgstr "STIR ____________"
+
+#: config/contract_pdf.py:427 config/templates/config/rentals/contract.html:62
+msgid "Тел.: ____________"
+msgstr "Tel.: ____________"
+
+#: config/contract_pdf.py:435
+#, python-format
+msgid "Внутр. номер: № %(c)s"
+msgstr "Ichki raqam: № %(c)s"
+
+#: config/contract_pdf.py:437
+#, python-format
+msgid "Паспорт: %(p)s"
+msgstr "Pasport: %(p)s"
+
+#: config/contract_pdf.py:439
+#, python-format
+msgid "Адрес: %(a)s"
+msgstr "Manzil: %(a)s"
+
+#: config/contract_pdf.py:441
+#, python-format
+msgid "Тел.: %(t)s"
+msgstr "Tel.: %(t)s"
+
+#: config/contract_pdf.py:465
+msgid "Предмет"
+msgstr "Predmet"
+
+#: config/contract_pdf.py:469 config/templates/config/rentals/contract.html:82
+msgid "1. Предмет договора"
+msgstr "1. Shartnoma predmeti"
+
+#: config/contract_pdf.py:473 config/templates/config/rentals/contract.html:84
+msgid ""
+"Арендодатель передаёт, а Арендатор принимает во временное возмездное "
+"пользование оборудование, перечисленное ниже:"
+msgstr "Ijaraga beruvchi topshiradi, Ijaraga oluvchi esa quyida sanab o'tilgan jihozlarni vaqtinchalik pullik foydalanishga qabul qiladi:"
+
+#: config/contract_pdf.py:483 config/templates/config/rentals/contract.html:123
+msgid "2. Сроки и оплата"
+msgstr "2. Muddatlar va to'lov"
+
+#: config/contract_pdf.py:487
+#, python-format
+msgid "Дата выдачи: %(d)s"
+msgstr "Berilgan sana: %(d)s"
+
+#: config/contract_pdf.py:488
+#, python-format
+msgid "Срок возврата: %(d)s"
+msgstr "Qaytarish muddati: %(d)s"
+
+#: config/contract_pdf.py:489
+#, python-format
+msgid "Внесённый залог при выдаче: %(s)s сум"
+msgstr "Berishda kiritilgan garov: %(s)s so'm"
+
+#: config/contract_pdf.py:490
+#, python-format
+msgid ""
+"Коэффициент штрафа за просрочку: %(c)s от стоимости суток за каждую "
+"просроченную единицу."
+msgstr "Muddat o'tishi uchun jarima koeffitsiyenti: muddati o'tgan har bir dona uchun sutkalik qiymatdan %(c)s."
+
+#: config/contract_pdf.py:501
+#, python-format
+msgid "Выдано: %(d1)s · Возврат: %(d2)s · Залог при выдаче: %(s)s сум"
+msgstr "Berildi: %(d1)s · Qaytarish: %(d2)s · Berishda garov: %(s)s so'm"
+
+#: config/contract_pdf.py:515 config/templates/config/rentals/contract.html:134
+msgid "3. Обязанности арендатора"
+msgstr "3. Ijaraga oluvchining majburiyatlari"
+
+#: config/contract_pdf.py:519 config/templates/config/rentals/contract.html:136
+msgid "Использовать оборудование по назначению, не передавать третьим лицам."
+msgstr "Jihozdan maqsadga muvofiq foydalanish, uchinchi shaxslarga bermaslik."
+
+#: config/contract_pdf.py:520 config/templates/config/rentals/contract.html:137
+msgid "Вернуть оборудование в исправном состоянии в установленный срок."
+msgstr "Uskunani belgilangan muddatda soz holatda qaytarish."
+
+#: config/contract_pdf.py:521
+msgid ""
+"При повреждении / утрате возместить полную стоимость (удерживается из "
+"залога)."
+msgstr "Shikastlanish / yo'qolish holatida to'liq qiymatni qoplash (garovdan ushlab qolinadi)."
+
+#: config/contract_pdf.py:523 config/templates/config/rentals/contract.html:139
+msgid "При просрочке возврата уплатить штраф согласно п. 2."
+msgstr "Qaytarish muddati o'tgan taqdirda 2-bandga muvofiq jarima to'lash."
+
+#: config/contract_pdf.py:532 config/templates/config/rentals/contract.html:144
+msgid "Дополнительно"
+msgstr "Qo'shimcha"
+
+#: config/contract_pdf.py:533 config/templates/config/rentals/contract.html:144
+msgid "4. Дополнительно"
+msgstr "4. Qo'shimcha"
+
+#: config/forms.py:107
+msgid "Максимум не может быть меньше минимума."
+msgstr "Maksimum minimumdan kichik bo'la olmaydi."
+
+#: config/forms.py:118
 msgid "оставьте пустым — присвоится автоматически"
 msgstr "bo'sh qoldiring — avtomatik beriladi"
 
-#: config/forms.py:59 config/models.py:165
-#: config/templates/config/customers/detail.html:67
-#: config/templates/config/rentals/_summary.html:64
-msgid "Срок возврата"
-msgstr "Qaytarish muddati"
+#: config/forms.py:149 config/forms.py:218
+msgid "Дата и время выдачи"
+msgstr "Berish sanasi va vaqti"
 
-#: config/forms.py:64
+#: config/forms.py:157
+msgid "По умолчанию — текущее время; измените при необходимости."
+msgstr "Sukut bo'yicha — joriy vaqt; zarur bo'lsa o'zgartiring."
+
+#: config/forms.py:160 config/forms.py:223
+msgid "Срок и время возврата"
+msgstr "Qaytarish muddati va vaqti"
+
+#: config/forms.py:165
 msgid "Начальный платёж/залог (опционально)"
 msgstr "Boshlang'ich to'lov/garov (ixtiyoriy)"
 
-#: config/forms.py:79
+#: config/forms.py:180
 msgid "Произвольный комментарий"
 msgstr "Ixtiyoriy izoh"
 
-#: config/forms.py:87
-msgid "Срок возврата должен быть позже сегодняшнего дня."
-msgstr "Qaytarish muddati bugundan kech bo'lishi kerak."
+#: config/forms.py:197 config/forms.py:242
+msgid "Срок возврата должен быть позже даты выдачи."
+msgstr "Qaytarish muddati berilgan sanadan keyin bo'lishi kerak."
 
-#: config/forms.py:94
+#: config/forms.py:203
+msgid "Срок возврата должен быть позже текущего времени."
+msgstr "Qaytarish muddati joriy vaqtdan keyin bo'lishi kerak."
+
+#: config/forms.py:210
 msgid "Выберите клиента."
 msgstr "Mijozni tanlang."
+
+#: config/forms.py:251 config/forms.py:302 config/models.py:414
+#: config/models.py:562 config/templates/config/salary/_entries_body.html:42
+#: config/templates/config/salary/_entries_body.html:71
+msgid "Сумма"
+msgstr "Summa"
+
+#: config/forms.py:262 config/forms.py:289
+msgid "необязательно"
+msgstr "ixtiyoriy"
+
+#: config/forms.py:269 config/forms.py:322
+msgid "Сумма должна быть больше нуля."
+msgstr "Summa noldan katta bo'lishi kerak."
+
+#: config/forms.py:275 config/models.py:479 config/models.py:608
+#: config/models.py:623
+msgid "Оклад за месяц"
+msgstr "Oylik maosh"
+
+#: config/forms.py:314
+msgid "за что (необязательно)"
+msgstr "nima uchun (ixtiyoriy)"
 
 #: config/models.py:12 config/models.py:30
 #: config/templates/config/products/_table.html:6
@@ -89,208 +308,488 @@ msgstr "Kunlik narx"
 msgid "Залог за единицу"
 msgstr "Bir dona uchun garov"
 
-#: config/models.py:56
+#: config/models.py:56 config/models.py:476
+#: config/templates/config/workers/list.html:64
 msgid "Активен"
 msgstr "Faol"
 
-#: config/models.py:59 config/models.py:249
+#: config/models.py:58
+msgid "В комплекте"
+msgstr "To'plamda"
+
+#: config/models.py:61
+msgid ""
+"Что входит в комплект на 1 шт (справочно). Напр.: Зажим ×3, Фиксатор ×3, "
+"Штир/шайба ×3"
+msgstr "1 dona uchun to'plamga nima kiradi (ma'lumot uchun). Masalan: Qisqich ×3, Fiksator ×3, Shtir/shayba ×3"
+
+#: config/models.py:69
+msgid "Норма, дней (мин)"
+msgstr "Norma, kun (min)"
+
+#: config/models.py:70
+msgid "Если задано, помогает оператору заметить превышение."
+msgstr "Agar belgilangan bo'lsa, operatorga oshib ketishni sezishga yordam beradi."
+
+#: config/models.py:73
+msgid "Норма, дней (макс)"
+msgstr "Norma, kun (maks)"
+
+#: config/models.py:74
+msgid "После этого срока позиция подсвечивается красным."
+msgstr "Shu muddatdan keyin pozitsiya qizil rangda ajratiladi."
+
+#: config/models.py:78 config/models.py:282
+#: config/templates/config/dashboard.html:174
 #: config/templates/config/products/list.html:15
+#: config/templates/config/rentals/_item_modal.html:33
 #: config/templates/config/rentals/_item_row.html:4
-#: config/templates/config/rentals/_items_table.html:7
-#: config/templates/config/rentals/_return_modal.html:32
+#: config/templates/config/rentals/_items_table.html:16
+#: config/templates/config/rentals/_return_modal.html:39
 #: config/templates/config/reports/stock.html:35
 #: config/templates/config/reports/top_products.html:40
 #: config/templates/config/reports/top_products.html:67
+#: config/templates/config/suspicions/list.html:77
 msgid "Товар"
 msgstr "Mahsulot"
 
-#: config/models.py:60 config/templates/config/products/list.html:4
-#: config/templates/config/products/list.html:8 templates/base.html:63
+#: config/models.py:79 config/templates/config/products/list.html:4
+#: config/templates/config/products/list.html:8 templates/base.html:68
 msgid "Товары"
 msgstr "Mahsulotlar"
 
-#: config/models.py:87
+#: config/models.py:121
 msgid "Код клиента"
 msgstr "Mijoz kodi"
 
-#: config/models.py:94
+#: config/models.py:127
 msgid ""
 "Внутренний номер для прикрепления паспорта/документов. Если оставить пустым "
 "— присвоится автоматически."
-msgstr ""
-"Pasport/hujjatlarni biriktirish uchun ichki raqam. Bo'sh qoldirilsa — "
-"avtomatik beriladi."
+msgstr "Pasport/hujjatlarni biriktirish uchun ichki raqam. Bo'sh qoldirilsa — avtomatik beriladi."
 
-#: config/models.py:98 config/templates/config/customers/_table.html:7
-#: config/views.py:403
+#: config/models.py:131 config/models.py:473
+#: config/templates/config/customers/_table.html:7
+#: config/templates/config/workers/list.html:49 config/views.py:496
 msgid "ФИО"
 msgstr "To'liq ism"
 
-#: config/models.py:99 config/templates/config/customers/_table.html:8
+#: config/models.py:132 config/models.py:475
+#: config/templates/config/attendance/journal.html:72
+#: config/templates/config/customers/_table.html:8
 #: config/templates/config/customers/detail.html:26
 #: config/templates/config/dashboard.html:89
-#: config/templates/config/reports/debtors.html:44 config/views.py:403
+#: config/templates/config/reports/debtors.html:44
+#: config/templates/config/workers/list.html:51 config/views.py:496
 msgid "Телефон"
 msgstr "Telefon"
 
-#: config/models.py:100 config/templates/config/customers/detail.html:28
+#: config/models.py:133 config/templates/config/customers/detail.html:28
 msgid "Паспорт"
 msgstr "Pasport"
 
-#: config/models.py:101 config/templates/config/customers/detail.html:30
+#: config/models.py:134 config/templates/config/customers/detail.html:30
 msgid "Адрес"
 msgstr "Manzil"
 
-#: config/models.py:102
+#: config/models.py:135
 msgid "Заметки"
 msgstr "Eslatmalar"
 
-#: config/models.py:103
+#: config/models.py:136 config/models.py:484 config/models.py:618
 msgid "Создан"
 msgstr "Yaratilgan"
 
-#: config/models.py:106 config/models.py:162
+#: config/models.py:139 config/models.py:195
 #: config/templates/config/customers/list.html:10
 #: config/templates/config/dashboard.html:88
-#: config/templates/config/dashboard.html:170
+#: config/templates/config/dashboard.html:172
+#: config/templates/config/dashboard.html:232
 #: config/templates/config/rentals/_customer_picked.html:3
 #: config/templates/config/rentals/_customer_search_input.html:3
 #: config/templates/config/rentals/list.html:42
 #: config/templates/config/rentals/list.html:74
 #: config/templates/config/reports/debtors.html:43
+#: config/templates/config/suspicions/list.html:75
 msgid "Клиент"
 msgstr "Mijoz"
 
-#: config/models.py:107 config/templates/config/customers/list.html:4
-#: config/templates/config/customers/list.html:8 templates/base.html:58
+#: config/models.py:140 config/templates/config/customers/list.html:4
+#: config/templates/config/customers/list.html:8 templates/base.html:63
 msgid "Клиенты"
 msgstr "Mijozlar"
 
-#: config/models.py:154 config/templates/config/customers/detail.html:81
+#: config/models.py:187 config/templates/config/customers/detail.html:81
 #: config/templates/config/rentals/_summary.html:11
-#: config/templates/config/rentals/list.html:142
+#: config/templates/config/rentals/list.html:152
 msgid "Активна"
 msgstr "Faol"
 
-#: config/models.py:155 config/models.py:179
+#: config/models.py:188 config/models.py:212
 #: config/templates/config/customers/detail.html:85
 #: config/templates/config/rentals/_summary.html:7
-#: config/templates/config/rentals/list.html:137
+#: config/templates/config/rentals/list.html:147
 msgid "Закрыта"
 msgstr "Yopilgan"
 
-#: config/models.py:156 config/templates/config/customers/detail.html:83
+#: config/models.py:189 config/templates/config/customers/detail.html:83
 #: config/templates/config/rentals/_summary.html:9
-#: config/templates/config/rentals/list.html:108
+#: config/templates/config/rentals/list.html:113
 msgid "Просрочена"
 msgstr "Muddati o'tgan"
 
-#: config/models.py:164 config/templates/config/customers/detail.html:66
-#: config/templates/config/rentals/_summary.html:58
+#: config/models.py:197 config/templates/config/customers/detail.html:66
+#: config/templates/config/rentals/_summary.html:131
 #: config/templates/config/rentals/list.html:75
 msgid "Создана"
 msgstr "Yaratilgan"
 
-#: config/models.py:167 config/templates/config/customers/detail.html:68
+#: config/models.py:198 config/templates/config/customers/detail.html:67
+#: config/templates/config/rentals/_summary.html:137
+msgid "Срок возврата"
+msgstr "Qaytarish muddati"
+
+#: config/models.py:200 config/templates/config/attendance/journal.html:73
+#: config/templates/config/customers/detail.html:68
+#: config/templates/config/dashboard.html:177
 #: config/templates/config/rentals/list.html:17
 #: config/templates/config/rentals/list.html:79
+#: config/templates/config/suspicions/list.html:81
+#: config/templates/config/workers/list.html:30
+#: config/templates/config/workers/list.html:52
 msgid "Статус"
 msgstr "Holat"
 
-#: config/models.py:172 config/models.py:302 config/models.py:335
+#: config/models.py:205 config/models.py:379 config/models.py:423
+#: config/models.py:477 config/models.py:511
 msgid "Примечание"
 msgstr "Izoh"
 
-#: config/models.py:177 config/models.py:307
+#: config/models.py:210 config/models.py:384
 #: config/templates/config/customers/detail.html:70
 msgid "Оформил"
 msgstr "Rasmiylashtirgan"
 
-#: config/models.py:184
+#: config/models.py:217
 msgid "Закрыл"
 msgstr "Yopgan"
 
-#: config/models.py:190 config/models.py:243 config/models.py:322
-#: config/models.py:330 config/templates/config/dashboard.html:90
-#: config/templates/config/rentals/_payments.html:9
+#: config/models.py:223 config/models.py:276 config/models.py:400
+#: config/models.py:412 config/models.py:446
+#: config/templates/config/dashboard.html:90
+#: config/templates/config/dashboard.html:173
+#: config/templates/config/rentals/_payments.html:19
 #: config/templates/config/rentals/list.html:10
+#: config/templates/config/suspicions/list.html:76 config/views.py:376
 msgid "Аренда"
 msgstr "Ijara"
 
-#: config/models.py:191 config/templates/config/rentals/list.html:4
-#: config/templates/config/rentals/list.html:8 templates/base.html:53
+#: config/models.py:224 config/templates/config/rentals/list.html:4
+#: config/templates/config/rentals/list.html:8 templates/base.html:52
 msgid "Аренды"
 msgstr "Ijaralar"
 
-#: config/models.py:251 config/models.py:300
+#: config/models.py:284 config/models.py:377
+#: config/templates/config/rentals/_item_modal.html:41
 msgid "Количество"
 msgstr "Miqdor"
 
-#: config/models.py:253
+#: config/models.py:286
 msgid "Цена за сутки (снимок)"
 msgstr "Kunlik narx (snapshot)"
 
-#: config/models.py:259 config/models.py:297
+#: config/models.py:292 config/models.py:374
 msgid "Позиция аренды"
 msgstr "Ijara pozitsiyasi"
 
-#: config/models.py:260
+#: config/models.py:293
 msgid "Позиции аренды"
 msgstr "Ijara pozitsiyalari"
 
-#: config/models.py:290 config/templates/config/dashboard.html:215
+#: config/models.py:367 config/templates/config/dashboard.html:277
 #: config/templates/config/rentals/_timeline.html:9
 msgid "Выдача"
 msgstr "Berish"
 
-#: config/models.py:291 config/templates/config/dashboard.html:217
+#: config/models.py:368 config/templates/config/dashboard.html:279
 #: config/templates/config/rentals/_timeline.html:11
 msgid "Возврат"
 msgstr "Qaytarish"
 
-#: config/models.py:299 config/models.py:334
+#: config/models.py:376 config/models.py:416 config/models.py:448
+#: config/models.py:559 config/templates/config/salary/_entries_body.html:35
+#: config/templates/config/salary/_entries_body.html:70
 msgid "Тип"
 msgstr "Tur"
 
-#: config/models.py:301 config/models.py:333
+#: config/models.py:378 config/models.py:415 config/models.py:509
+#: config/templates/config/attendance/journal.html:24
 msgid "Дата"
 msgstr "Sana"
 
-#: config/models.py:311
+#: config/models.py:388
 msgid "Движение"
 msgstr "Harakat"
 
-#: config/models.py:312 config/templates/config/rentals/_timeline.html:2
+#: config/models.py:389 config/templates/config/rentals/_timeline.html:2
 msgid "Движения"
 msgstr "Harakatlar"
 
-#: config/models.py:321 config/templates/config/rentals/_payments.html:8
+#: config/models.py:398 config/templates/config/rentals/_payments.html:17
+#: config/views.py:374
 msgid "Залог"
 msgstr "Garov"
 
-#: config/models.py:323 config/templates/config/rentals/_payments.html:10
+#: config/models.py:399 config/templates/config/rentals/_payments.html:18
+#: config/views.py:375
+msgid "Аванс"
+msgstr "Avans"
+
+#: config/models.py:401 config/templates/config/rentals/_payments.html:20
+#: config/templates/config/salary/_entries_body.html:87 config/views.py:377
 msgid "Штраф"
 msgstr "Jarima"
 
-#: config/models.py:324 config/templates/config/rentals/_payments.html:11
+#: config/models.py:402 config/templates/config/rentals/_payments.html:21
+#: config/views.py:378
 msgid "Возврат залога"
 msgstr "Garovni qaytarish"
 
-#: config/models.py:332
-msgid "Сумма"
-msgstr "Summa"
+#: config/models.py:405 config/templates/config/rentals/_payments.html:24
+#: config/views.py:370
+msgid "Наличные"
+msgstr "Naqd"
 
-#: config/models.py:338
+#: config/models.py:406 config/templates/config/rentals/_payments.html:28
+#: config/views.py:371
+msgid "Карта"
+msgstr "Karta"
+
+#: config/models.py:418 config/templates/config/reports/payment_methods.html:58
+msgid "Способ оплаты"
+msgstr "To'lov usuli"
+
+#: config/models.py:426 config/templates/config/rentals/_payments.html:8
 msgid "Платёж"
 msgstr "To'lov"
 
-#: config/models.py:339 config/templates/config/rentals/_payments.html:2
+#: config/models.py:427 config/templates/config/rentals/_payments.html:3
 msgid "Платежи"
 msgstr "To'lovlar"
+
+#: config/models.py:439
+msgid "За день до возврата"
+msgstr "Qaytarishdan bir kun oldin"
+
+#: config/models.py:440
+msgid "Часовое напоминание о просрочке"
+msgstr "Muddat o'tishi haqida soatlik eslatma"
+
+#: config/models.py:449
+msgid "Telegram chat ID"
+msgstr "Telegram chat ID"
+
+#: config/models.py:450
+msgid "Отправлено"
+msgstr "Yuborildi"
+
+#: config/models.py:451
+msgid "Успех"
+msgstr "Muvaffaqiyat"
+
+#: config/models.py:452
+msgid "Ответ API"
+msgstr "API javobi"
+
+#: config/models.py:455
+msgid "Уведомление о долге"
+msgstr "Qarz haqida bildirishnoma"
+
+#: config/models.py:456
+msgid "Уведомления о долгах"
+msgstr "Qarzlar haqida bildirishnomalar"
+
+#: config/models.py:474 config/templates/config/workers/list.html:50
+msgid "Должность"
+msgstr "Lavozim"
+
+#: config/models.py:482
+msgid "Стандартная зарплата за полный месяц (без премий)."
+msgstr "To'liq oy uchun standart maosh (mukofotlarsiz)."
+
+#: config/models.py:488 config/models.py:507 config/models.py:554
+#: config/models.py:603 config/templates/config/attendance/journal.html:71
+msgid "Рабочий"
+msgstr "Ishchi"
+
+#: config/models.py:489 config/templates/config/workers/list.html:4
+#: config/templates/config/workers/list.html:8
+msgid "Рабочие"
+msgstr "Ishchilar"
+
+#: config/models.py:510 config/templates/config/attendance/_row.html:14
+msgid "Присутствовал"
+msgstr "Hozir bo'ldi"
+
+#: config/models.py:516
+msgid "Кто отметил"
+msgstr "Kim belgiladi"
+
+#: config/models.py:519
+msgid "Когда отметили"
+msgstr "Qachon belgilandi"
+
+#: config/models.py:522 config/models.py:523
+#: config/templates/config/attendance/journal.html:4 templates/base.html:88
+msgid "Посещаемость"
+msgstr "Davomat"
+
+#: config/models.py:547 config/templates/config/salary/_entries_body.html:83
+msgid "Премия"
+msgstr "Mukofot"
+
+#: config/models.py:548
+msgid "Штраф/вычет"
+msgstr "Jarima/ushlanma"
+
+#: config/models.py:556 config/models.py:605
+msgid "Год"
+msgstr "Yil"
+
+#: config/models.py:557 config/models.py:606
+#: config/templates/config/salary/index.html:25
+#: config/templates/config/salary/worker_detail.html:90
+msgid "Месяц"
+msgstr "Oy"
+
+#: config/models.py:565 config/templates/config/salary/_entries_body.html:49
+#: config/templates/config/salary/_entries_body.html:72
+msgid "Причина"
+msgstr "Sabab"
+
+#: config/models.py:570
+msgid "Кто добавил"
+msgstr "Kim qo'shdi"
+
+#: config/models.py:573
+msgid "Когда"
+msgstr "Qachon"
+
+#: config/models.py:577
+msgid "Начисление/удержание"
+msgstr "Hisoblash/ushlanma"
+
+#: config/models.py:578
+msgid "Начисления/удержания"
+msgstr "Hisoblashlar/ushlanmalar"
+
+#: config/models.py:615
+msgid "Кто изменил"
+msgstr "Kim o'zgartirdi"
+
+#: config/models.py:620
+msgid "Обновлён"
+msgstr "Yangilandi"
+
+#: config/models.py:624
+msgid "Оклады за месяц"
+msgstr "Oylik maoshlar"
 
 #: config/templates/config/_pagination.html:3
 msgid "Пагинация"
 msgstr "Sahifalash"
+
+#: config/templates/config/attendance/_row.html:16
+msgid "Отсутствовал"
+msgstr "Kelmadi"
+
+#: config/templates/config/attendance/_row.html:23
+msgid "Не отмечен"
+msgstr "Belgilanmagan"
+
+#: config/templates/config/attendance/_row.html:34
+msgid "Отметить присутствие"
+msgstr "Kelganini belgilash"
+
+#: config/templates/config/attendance/_row.html:41
+msgid "Отметить отсутствие"
+msgstr "Kelmaganini belgilash"
+
+#: config/templates/config/attendance/_row.html:49
+msgid "Сбросить отметку"
+msgstr "Belgini bekor qilish"
+
+#: config/templates/config/attendance/journal.html:4
+#: config/templates/config/customers/detail.html:4
+#: config/templates/config/customers/form.html:4
+#: config/templates/config/customers/list.html:4
+#: config/templates/config/dashboard.html:4
+#: config/templates/config/products/form.html:4
+#: config/templates/config/products/list.html:4
+#: config/templates/config/rentals/create.html:4
+#: config/templates/config/rentals/detail.html:4
+#: config/templates/config/rentals/list.html:4
+#: config/templates/config/reports/index.html:4
+#: config/templates/config/salary/index.html:4
+#: config/templates/config/salary/worker_detail.html:6
+#: config/templates/config/suspicions/list.html:4
+#: config/templates/config/workers/form.html:4
+#: config/templates/config/workers/list.html:4 templates/404.html:4
+#: templates/500.html:5 templates/base.html:8
+#: templates/registration/login.html:4 templates/registration/login.html:15
+msgid "Учёт аренды"
+msgstr "Ijara hisobi"
+
+#: config/templates/config/attendance/journal.html:8
+msgid "Посещаемость рабочих"
+msgstr "Ishchilar davomati"
+
+#: config/templates/config/attendance/journal.html:11
+msgid "Список рабочих"
+msgstr "Ishchilar ro'yxati"
+
+#: config/templates/config/attendance/journal.html:19
+msgid "Предыдущий день"
+msgstr "Oldingi kun"
+
+#: config/templates/config/attendance/journal.html:29
+msgid "Следующий день"
+msgstr "Keyingi kun"
+
+#: config/templates/config/attendance/journal.html:34
+#: config/templates/config/reports/stock.html:21
+msgid "Сегодня"
+msgstr "Bugun"
+
+#: config/templates/config/attendance/journal.html:42
+msgid "Всего рабочих"
+msgstr "Jami ishchilar"
+
+#: config/templates/config/attendance/journal.html:48
+msgid "Присутствуют"
+msgstr "Kelganlar"
+
+#: config/templates/config/attendance/journal.html:54
+msgid "Отсутствуют"
+msgstr "Kelmaganlar"
+
+#: config/templates/config/attendance/journal.html:60
+msgid "Не отмечены"
+msgstr "Belgilanmaganlar"
+
+#: config/templates/config/attendance/journal.html:74
+msgid "Отметить"
+msgstr "Belgilash"
+
+#: config/templates/config/attendance/journal.html:86
+msgid "В системе нет активных рабочих."
+msgstr "Tizimda faol ishchilar yo'q."
+
+#: config/templates/config/attendance/journal.html:88
+#: config/templates/config/salary/index.html:96
+#: config/templates/config/workers/list.html:94
+msgid "Добавить →"
+msgstr "Qo'shish →"
 
 #: config/templates/config/customers/_table.html:9
 #: config/templates/config/customers/detail.html:41
@@ -303,24 +802,9 @@ msgid "Долг (шт)"
 msgstr "Qarz (dona)"
 
 #: config/templates/config/customers/_table.html:71
-#: config/templates/config/products/_table.html:48
+#: config/templates/config/products/_table.html:63
 msgid "Ничего не найдено"
 msgstr "Hech narsa topilmadi"
-
-#: config/templates/config/customers/detail.html:4
-#: config/templates/config/customers/form.html:4
-#: config/templates/config/customers/list.html:4
-#: config/templates/config/dashboard.html:4
-#: config/templates/config/products/form.html:4
-#: config/templates/config/products/list.html:4
-#: config/templates/config/rentals/create.html:4
-#: config/templates/config/rentals/detail.html:4
-#: config/templates/config/rentals/list.html:4
-#: config/templates/config/reports/index.html:4 templates/404.html:4
-#: templates/500.html:5 templates/base.html:8
-#: templates/registration/login.html:4 templates/registration/login.html:15
-msgid "Учёт аренды"
-msgstr "Ijara hisobi"
 
 #: config/templates/config/customers/detail.html:13
 #, python-format
@@ -328,7 +812,9 @@ msgid "Создан: %(d)s"
 msgstr "Yaratilgan: %(d)s"
 
 #: config/templates/config/customers/detail.html:16
-#: config/templates/config/products/_table.html:32
+#: config/templates/config/products/_table.html:47
+#: config/templates/config/rentals/_payments.html:39
+#: config/templates/config/rentals/_summary.html:103
 msgid "Изменить"
 msgstr "O'zgartirish"
 
@@ -357,7 +843,7 @@ msgid "История аренд"
 msgstr "Ijaralar tarixi"
 
 #: config/templates/config/customers/detail.html:69
-#: config/templates/config/dashboard.html:172
+#: config/templates/config/dashboard.html:234
 msgid "Позиций"
 msgstr "Pozitsiyalar"
 
@@ -367,6 +853,10 @@ msgstr "Hozircha ijaralar yo'q."
 
 #: config/templates/config/customers/form.html:31
 #: config/templates/config/products/form.html:43
+#: config/templates/config/rentals/_edit_modal.html:42
+#: config/templates/config/rentals/_item_edit_modal.html:41
+#: config/templates/config/rentals/_payment_modal.html:50
+#: config/templates/config/workers/form.html:40
 msgid "Сохранить"
 msgstr "Saqlash"
 
@@ -374,8 +864,14 @@ msgstr "Saqlash"
 #: config/templates/config/customers/form.html:35
 #: config/templates/config/products/form.html:44
 #: config/templates/config/rentals/_close_modal.html:49
-#: config/templates/config/rentals/_return_modal.html:70
-#: config/templates/config/rentals/create.html:73
+#: config/templates/config/rentals/_customer_create_modal.html:45
+#: config/templates/config/rentals/_edit_modal.html:39
+#: config/templates/config/rentals/_item_edit_modal.html:38
+#: config/templates/config/rentals/_item_modal.html:50
+#: config/templates/config/rentals/_payment_modal.html:47
+#: config/templates/config/rentals/_return_modal.html:92
+#: config/templates/config/rentals/create.html:103
+#: config/templates/config/workers/form.html:41
 msgid "Отмена"
 msgstr "Bekor qilish"
 
@@ -386,12 +882,15 @@ msgstr "Mijoz № si, to'liq ism yoki telefon bo'yicha qidirish..."
 #: config/templates/config/customers/list.html:25
 #: config/templates/config/products/list.html:43
 #: config/templates/config/rentals/list.html:64
+#: config/templates/config/reports/payment_methods.html:26
 #: config/templates/config/reports/revenue.html:26
+#: config/templates/config/suspicions/list.html:63
+#: config/templates/config/workers/list.html:39
 msgid "Сброс"
 msgstr "Tozalash"
 
 #: config/templates/config/dashboard.html:4
-#: config/templates/config/dashboard.html:7 templates/base.html:44
+#: config/templates/config/dashboard.html:7 templates/base.html:43
 msgid "Дашборд"
 msgstr "Boshqaruv paneli"
 
@@ -425,11 +924,13 @@ msgid "Просрочки"
 msgstr "Muddati o'tganlar"
 
 #: config/templates/config/dashboard.html:91
+#: config/templates/config/dashboard.html:206
+#: config/templates/config/suspicions/list.html:128
 msgid "Просрочка"
 msgstr "Muddati o'tgan"
 
 #: config/templates/config/dashboard.html:92
-#: config/templates/config/rentals/_items_table.html:12
+#: config/templates/config/rentals/_items_table.html:21
 #: config/templates/config/reports/debtors.html:46
 msgid "Не возвращено"
 msgstr "Qaytarilmagan"
@@ -461,44 +962,64 @@ msgstr "Barcha muddati o'tganlar →"
 msgid "Просрочек нет."
 msgstr "Muddati o'tganlar yo'q."
 
-#: config/templates/config/dashboard.html:163
+#: config/templates/config/dashboard.html:162
+#: config/templates/config/suspicions/list.html:10
+msgid "Подозрения по нормам товаров"
+msgstr "Mahsulot normalari bo'yicha shubhalar"
+
+#: config/templates/config/dashboard.html:166
+msgid ""
+"Позиции, выданные дольше ожидаемой длительности проката (поле «Норма» у "
+"товара)."
+msgstr "Ijara kutilgan muddatidan uzoqroq berilgan pozitsiyalar (mahsulotning «Norma» maydoni)."
+
+#: config/templates/config/dashboard.html:175
+#: config/templates/config/suspicions/list.html:78
+msgid "На руках"
+msgstr "Qo'lda"
+
+#: config/templates/config/dashboard.html:176
+#: config/templates/config/suspicions/list.html:79
+msgid "Дней / норма"
+msgstr "Kun / norma"
+
+#: config/templates/config/dashboard.html:210
+#: config/templates/config/suspicions/list.html:132
+msgid "Подозрение"
+msgstr "Shubha"
+
+#: config/templates/config/dashboard.html:225
 msgid "Возвраты сегодня и завтра"
 msgstr "Bugungi va ertangi qaytarishlar"
 
-#: config/templates/config/dashboard.html:171
+#: config/templates/config/dashboard.html:233
 #: config/templates/config/rentals/list.html:76
 msgid "Срок"
 msgstr "Muddat"
 
-#: config/templates/config/dashboard.html:182
+#: config/templates/config/dashboard.html:244
 msgid "сегодня"
 msgstr "bugun"
 
-#: config/templates/config/dashboard.html:184
+#: config/templates/config/dashboard.html:246
 msgid "завтра"
 msgstr "ertaga"
 
-#: config/templates/config/dashboard.html:191
+#: config/templates/config/dashboard.html:253
 msgid "Открыть"
 msgstr "Ochish"
 
-#: config/templates/config/dashboard.html:200
+#: config/templates/config/dashboard.html:262
 msgid "На сегодня и завтра возвратов нет."
 msgstr "Bugun va ertaga qaytarishlar yo'q."
 
-#: config/templates/config/dashboard.html:207
+#: config/templates/config/dashboard.html:269
 msgid "Лента движений"
 msgstr "Harakatlar lentasi"
 
-#: config/templates/config/dashboard.html:236
+#: config/templates/config/dashboard.html:298
 msgid "Движений пока нет."
 msgstr "Hali harakatlar yo'q."
-
-#: config/templates/config/products/_table.html:8
-#: config/templates/config/rentals/contract.html:48
-#: config/templates/config/reports/stock.html:36
-msgid "Ед."
-msgstr "Birl."
 
 #: config/templates/config/products/_table.html:9
 msgid "Всего"
@@ -512,15 +1033,23 @@ msgstr "Mavjud"
 msgid "Цена/сутки"
 msgstr "Narx/kun"
 
-#: config/templates/config/products/_table.html:21
+#: config/templates/config/products/_table.html:12
+msgid "Норма"
+msgstr "Norma"
+
+#: config/templates/config/products/_table.html:22
 msgid "отключён"
 msgstr "o'chirilgan"
 
-#: config/templates/config/products/_table.html:39
+#: config/templates/config/products/_table.html:37
+msgid "Ожидаемая длительность проката"
+msgstr "Kutilgan ijara muddati"
+
+#: config/templates/config/products/_table.html:54
 msgid "Отключить"
 msgstr "O'chirish"
 
-#: config/templates/config/products/_table.html:39
+#: config/templates/config/products/_table.html:54
 msgid "Включить"
 msgstr "Yoqish"
 
@@ -538,7 +1067,14 @@ msgid "Закрыть досрочно · Аренда #%(rid)s"
 msgstr "Muddatidan oldin yopish · Ijara #%(rid)s"
 
 #: config/templates/config/rentals/_close_modal.html:13
-#: config/templates/config/rentals/_return_modal.html:13 templates/base.html:33
+#: config/templates/config/rentals/_customer_create_modal.html:15
+#: config/templates/config/rentals/_edit_modal.html:15
+#: config/templates/config/rentals/_item_edit_modal.html:15
+#: config/templates/config/rentals/_item_modal.html:15
+#: config/templates/config/rentals/_payment_modal.html:23
+#: config/templates/config/rentals/_return_modal.html:13
+#: config/templates/config/salary/_entries_modal.html:14 templates/base.html:32
+#: templates/base.html:224
 msgid "Закрыть"
 msgstr "Yopish"
 
@@ -562,15 +1098,34 @@ msgstr "Masalan: hisobdan chiqarish, yo'qotish, shartnomaviy yopish"
 msgid "Закрыть аренду"
 msgstr "Ijarani yopish"
 
+#: config/templates/config/rentals/_customer_create_modal.html:12
+#: config/views.py:709
+msgid "Новый клиент"
+msgstr "Yangi mijoz"
+
+#: config/templates/config/rentals/_customer_create_modal.html:48
+msgid "Создать и выбрать"
+msgstr "Yaratish va tanlash"
+
 #: config/templates/config/rentals/_customer_picked.html:18
+#: config/templates/config/rentals/_item_product_picked.html:15
 msgid "сменить"
 msgstr "almashtirish"
 
-#: config/templates/config/rentals/_customer_search_input.html:7
+#: config/templates/config/rentals/_customer_search_input.html:8
 msgid "Начните вводить ФИО или телефон (≥ 2 символов)..."
 msgstr "To'liq ism yoki telefonni kiriting (≥ 2 belgi)..."
 
+#: config/templates/config/rentals/_customer_search_input.html:14
+msgid "Добавить нового клиента"
+msgstr "Yangi mijoz qo'shish"
+
+#: config/templates/config/rentals/_customer_search_input.html:19
+msgid "Новый"
+msgstr "Yangi"
+
 #: config/templates/config/rentals/_customer_search_results.html:4
+#: config/templates/config/rentals/_item_product_results.html:4
 msgid "Введите минимум 2 символа."
 msgstr "Kamida 2 ta belgi kiriting."
 
@@ -578,78 +1133,205 @@ msgstr "Kamida 2 ta belgi kiriting."
 msgid "Никто не найден."
 msgstr "Hech kim topilmadi."
 
-#: config/templates/config/rentals/_item_row.html:10
-msgid "— Выберите товар —"
-msgstr "— Mahsulotni tanlang —"
+#: config/templates/config/rentals/_edit_modal.html:12
+#, python-format
+msgid "Изменить аренду #%(rid)s"
+msgstr "Ijarani o'zgartirish #%(rid)s"
 
-#: config/templates/config/rentals/_item_row.html:20
-#: config/templates/config/rentals/_items_table.html:8
-#: config/templates/config/rentals/contract.html:47
-msgid "Кол-во"
-msgstr "Miqdor"
+#: config/templates/config/rentals/_item_edit_modal.html:12
+#, python-format
+msgid "Изменить количество · %(name)s"
+msgstr "Sonini o'zgartirish · %(name)s"
 
-#: config/templates/config/rentals/_item_row.html:34
-msgid "Удалить позицию"
-msgstr "Pozitsiyani o'chirish"
+#: config/templates/config/rentals/_item_edit_modal.html:28
+#, python-format
+msgid ""
+"Выдано %(i)s, возвращено %(r)s. Заказанное количество нельзя сделать меньше "
+"выданного."
+msgstr "Berildi %(i)s, qaytarildi %(r)s. Buyurtma qilingan sonni berilganidan kam qilib bo'lmaydi."
 
-#: config/templates/config/rentals/_items_table.html:2
-msgid "Позиции"
-msgstr "Pozitsiyalar"
+#: config/templates/config/rentals/_item_edit_modal.html:30
+msgid "Количество (заказано)"
+msgstr "Soni (buyurtma qilingan)"
 
-#: config/templates/config/rentals/_items_table.html:9
-msgid "Цена/сут."
-msgstr "Narx/kun"
+#: config/templates/config/rentals/_item_modal.html:12
+#, python-format
+msgid "Добавить позицию · Аренда #%(rid)s"
+msgstr "Pozitsiya qo'shish · Ijara #%(rid)s"
 
-#: config/templates/config/rentals/_items_table.html:10
-msgid "Выдано"
-msgstr "Berilgan"
+#: config/templates/config/rentals/_item_modal.html:29
+msgid "Аренда закрыта — после добавления позиции она снова станет активной."
+msgstr "Ijara yopilgan — pozitsiya qo'shilgach, u yana faol bo'ladi."
 
-#: config/templates/config/rentals/_items_table.html:11
-msgid "Возвращено"
-msgstr "Qaytarilgan"
+#: config/templates/config/rentals/_item_modal.html:53
+msgid "Добавить и выдать"
+msgstr "Qo'shish va berish"
 
-#: config/templates/config/rentals/_payments.html:21
-msgid "Платежей нет."
-msgstr "To'lovlar yo'q."
+#: config/templates/config/rentals/_item_product_picked.html:7
+#: config/templates/config/rentals/_item_product_results.html:17
+#: config/templates/config/rentals/_product_info.html:4
+msgid "сут."
+msgstr "kun"
 
+#: config/templates/config/rentals/_item_product_picked.html:8
+msgid "доступно"
+msgstr "mavjud"
+
+#: config/templates/config/rentals/_item_product_results.html:21
 #: config/templates/config/rentals/_product_info.html:3
 msgid "Доступно:"
 msgstr "Mavjud:"
 
+#: config/templates/config/rentals/_item_product_results.html:23
+msgid "Норма:"
+msgstr "Norma:"
+
+#: config/templates/config/rentals/_item_product_results.html:30
+msgid "Ничего не найдено."
+msgstr "Hech narsa topilmadi."
+
+#: config/templates/config/rentals/_item_product_search.html:7
+msgid "Начните вводить название товара…"
+msgstr "Mahsulot nomini kirita boshlang…"
+
+#: config/templates/config/rentals/_item_row.html:18
+msgid "Подытог:"
+msgstr "Oraliq jami:"
+
+#: config/templates/config/rentals/_item_row.html:20
+#: config/templates/config/rentals/_return_modal.html:71
+#: config/templates/config/rentals/contract.html:52
+#: config/templates/config/rentals/contract.html:128
+#: config/templates/config/rentals/create.html:92
+#: config/templates/config/rentals/create.html:97
+msgid "сум"
+msgstr "so'm"
+
+#: config/templates/config/rentals/_item_row.html:26
+#: config/templates/config/rentals/_items_table.html:70
+msgid "Удалить позицию"
+msgstr "Pozitsiyani o'chirish"
+
+#: config/templates/config/rentals/_items_table.html:3
+msgid "Позиции"
+msgstr "Pozitsiyalar"
+
+#: config/templates/config/rentals/_items_table.html:8
+msgid "Позиция"
+msgstr "Pozitsiya"
+
+#: config/templates/config/rentals/_items_table.html:19
+msgid "Выдано"
+msgstr "Berilgan"
+
+#: config/templates/config/rentals/_items_table.html:20
+msgid "Возвращено"
+msgstr "Qaytarilgan"
+
+#: config/templates/config/rentals/_items_table.html:34
+#, python-format
+msgid "На руках %(n)s дн., норма %(m)s дн. — просрочка"
+msgstr "Qo'lda %(n)s kun, norma %(m)s kun — muddat o'tishi"
+
+#: config/templates/config/rentals/_items_table.html:35
+#: config/templates/config/rentals/_items_table.html:40
+#: config/templates/config/rentals/_items_table.html:45
+#: config/templates/config/rentals/_summary.html:141
+#: config/templates/config/rentals/create.html:87
+#: config/templates/config/salary/_row.html:54
+#: config/templates/config/suspicions/list.html:120
+msgid "дн."
+msgstr "kun"
+
+#: config/templates/config/rentals/_items_table.html:39
+msgid "Последний нормальный день — после станет просрочкой"
+msgstr "Oxirgi normal kun — keyin muddat o'tgan bo'ladi"
+
+#: config/templates/config/rentals/_items_table.html:44
+msgid "Срок проката в норме"
+msgstr "Ijara muddati normada"
+
+#: config/templates/config/rentals/_items_table.html:64
+msgid "Изменить количество"
+msgstr "Sonini o'zgartirish"
+
+#: config/templates/config/rentals/_items_table.html:72
+msgid "Удалить эту позицию?"
+msgstr "Bu pozitsiya o'chirilsinmi?"
+
+#: config/templates/config/rentals/_payment_modal.html:17
+msgid "Изменить платёж"
+msgstr "To'lovni o'zgartirish"
+
+#: config/templates/config/rentals/_payment_modal.html:19
+#, python-format
+msgid "Новый платёж · Аренда #%(rid)s"
+msgstr "Yangi to'lov · Ijara #%(rid)s"
+
+#: config/templates/config/rentals/_payments.html:45
+#: config/templates/config/salary/_entries_body.html:106
+msgid "Удалить"
+msgstr "O'chirish"
+
+#: config/templates/config/rentals/_payments.html:47
+msgid "Удалить этот платёж?"
+msgstr "Bu to'lov o'chirilsinmi?"
+
+#: config/templates/config/rentals/_payments.html:57
+msgid "Платежей нет."
+msgstr "To'lovlar yo'q."
+
 #: config/templates/config/rentals/_product_info.html:4
 msgid "Цена:"
 msgstr "Narx:"
-
-#: config/templates/config/rentals/_product_info.html:4
-msgid "сут."
-msgstr "kun"
 
 #: config/templates/config/rentals/_return_modal.html:11
 #, python-format
 msgid "Принять возврат · Аренда #%(rid)s"
 msgstr "Qaytarishni qabul qilish · Ijara #%(rid)s"
 
-#: config/templates/config/rentals/_return_modal.html:33
+#: config/templates/config/rentals/_return_modal.html:30
+#, python-format
+msgid ""
+"\n"
+"                            Период: <strong>%(d1)s</strong> — "
+"<strong>%(d2)s</strong>\n"
+"                        "
+msgstr "\n                            Davr: <strong>%(d1)s</strong> — <strong>%(d2)s</strong>\n                        "
+
+#: config/templates/config/rentals/_return_modal.html:40
 msgid "К возврату"
 msgstr "Qaytarilishi kerak"
 
-#: config/templates/config/rentals/_return_modal.html:34
+#: config/templates/config/rentals/_return_modal.html:41
+msgid "Дн."
+msgstr "Kun"
+
+#: config/templates/config/rentals/_return_modal.html:43
+msgid "Σ за период"
+msgstr "Σ davr uchun"
+
+#: config/templates/config/rentals/_return_modal.html:44
 msgid "Возвращаю"
 msgstr "Qaytaraman"
 
-#: config/templates/config/rentals/_return_modal.html:58
+#: config/templates/config/rentals/_return_modal.html:69
+msgid "Итого за период (накоплено)"
+msgstr "Davr uchun jami (yig'indi)"
+
+#: config/templates/config/rentals/_return_modal.html:80
 msgid "Примечание (опционально)"
 msgstr "Izoh (ixtiyoriy)"
 
-#: config/templates/config/rentals/_return_modal.html:60
+#: config/templates/config/rentals/_return_modal.html:82
 msgid "Например: вернули с поломкой"
 msgstr "Masalan: nosozlik bilan qaytarildi"
 
-#: config/templates/config/rentals/_return_modal.html:63
+#: config/templates/config/rentals/_return_modal.html:85
 msgid "Все позиции уже возвращены."
 msgstr "Barcha pozitsiyalar allaqachon qaytarildi."
 
-#: config/templates/config/rentals/_return_modal.html:73
+#: config/templates/config/rentals/_return_modal.html:95
 msgid "Подтвердить возврат"
 msgstr "Qaytarishni tasdiqlash"
 
@@ -664,44 +1346,82 @@ msgstr "Ijara #%(rid)s"
 msgid "Закрыта %(d)s"
 msgstr "Yopilgan %(d)s"
 
-#: config/templates/config/rentals/_summary.html:31
+#: config/templates/config/rentals/_summary.html:29
+#: config/templates/config/rentals/_summary.html:34
 msgid "Печать договора"
 msgstr "Shartnomani chop etish"
 
-#: config/templates/config/rentals/_summary.html:40
+#: config/templates/config/rentals/_summary.html:33
+msgid "Печать кратко (на четверть листа, A6) — для своих"
+msgstr "Qisqacha chop etish (chorak varaq, A6) — o'zimiz uchun"
+
+#: config/templates/config/rentals/_summary.html:39
+#: config/templates/config/rentals/_summary.html:73
+msgid "Выбрать формат"
+msgstr "Formatni tanlash"
+
+#: config/templates/config/rentals/_summary.html:42
+msgid "Формат печати"
+msgstr "Chop etish formati"
+
+#: config/templates/config/rentals/_summary.html:46
+#: config/templates/config/rentals/_summary.html:80
+msgid "Четверть листа (A6) — кратко, для своих"
+msgstr "Chorak varaq (A6) — qisqacha, o'zimiz uchun"
+
+#: config/templates/config/rentals/_summary.html:52
+#: config/templates/config/rentals/_summary.html:86
+msgid "Половина листа (A5) — средний"
+msgstr "Yarim varaq (A5) — o'rtacha"
+
+#: config/templates/config/rentals/_summary.html:58
+#: config/templates/config/rentals/_summary.html:92
+msgid "Полный лист (A4) — для клиента"
+msgstr "To'liq varaq (A4) — mijoz uchun"
+
+#: config/templates/config/rentals/_summary.html:64
+#: config/templates/config/rentals/_summary.html:68
+msgid "Скачать PDF"
+msgstr "PDF yuklab olish"
+
+#: config/templates/config/rentals/_summary.html:67
+msgid "PDF на четверть листа (A6) — для своих"
+msgstr "Chorak varaqli PDF (A6) — o'zimiz uchun"
+
+#: config/templates/config/rentals/_summary.html:76
+msgid "Формат PDF"
+msgstr "PDF formati"
+
+#: config/templates/config/rentals/_summary.html:113
 msgid "Принять возврат"
 msgstr "Qaytarishni qabul qilish"
 
-#: config/templates/config/rentals/_summary.html:48
+#: config/templates/config/rentals/_summary.html:121
 msgid "Закрыть досрочно"
 msgstr "Muddatidan oldin yopish"
 
-#: config/templates/config/rentals/_summary.html:68
-msgid "дн."
-msgstr "kun"
-
-#: config/templates/config/rentals/_summary.html:75
+#: config/templates/config/rentals/_summary.html:148
 msgid "База (qty × дни × цена)"
 msgstr "Asos (qty × kun × narx)"
 
-#: config/templates/config/rentals/_summary.html:81
+#: config/templates/config/rentals/_summary.html:154
 #, python-format
 msgid "Штраф (k = %(coef)s)"
 msgstr "Jarima (k = %(coef)s)"
 
-#: config/templates/config/rentals/_summary.html:90
+#: config/templates/config/rentals/_summary.html:163
 msgid "Залог удержан"
 msgstr "Garov ushlab qolindi"
 
-#: config/templates/config/rentals/_summary.html:96
-msgid "Платежей (аренда+штрафы)"
-msgstr "To'lovlar (ijara+jarimalar)"
+#: config/templates/config/rentals/_summary.html:169
+msgid "Платежей (аванс+аренда+штрафы)"
+msgstr "To'lovlar (avans+ijara+jarimalar)"
 
-#: config/templates/config/rentals/_summary.html:102
+#: config/templates/config/rentals/_summary.html:175
 msgid "К доплате (база + штраф − залог − платежи)"
 msgstr "Qo'shimcha to'lovga (asos + jarima − garov − to'lovlar)"
 
-#: config/templates/config/rentals/_summary.html:112
+#: config/templates/config/rentals/_summary.html:185
 msgid "Примечание:"
 msgstr "Izoh:"
 
@@ -714,146 +1434,75 @@ msgstr "Harakatlar yo'q."
 msgid "Договор аренды #%(rid)s"
 msgstr "Ijara shartnomasi #%(rid)s"
 
-#: config/templates/config/rentals/contract.html:8
+#: config/templates/config/rentals/contract.html:10
 #, python-format
 msgid "ДОГОВОР АРЕНДЫ № %(rid)s"
 msgstr "IJARA SHARTNOMASI № %(rid)s"
 
-#: config/templates/config/rentals/contract.html:9
-#, python-format
-msgid "от %(d)s, г. Ташкент"
-msgstr "%(d)s sanadan, Toshkent sh."
+#: config/templates/config/rentals/contract.html:50
+msgid "Выдано:"
+msgstr "Berildi:"
 
-#: config/templates/config/rentals/contract.html:14
-msgid "Арендодатель:"
-msgstr "Ijaraga beruvchi:"
+#: config/templates/config/rentals/contract.html:51
+msgid "Возврат:"
+msgstr "Qaytarish:"
 
-#: config/templates/config/rentals/contract.html:15
-msgid "ООО «Учёт аренды» (rental_track)"
-msgstr "«Ijara hisobi» MChJ (rental_track)"
+#: config/templates/config/rentals/contract.html:52
+msgid "Залог при выдаче:"
+msgstr "Berishdagi garov:"
 
-#: config/templates/config/rentals/contract.html:16
-msgid "ИНН ____________"
-msgstr "STIR ____________"
-
-#: config/templates/config/rentals/contract.html:17
-msgid "Тел.: ____________"
-msgstr "Tel.: ____________"
-
-#: config/templates/config/rentals/contract.html:20
-msgid "Арендатор:"
-msgstr "Ijaraga oluvchi:"
-
-#: config/templates/config/rentals/contract.html:23
+#: config/templates/config/rentals/contract.html:68
 msgid "Внутр. номер:"
 msgstr "Ichki raqam:"
 
-#: config/templates/config/rentals/contract.html:26
+#: config/templates/config/rentals/contract.html:71
 msgid "Паспорт:"
 msgstr "Pasport:"
 
-#: config/templates/config/rentals/contract.html:29
+#: config/templates/config/rentals/contract.html:74
 msgid "Адрес:"
 msgstr "Manzil:"
 
-#: config/templates/config/rentals/contract.html:32
+#: config/templates/config/rentals/contract.html:77
 msgid "Тел.:"
 msgstr "Tel.:"
 
-#: config/templates/config/rentals/contract.html:37
-msgid "1. Предмет договора"
-msgstr "1. Shartnoma predmeti"
-
-#: config/templates/config/rentals/contract.html:39
-msgid ""
-"Арендодатель передаёт, а Арендатор принимает во временное возмездное "
-"пользование оборудование, перечисленное ниже:"
-msgstr ""
-"Ijaraga beruvchi quyida sanab o'tilgan uskunani vaqtinchalik haqli "
-"foydalanishga topshiradi, Ijaraga oluvchi esa qabul qiladi:"
-
-#: config/templates/config/rentals/contract.html:46
-msgid "Наименование"
-msgstr "Nomi"
-
-#: config/templates/config/rentals/contract.html:49
+#: config/templates/config/rentals/contract.html:94
 msgid "Цена/сут., сум"
 msgstr "Narx/kun, so'm"
 
-#: config/templates/config/rentals/contract.html:50
+#: config/templates/config/rentals/contract.html:95
 msgid "Залог за ед., сум"
 msgstr "Bir dona uchun garov, so'm"
 
-#: config/templates/config/rentals/contract.html:67
-msgid "Залог суммарно"
-msgstr "Garov jami"
-
-#: config/templates/config/rentals/contract.html:73
-msgid "2. Сроки и оплата"
-msgstr "2. Muddatlar va to'lov"
-
-#: config/templates/config/rentals/contract.html:75
+#: config/templates/config/rentals/contract.html:125
 msgid "Дата выдачи:"
 msgstr "Berilgan sana:"
 
-#: config/templates/config/rentals/contract.html:76
+#: config/templates/config/rentals/contract.html:126
 msgid "Срок возврата:"
 msgstr "Qaytarish muddati:"
 
-#: config/templates/config/rentals/contract.html:77
+#: config/templates/config/rentals/contract.html:127
 msgid "Внесённый залог при выдаче:"
 msgstr "Berish vaqtida kiritilgan garov:"
 
-#: config/templates/config/rentals/contract.html:78
-msgid "сум"
-msgstr "so'm"
-
-#: config/templates/config/rentals/contract.html:79
+#: config/templates/config/rentals/contract.html:129
 msgid "Расчётный коэффициент штрафа за просрочку:"
 msgstr "Kechikish uchun jarima hisob koeffitsienti:"
 
-#: config/templates/config/rentals/contract.html:80
+#: config/templates/config/rentals/contract.html:130
 msgid "от стоимости суток за каждую просроченную единицу."
 msgstr "har bir muddati o'tgan dona uchun kunlik narxdan."
 
-#: config/templates/config/rentals/contract.html:83
-msgid "3. Обязанности арендатора"
-msgstr "3. Ijaraga oluvchining majburiyatlari"
-
-#: config/templates/config/rentals/contract.html:85
-msgid "Использовать оборудование по назначению, не передавать третьим лицам."
-msgstr "Uskunadan o'z maqsadiga ko'ra foydalanish, uchinchi shaxslarga topshirmaslik."
-
-#: config/templates/config/rentals/contract.html:86
-msgid "Вернуть оборудование в исправном состоянии в установленный срок."
-msgstr "Uskunani belgilangan muddatda soz holatda qaytarish."
-
-#: config/templates/config/rentals/contract.html:87
+#: config/templates/config/rentals/contract.html:138
 msgid ""
 "В случае повреждения / утраты возместить полную стоимость, удерживается из "
 "залога."
-msgstr ""
-"Shikastlangan / yo'qotilgan taqdirda to'liq qiymatini qoplash, garovdan "
-"ushlab qolinadi."
-
-#: config/templates/config/rentals/contract.html:88
-msgid "При просрочке возврата уплатить штраф согласно п. 2."
-msgstr "Qaytarish muddati o'tgan taqdirda 2-bandga muvofiq jarima to'lash."
-
-#: config/templates/config/rentals/contract.html:92
-msgid "4. Дополнительно"
-msgstr "4. Qo'shimcha"
-
-#: config/templates/config/rentals/contract.html:98
-msgid "Арендодатель / подпись · печать"
-msgstr "Ijaraga beruvchi / imzo · muhr"
-
-#: config/templates/config/rentals/contract.html:101
-msgid "Арендатор / подпись"
-msgstr "Ijaraga oluvchi / imzo"
+msgstr "Shikastlanish / yo'qotish holatida to'liq qiymati qoplanadi, garovdan ushlab qolinadi."
 
 #: config/templates/config/rentals/create.html:4
-#: config/templates/config/rentals/create.html:7 templates/base.html:126
+#: config/templates/config/rentals/create.html:7 templates/base.html:160
 msgid "Новая аренда"
 msgstr "Yangi ijara"
 
@@ -861,15 +1510,27 @@ msgstr "Yangi ijara"
 msgid "1. Шапка"
 msgstr "1. Sarlavha"
 
-#: config/templates/config/rentals/create.html:54
+#: config/templates/config/rentals/create.html:64
 msgid "2. Позиции"
 msgstr "2. Pozitsiyalar"
 
-#: config/templates/config/rentals/create.html:67
+#: config/templates/config/rentals/create.html:77
 msgid "+ Позиция"
 msgstr "+ Pozitsiya"
 
-#: config/templates/config/rentals/create.html:72
+#: config/templates/config/rentals/create.html:85
+msgid "Период аренды"
+msgstr "Ijara davri"
+
+#: config/templates/config/rentals/create.html:90
+msgid "Σ за позиции"
+msgstr "Pozitsiyalar Σ"
+
+#: config/templates/config/rentals/create.html:95
+msgid "Σ к оплате (Σ × дни)"
+msgstr "To'lovga Σ (Σ × kunlar)"
+
+#: config/templates/config/rentals/create.html:102
 msgid "Создать аренду"
 msgstr "Ijara yaratish"
 
@@ -878,6 +1539,7 @@ msgid "— Все —"
 msgstr "— Barchasi —"
 
 #: config/templates/config/rentals/list.html:21
+#: config/templates/config/workers/list.html:33
 msgid "Активные"
 msgstr "Faollar"
 
@@ -922,9 +1584,11 @@ msgid "Создана ↑"
 msgstr "Yaratilgan ↑"
 
 #: config/templates/config/rentals/list.html:62
+#: config/templates/config/reports/payment_methods.html:25
 #: config/templates/config/reports/revenue.html:25
 #: config/templates/config/reports/stock.html:20
 #: config/templates/config/reports/top_products.html:25
+#: config/templates/config/workers/list.html:38
 msgid "Применить"
 msgstr "Qo'llash"
 
@@ -936,7 +1600,7 @@ msgstr "Poz."
 msgid "Оплачено / Залог"
 msgstr "To'langan / Garov"
 
-#: config/templates/config/rentals/list.html:155
+#: config/templates/config/rentals/list.html:165
 msgid "Аренд нет"
 msgstr "Ijaralar yo'q"
 
@@ -949,9 +1613,10 @@ msgstr "Qarzdorlar"
 #: config/templates/config/reports/debtors.html:4
 #: config/templates/config/reports/index.html:4
 #: config/templates/config/reports/index.html:7
+#: config/templates/config/reports/payment_methods.html:4
 #: config/templates/config/reports/revenue.html:4
 #: config/templates/config/reports/stock.html:4
-#: config/templates/config/reports/top_products.html:4 templates/base.html:72
+#: config/templates/config/reports/top_products.html:4 templates/base.html:104
 msgid "Отчёты"
 msgstr "Hisobotlar"
 
@@ -960,6 +1625,7 @@ msgid "Скачать CSV (для Excel)"
 msgstr "CSV yuklab olish (Excel uchun)"
 
 #: config/templates/config/reports/debtors.html:13
+#: config/templates/config/reports/payment_methods.html:9
 #: config/templates/config/reports/revenue.html:9
 #: config/templates/config/reports/stock.html:9
 #: config/templates/config/reports/top_products.html:9
@@ -975,6 +1641,7 @@ msgid "Σ невозвращено"
 msgstr "Σ qaytarilmagan"
 
 #: config/templates/config/reports/debtors.html:27
+#: config/templates/config/reports/payment_methods.html:77
 msgid "шт."
 msgstr "dona"
 
@@ -982,7 +1649,7 @@ msgstr "dona"
 msgid "Σ к получению"
 msgstr "Σ olinishi kerak"
 
-#: config/templates/config/reports/debtors.html:45 config/views.py:403
+#: config/templates/config/reports/debtors.html:45 config/views.py:496
 msgid "Аренд"
 msgstr "Ijaralar"
 
@@ -990,7 +1657,7 @@ msgstr "Ijaralar"
 msgid "Дней просрочки"
 msgstr "Kechikkan kunlar"
 
-#: config/templates/config/reports/debtors.html:48 config/views.py:404
+#: config/templates/config/reports/debtors.html:48 config/views.py:497
 msgid "К получению"
 msgstr "Olinishi kerak"
 
@@ -1006,7 +1673,7 @@ msgstr "Daromad"
 
 #: config/templates/config/reports/index.html:15
 msgid "Платежи аренды и штрафы по дням, сравнение с прошлым периодом."
-msgstr "Ijara to'lovlari va jarimalar kunlar bo'yicha, oldingi davr bilan taqqoslash."
+msgstr "Ijara to'lovlari va jarimalar kunlar bo'yicha, o'tgan davr bilan taqqoslash."
 
 #: config/templates/config/reports/index.html:23
 #: config/templates/config/reports/top_products.html:4
@@ -1020,7 +1687,7 @@ msgstr "Aylanma bo'yicha (FIFO kun × narx) va berish chastotasi bo'yicha."
 
 #: config/templates/config/reports/index.html:35
 msgid "Σ к получению, дни просрочки. Экспорт в CSV (UTF-8 BOM, для Excel)."
-msgstr "Σ olinishi kerak, kechikkan kunlar. CSV ga eksport (UTF-8 BOM, Excel uchun)."
+msgstr "Olinishi kerak Σ, muddat o'tishi kunlari. CSV ga eksport (UTF-8 BOM, Excel uchun)."
 
 #: config/templates/config/reports/index.html:43
 #: config/templates/config/reports/stock.html:4
@@ -1032,15 +1699,45 @@ msgstr "Ombor harakati"
 msgid "Сколько свободно / в аренде по каждому товару на дату."
 msgstr "Sanaga ko'ra har bir mahsulot bo'yicha qancha bo'sh / ijarada."
 
+#: config/templates/config/reports/index.html:53
+#: config/templates/config/reports/payment_methods.html:4
+#: config/templates/config/reports/payment_methods.html:8
+msgid "Способы оплаты"
+msgstr "To'lov usullari"
+
+#: config/templates/config/reports/index.html:55
+msgid "Σ наличными и картой по типам платежей за период."
+msgstr "Davr uchun to'lov turlari bo'yicha naqd va karta Σ."
+
+#: config/templates/config/reports/payment_methods.html:15
 #: config/templates/config/reports/revenue.html:15
 #: config/templates/config/reports/top_products.html:15
 msgid "С"
 msgstr "Dan"
 
+#: config/templates/config/reports/payment_methods.html:20
 #: config/templates/config/reports/revenue.html:20
 #: config/templates/config/reports/top_products.html:20
 msgid "По"
 msgstr "Gacha"
+
+#: config/templates/config/reports/payment_methods.html:46
+msgid "Всего за период"
+msgstr "Davr uchun jami"
+
+#: config/templates/config/reports/payment_methods.html:62
+#: config/templates/config/salary/index.html:71
+#: config/templates/config/salary/worker_detail.html:96
+msgid "Итого"
+msgstr "Jami"
+
+#: config/templates/config/reports/payment_methods.html:90
+msgid "Итого по типу"
+msgstr "Tur bo'yicha jami"
+
+#: config/templates/config/reports/payment_methods.html:101
+msgid "Подсчёт по полю date платежа (с учётом часового пояса)."
+msgstr "To'lovning date maydoni bo'yicha hisoblash (vaqt mintaqasi hisobga olingan holda)."
 
 #: config/templates/config/reports/revenue.html:34
 msgid "Текущий период"
@@ -1055,6 +1752,7 @@ msgid "Изменение"
 msgstr "O'zgarish"
 
 #: config/templates/config/reports/revenue.html:75
+#: config/templates/config/salary/index.html:40
 msgid "Текущий"
 msgstr "Joriy"
 
@@ -1065,10 +1763,6 @@ msgstr "Oldingi"
 #: config/templates/config/reports/stock.html:15
 msgid "На дату (включительно)"
 msgstr "Sanaga (shu jumladan)"
-
-#: config/templates/config/reports/stock.html:21
-msgid "Сегодня"
-msgstr "Bugun"
 
 #: config/templates/config/reports/stock.html:25
 msgid "Снимок «прямо сейчас»."
@@ -1119,135 +1813,479 @@ msgstr "Ma'lumotlar yo'q"
 msgid "По частоте выдач"
 msgstr "Berishlar chastotasi bo'yicha"
 
-#: config/views.py:403
+#: config/templates/config/salary/_entries_body.html:6
+#: config/templates/config/salary/index.html:68
+msgid "База за месяц"
+msgstr "Oy uchun asos"
+
+#: config/templates/config/salary/_entries_body.html:12
+#: config/templates/config/salary/index.html:69
+#: config/templates/config/salary/worker_detail.html:69
+#: config/templates/config/salary/worker_detail.html:94
+msgid "Премии"
+msgstr "Mukofotlar"
+
+#: config/templates/config/salary/_entries_body.html:18
+#: config/templates/config/salary/index.html:70
+#: config/templates/config/salary/worker_detail.html:75
+#: config/templates/config/salary/worker_detail.html:95
+msgid "Штрафы"
+msgstr "Jarimalar"
+
+#: config/templates/config/salary/_entries_body.html:24
+msgid "Долг работника"
+msgstr "Ishchi qarzi"
+
+#: config/templates/config/salary/_entries_body.html:24
+msgid "Итого к выплате"
+msgstr "To'lovga jami"
+
+#: config/templates/config/salary/_entries_body.html:28
+msgid "Добавить премию или штраф"
+msgstr "Mukofot yoki jarima qo'shish"
+
+#: config/templates/config/salary/_entries_body.html:64
+msgid "Записи за месяц"
+msgstr "Oy uchun yozuvlar"
+
+#: config/templates/config/salary/_entries_body.html:73
+msgid "Кто / когда"
+msgstr "Kim / qachon"
+
+#: config/templates/config/salary/_entries_body.html:105
+msgid "Удалить запись?"
+msgstr "Yozuv o'chirilsinmi?"
+
+#: config/templates/config/salary/_entries_body.html:116
+msgid "Премий и штрафов за этот месяц пока нет."
+msgstr "Bu oy uchun mukofot va jarimalar hozircha yo'q."
+
+#: config/templates/config/salary/_entries_modal.html:9
+#, python-format
+msgid ""
+"\n"
+"                        Начисления · %(name)s · %(month)s.%(year)s\n"
+"                    "
+msgstr "\n                        Hisoblashlar · %(name)s · %(month)s.%(year)s\n                    "
+
+#: config/templates/config/salary/_row.html:13
+#: config/templates/config/salary/worker_detail.html:18
+msgid "архив"
+msgstr "arxiv"
+
+#: config/templates/config/salary/_row.html:35
+msgid "Сохранить оклад"
+msgstr "Maoshni saqlash"
+
+#: config/templates/config/salary/_row.html:68
+msgid "долг"
+msgstr "qarz"
+
+#: config/templates/config/salary/_row.html:78
+msgid "Премии и штрафы"
+msgstr "Mukofotlar va jarimalar"
+
+#: config/templates/config/salary/index.html:4
+#: config/templates/config/salary/worker_detail.html:12 templates/base.html:94
+msgid "Зарплата"
+msgstr "Maosh"
+
+#: config/templates/config/salary/index.html:8
+msgid "Зарплата сотрудников"
+msgstr "Xodimlar maoshi"
+
+#: config/templates/config/salary/index.html:10
+#: config/templates/config/workers/list.html:11
+msgid "Журнал посещаемости"
+msgstr "Davomat jurnali"
+
+#: config/templates/config/salary/index.html:20
+msgid "Предыдущий месяц"
+msgstr "Oldingi oy"
+
+#: config/templates/config/salary/index.html:33
+msgid "Следующий месяц"
+msgstr "Keyingi oy"
+
+#: config/templates/config/salary/index.html:46
+msgid "Скрыть архивных"
+msgstr "Arxivdagilarni yashirish"
+
+#: config/templates/config/salary/index.html:50
+msgid "Показать архивных"
+msgstr "Arxivdagilarni ko'rsatish"
+
+#: config/templates/config/salary/index.html:55
+msgid "Рабочих дней в месяце:"
+msgstr "Oydagi ish kunlari:"
+
+#: config/templates/config/salary/index.html:65
+msgid "Сотрудник"
+msgstr "Xodim"
+
+#: config/templates/config/salary/index.html:66
+msgid "Оклад/мес."
+msgstr "Maosh/oy"
+
+#: config/templates/config/salary/index.html:67
+#: config/templates/config/salary/worker_detail.html:92
+msgid "Дни (П/Раб.)"
+msgstr "Kunlar (D/Ish.)"
+
+#: config/templates/config/salary/index.html:72
+#: config/templates/config/workers/list.html:53
+msgid "Действия"
+msgstr "Amallar"
+
+#: config/templates/config/salary/index.html:82
+msgid "Итого по всем"
+msgstr "Hammasi bo'yicha jami"
+
+#: config/templates/config/salary/index.html:94
+msgid "В системе нет активных сотрудников."
+msgstr "Tizimda faol xodimlar yo'q."
+
+#: config/templates/config/salary/worker_detail.html:5
+#, python-format
+msgid "Зарплата · %(name)s"
+msgstr "Maosh · %(name)s"
+
+#: config/templates/config/salary/worker_detail.html:24
+msgid "К таблице"
+msgstr "Jadvalga"
+
+#: config/templates/config/salary/worker_detail.html:28
+msgid "Профиль"
+msgstr "Profil"
+
+#: config/templates/config/salary/worker_detail.html:37
+msgid "Показать месяцев"
+msgstr "Oylarni ko'rsatish"
+
+#: config/templates/config/salary/worker_detail.html:48
+msgid "Текущий оклад"
+msgstr "Joriy maosh"
+
+#: config/templates/config/salary/worker_detail.html:57
+msgid "Период"
+msgstr "Davr"
+
+#: config/templates/config/salary/worker_detail.html:58
+msgid "мес."
+msgstr "oy"
+
+#: config/templates/config/salary/worker_detail.html:63
+msgid "Явка (всего)"
+msgstr "Davomat (jami)"
+
+#: config/templates/config/salary/worker_detail.html:82
+msgid "Долг за период"
+msgstr "Davr uchun qarz"
+
+#: config/templates/config/salary/worker_detail.html:82
+msgid "Итого за период"
+msgstr "Davr uchun jami"
+
+#: config/templates/config/salary/worker_detail.html:91
+msgid "Оклад"
+msgstr "Maosh"
+
+#: config/templates/config/salary/worker_detail.html:93
+msgid "База"
+msgstr "Asos"
+
+#: config/templates/config/suspicions/list.html:4 templates/base.html:73
+msgid "Подозрения"
+msgstr "Shubhalar"
+
+#: config/templates/config/suspicions/list.html:13
+msgid "Настроить нормы"
+msgstr "Normalarni sozlash"
+
+#: config/templates/config/suspicions/list.html:18
+msgid ""
+"Позиции, которые держат на руках дольше ожидаемой длительности проката (поле "
+"«Норма» у товара). За 1 день до превышения — жёлтое «подозрение», после — "
+"красная просрочка."
+msgstr "Kutilgan ijara muddatidan uzoqroq qo'lda ushlab turilgan pozitsiyalar (mahsulotning «Norma» maydoni). Muddatdan 1 kun oldin — sariq «shubha», keyin esa qizil muddat o'tishi."
+
+#: config/templates/config/suspicions/list.html:25
+msgid "Подозрений (день в день)"
+msgstr "Shubhalar (kun-ba-kun)"
+
+#: config/templates/config/suspicions/list.html:33
+msgid "Превышений нормы"
+msgstr "Normadan oshganlar"
+
+#: config/templates/config/suspicions/list.html:40
+msgid "Всего в списке"
+msgstr "Ro'yxatda jami"
+
+#: config/templates/config/suspicions/list.html:56
+msgid "Показать только превышения (без подозрений)"
+msgstr "Faqat oshib ketganlarni ko'rsatish (shubhalarsiz)"
+
+#: config/templates/config/suspicions/list.html:80
+msgid "Превышение"
+msgstr "Oshib ketish"
+
+#: config/templates/config/suspicions/list.html:107
+msgid "до"
+msgstr "gacha"
+
+#: config/templates/config/suspicions/list.html:145
+msgid "Превышений нет — все позиции в пределах нормы."
+msgstr "Oshib ketishlar yo'q — barcha pozitsiyalar norma doirasida."
+
+#: config/templates/config/suspicions/list.html:147
+msgid "Подозрений нет — всё в норме."
+msgstr "Shubhalar yo'q — hammasi normada."
+
+#: config/templates/config/workers/form.html:4
+#: config/templates/config/workers/form.html:8
+msgid "Изменить рабочего"
+msgstr "Ishchini o'zgartirish"
+
+#: config/templates/config/workers/form.html:4
+#: config/templates/config/workers/form.html:8
+msgid "Новый рабочий"
+msgstr "Yangi ishchi"
+
+#: config/templates/config/workers/list.html:15
+msgid "Добавить рабочего"
+msgstr "Ishchi qo'shish"
+
+#: config/templates/config/workers/list.html:24
+msgid "Поиск"
+msgstr "Qidiruv"
+
+#: config/templates/config/workers/list.html:27
+msgid "ФИО / должность / телефон"
+msgstr "To'liq ism / lavozim / telefon"
+
+#: config/templates/config/workers/list.html:32
+msgid "Все"
+msgstr "Barchasi"
+
+#: config/templates/config/workers/list.html:34
+#: config/templates/config/workers/list.html:66
+msgid "В архиве"
+msgstr "Arxivda"
+
+#: config/templates/config/workers/list.html:77
+msgid "В архив"
+msgstr "Arxivga"
+
+#: config/templates/config/workers/list.html:77
+msgid "Восстановить"
+msgstr "Tiklash"
+
+#: config/templates/config/workers/list.html:92
+msgid "Рабочих пока нет."
+msgstr "Hozircha ishchilar yo'q."
+
+#: config/views.py:496
 msgid "Невозвращено (шт)"
 msgstr "Qaytarilmagan (dona)"
 
-#: config/views.py:404
+#: config/views.py:497
 msgid "Дней просрочки (макс)"
 msgstr "Kechikkan kunlar (maks)"
 
-#: config/views.py:512
+#: config/views.py:605
 msgid "Новый товар"
 msgstr "Yangi mahsulot"
 
-#: config/views.py:518
+#: config/views.py:611
 #, python-format
 msgid "Товар «%(name)s» создан."
 msgstr "«%(name)s» mahsuloti yaratildi."
 
-#: config/views.py:531
+#: config/views.py:624
 #, python-format
 msgid "Товар: %(name)s"
 msgstr "Mahsulot: %(name)s"
 
-#: config/views.py:537
+#: config/views.py:630
 #, python-format
 msgid "Товар «%(name)s» сохранён."
 msgstr "«%(name)s» mahsuloti saqlandi."
 
-#: config/views.py:548
+#: config/views.py:641
 #, python-format
 msgid "Товар «%(name)s» активирован."
 msgstr "«%(name)s» mahsuloti faollashtirildi."
 
-#: config/views.py:550
+#: config/views.py:643
 #, python-format
 msgid "Товар «%(name)s» деактивирован."
 msgstr "«%(name)s» mahsuloti faolsizlashtirildi."
 
-#: config/views.py:565
+#: config/views.py:658
 msgid "Новая категория"
 msgstr "Yangi kategoriya"
 
-#: config/views.py:571
+#: config/views.py:664
 #, python-format
 msgid "Категория «%(name)s» создана."
 msgstr "«%(name)s» kategoriyasi yaratildi."
 
-#: config/views.py:616
-msgid "Новый клиент"
-msgstr "Yangi mijoz"
-
-#: config/views.py:622
+#: config/views.py:715
 #, python-format
 msgid "Клиент «%(name)s» создан."
 msgstr "«%(name)s» mijozi yaratildi."
 
-#: config/views.py:637
+#: config/views.py:730
 #, python-format
 msgid "Клиент: %(name)s"
 msgstr "Mijoz: %(name)s"
 
-#: config/views.py:643
+#: config/views.py:736
 #, python-format
 msgid "Клиент «%(name)s» сохранён."
 msgstr "«%(name)s» mijozi saqlandi."
 
-#: config/views.py:868
+#: config/views.py:996
 #, python-format
 msgid "«%(name)s»: некорректное количество."
 msgstr "«%(name)s»: noto'g'ri miqdor."
 
-#: config/views.py:874
+#: config/views.py:1002
 #, python-format
 msgid "«%(name)s»: количество не может быть отрицательным."
 msgstr "«%(name)s»: miqdor manfiy bo'lishi mumkin emas."
 
-#: config/views.py:882
+#: config/views.py:1010
 #, python-format
 msgid "«%(name)s»: возвращаете %(qty)d, а к возврату только %(out)d."
 msgstr "«%(name)s»: %(qty)d qaytarayapsiz, lekin qaytarishga faqat %(out)d."
 
-#: config/views.py:893
+#: config/views.py:1021
 msgid "Укажите количество хотя бы по одной позиции."
 msgstr "Kamida bitta pozitsiya bo'yicha miqdorni ko'rsating."
 
-#: config/views.py:964
+#: config/views.py:1080
 msgid "Укажите причину досрочного закрытия (списание / потеря)."
-msgstr "Muddatidan oldin yopish sababini ko'rsating (yo'qotish / hisobdan chiqarish)."
+msgstr "Muddatidan oldin yopish sababini ko'rsating (hisobdan chiqarish / yo'qotish)."
 
-#: config/views.py:1055
+#: config/views.py:1209
 #, python-format
 msgid "Аренда #%(pk)d создана. Выдано %(qty)d шт."
 msgstr "Ijara #%(pk)d yaratildi. %(qty)d dona berildi."
 
-#: config/views.py:1104
+#: config/views.py:1258
 msgid "Добавьте хотя бы одну позицию."
 msgstr "Kamida bitta pozitsiya qo'shing."
 
-#: config/views.py:1109
+#: config/views.py:1263
 #, python-format
 msgid "Строка %(i)d: некорректные значения."
 msgstr "%(i)d-qator: noto'g'ri qiymatlar."
 
-#: config/views.py:1114
+#: config/views.py:1268
 #, python-format
 msgid "Строка %(i)d: количество должно быть больше нуля."
 msgstr "%(i)d-qator: miqdor noldan katta bo'lishi kerak."
 
-#: config/views.py:1122
+#: config/views.py:1276
 #, python-format
 msgid "Строка %(i)d: товар не найден или отключён."
 msgstr "%(i)d-qator: mahsulot topilmadi yoki o'chirilgan."
 
-#: config/views.py:1128
+#: config/views.py:1282
 #, python-format
 msgid ""
 "Строка %(i)d: «%(name)s» — доступно %(avail)d %(unit)s, запрошено %(qty)d."
-msgstr ""
-"%(i)d-qator: «%(name)s» — mavjud %(avail)d %(unit)s, so'ralgan %(qty)d."
+msgstr "%(i)d-qator: «%(name)s» — mavjud %(avail)d %(unit)s, so'ralgan %(qty)d."
 
-#: config/views.py:1155
+#: config/views.py:1309
 #, python-format
 msgid "«%(name)s»: доступно %(avail)d, запрошено %(qty)d"
 msgstr "«%(name)s»: mavjud %(avail)d, so'ralgan %(qty)d"
 
-#: rental_track/settings.py:97
+#: config/views.py:1557
+#, python-format
+msgid "Аренда #%(pk)d обновлена."
+msgstr "Ijara #%(pk)d yangilandi."
+
+#: config/views.py:1580
+#, python-format
+msgid "Платёж %(a)s добавлен."
+msgstr "%(a)s to'lov qo'shildi."
+
+#: config/views.py:1609
+msgid "Платёж обновлён."
+msgstr "To'lov yangilandi."
+
+#: config/views.py:1618
+msgid "Платёж удалён."
+msgstr "To'lov o'chirildi."
+
+#: config/views.py:1642
+msgid "Выберите товар."
+msgstr "Mahsulotni tanlang."
+
+#: config/views.py:1646
+msgid "Товар не найден или отключён."
+msgstr "Mahsulot topilmadi yoki o'chirilgan."
+
+#: config/views.py:1653 config/views.py:1722
+msgid "Количество должно быть больше нуля."
+msgstr "Miqdor noldan katta bo'lishi kerak."
+
+#: config/views.py:1656
+#, python-format
+msgid "«%(name)s» — доступно %(avail)d, запрошено %(qty)d."
+msgstr "«%(name)s» — mavjud %(avail)d, so'ralgan %(qty)d."
+
+#: config/views.py:1689
+#, python-format
+msgid "Позиция «%(name)s» × %(qty)d добавлена."
+msgstr "«%(name)s» × %(qty)d pozitsiya qo'shildi."
+
+#: config/views.py:1725
+#, python-format
+msgid "Нельзя заказать меньше уже выданного (%(n)d)."
+msgstr "Allaqachon berilganidan (%(n)d) kam buyurtma qilib bo'lmaydi."
+
+#: config/views.py:1734
+msgid "Позиция обновлена."
+msgstr "Pozitsiya yangilandi."
+
+#: config/views.py:1750
+#, python-format
+msgid ""
+"Нельзя удалить «%(name)s»: уже была выдача. Сначала оформите возврат или "
+"досрочное закрытие."
+msgstr "«%(name)s»ni o'chirib bo'lmaydi: allaqachon berilgan edi. Avval qaytarish yoki muddatidan oldin yopishni rasmiylashtiring."
+
+#: config/views.py:1758
+#, python-format
+msgid "Позиция «%(name)s» удалена."
+msgstr "«%(name)s» pozitsiyasi o'chirildi."
+
+#: config/views.py:1948
+#, python-format
+msgid "Рабочий «%(n)s» добавлен."
+msgstr "«%(n)s» ishchi qo'shildi."
+
+#: config/views.py:1972
+msgid "Изменения сохранены."
+msgstr "O'zgarishlar saqlandi."
+
+#: config/views.py:2295 config/views.py:2332
+msgid "Не указан месяц"
+msgstr "Oy ko'rsatilmagan"
+
+#: config/views.py:2307
+msgid "Некорректная сумма"
+msgstr "Noto'g'ri summa"
+
+#: rental_track/settings.py:131
 msgid "Русский"
 msgstr "Ruscha"
 
-#: rental_track/settings.py:98
+#: rental_track/settings.py:132
 msgid "O‘zbekcha"
 msgstr "O‘zbekcha"
 
@@ -1279,47 +2317,83 @@ msgstr "Nimadir buzildi"
 msgid ""
 "Сервер не смог обработать запрос. Попробуйте обновить страницу через минуту; "
 "если повторяется — сообщите администратору."
-msgstr ""
-"Server so'rovni qayta ishlay olmadi. Bir daqiqadan so'ng sahifani yangilab "
-"ko'ring; takrorlansa — administratorga xabar bering."
+msgstr "Server so'rovni qayta ishlay olmadi. Bir daqiqadan so'ng sahifani yangilab ko'ring; agar takrorlansa — administratorga xabar bering."
 
 #: templates/500.html:16
 msgid "На главную"
 msgstr "Bosh sahifaga"
 
-#: templates/base.html:39
+#: templates/base.html:38
 msgid "Обзор"
 msgstr "Sharh"
 
-#: templates/base.html:48
+#: templates/base.html:47
 msgid "Управление"
 msgstr "Boshqaruv"
 
-#: templates/base.html:67
+#: templates/base.html:55
+#, python-format
+msgid "%(n)s просрочка"
+msgid_plural "%(n)s просрочек"
+msgstr[0] "%(n)s ta muddat o'tishi"
+
+#: templates/base.html:76
+#, python-format
+msgid "%(n)s превышение нормы"
+msgid_plural "%(n)s превышений нормы"
+msgstr[0] "%(n)s ta normadan oshish"
+
+#: templates/base.html:83
+msgid "Кадры"
+msgstr "Kadrlar"
+
+#: templates/base.html:99
 msgid "Аналитика"
 msgstr "Tahlil"
 
-#: templates/base.html:97
+#: templates/base.html:131
 msgid "Оператор"
 msgstr "Operator"
 
-#: templates/base.html:103
+#: templates/base.html:137
 msgid "Выйти"
 msgstr "Chiqish"
 
-#: templates/base.html:116
+#: templates/base.html:150
 msgid "Меню"
 msgstr "Menyu"
 
-#: templates/print_base.html:5 templates/print_base.html:32
+#: templates/base.html:207
+msgid "Внимание — просрочки"
+msgstr "Diqqat — muddat o'tishlari"
+
+#: templates/base.html:210
+#, python-format
+msgid ""
+"\n"
+"                            Сейчас <strong>%(n)s</strong> просроченная "
+"аренда требует внимания.\n"
+"                        "
+msgid_plural ""
+"\n"
+"                            Сейчас <strong>%(n)s</strong> просроченных аренд "
+"требуют внимания.\n"
+"                        "
+msgstr[0] "\n                            Hozir <strong>%(n)s</strong> ta muddati o'tgan ijara e'tibor talab qiladi.\n                        "
+
+#: templates/base.html:218
+msgid "Открыть список"
+msgstr "Ro'yxatni ochish"
+
+#: templates/print_base.html:5 templates/print_base.html:72
 msgid "Печать"
 msgstr "Chop etish"
 
-#: templates/print_base.html:30
+#: templates/print_base.html:70
 msgid "Версия для печати — нажмите Ctrl/Cmd+P"
 msgstr "Chop etish uchun versiya — Ctrl/Cmd+P ni bosing"
 
-#: templates/print_base.html:34
+#: templates/print_base.html:74
 msgid "← Назад"
 msgstr "← Orqaga"
 
