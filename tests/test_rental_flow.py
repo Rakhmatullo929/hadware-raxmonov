@@ -109,6 +109,81 @@ def test_return_validations(client_admin, admin_user, customer, product):
     assert 'Укажите количество' in r.content.decode()
 
 
+def _make_rental_with_issue(client_admin, customer, product, qty=10):
+    r = client_admin.post('/rentals/new/', data={
+        'customer': str(customer.pk),
+        'due_date': (timezone.localdate() + timedelta(days=10)).isoformat(),
+        'item_product': [str(product.pk)],
+        'item_qty': [str(qty)],
+    })
+    assert r.status_code == 302, r.content[:300]
+    rental = Rental.objects.get(customer=customer)
+    return rental, rental.items.first()
+
+
+def test_return_stores_explicit_amount(client_admin, admin_user, customer, product):
+    """Operator-entered amount (money-formatted) is saved on the return."""
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=10)
+
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '7',
+        f'amount_{item.pk}': '5 000',  # spaced money input
+        'note': 'partial',
+    }, HTTP_HX_REQUEST='true')
+    assert r.status_code == 200
+
+    ret = Movement.objects.get(rental_item=item, kind=Movement.Kind.RETURN)
+    assert ret.qty == 7
+    assert ret.amount == Decimal('5000')
+
+
+def test_return_blank_amount_stores_auto_computed(
+    client_admin, admin_user, customer, product,
+):
+    """Leaving the amount blank persists the auto FIFO rent (never null)."""
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=10)
+
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '4',
+        f'amount_{item.pk}': '',  # blank → auto
+    }, HTTP_HX_REQUEST='true')
+    assert r.status_code == 200
+
+    ret = Movement.objects.get(rental_item=item, kind=Movement.Kind.RETURN)
+    # issued and returned same day → 1 billable day; 4 × 1 × 100 = 400
+    assert ret.amount == Decimal('400.00')
+
+
+def test_return_rejects_negative_amount(
+    client_admin, admin_user, customer, product,
+):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=5)
+
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '2',
+        f'amount_{item.pk}': '-100',
+    }, HTTP_HX_REQUEST='true')
+    assert 'сумма не может быть отрицательной' in r.content.decode()
+    assert not Movement.objects.filter(
+        rental_item=item, kind=Movement.Kind.RETURN,
+    ).exists()
+
+
+def test_timeline_shows_return_charge(
+    client_admin, admin_user, customer, product,
+):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=10)
+    client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '7',
+        f'amount_{item.pk}': '4 321',
+    }, HTTP_HX_REQUEST='true')
+
+    r = client_admin.get(f'/rentals/{rental.pk}/')
+    assert r.status_code == 200
+    # The distinctive return amount shows up in the movements timeline.
+    assert '4321' in r.content.decode() or '4 321' in r.content.decode()
+
+
 def test_create_rental_rejects_qty_above_available_stock(
     client_admin, admin_user, customer, product,
 ):

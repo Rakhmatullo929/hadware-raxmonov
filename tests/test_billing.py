@@ -10,7 +10,13 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from config.billing import compute_item_unit_days, compute_rental_billing
+from config.billing import (
+    compute_item_base,
+    compute_item_unit_days,
+    compute_rental_billing,
+    compute_return_amount_for_qty,
+    return_charge_map,
+)
 from config.models import (
     Category,
     Customer,
@@ -176,6 +182,118 @@ def test_rental_billing_includes_overdue_fine_and_subtracts_payments(actors):
     assert summary['deposit_held'] == Decimal('500.00')
     assert summary['paid'] == Decimal('0.00')
     assert summary['total_due'] == Decimal('2400.00')
+
+
+def test_item_base_uses_stored_return_amount(actors):
+    """A return with an explicit amount overrides the auto FIFO rent for the
+    returned units; still-outstanding units keep accruing automatically."""
+    rental = _make_rental(actors)
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=10,
+        price_per_day=Decimal('100.00'),
+    )
+    t0 = timezone.now() - timedelta(days=20)
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        date=t0, created_by=actors['user'],
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=7,
+        date=t0 + timedelta(days=12), amount=Decimal('5000.00'),
+        created_by=actors['user'],
+    )
+    as_of = t0 + timedelta(days=12)
+    # returned 7 → stored 5000 (not auto 7*12*100=8400);
+    # outstanding 3 → 3*12*100 = 3600 → base 8600
+    assert compute_item_base(item, as_of=as_of) == Decimal('8600.00')
+
+
+def test_item_base_falls_back_to_auto_when_amount_null(actors):
+    """A return left without a stored amount bills the auto FIFO rent — keeps
+    old data and existing behaviour identical."""
+    rental = _make_rental(actors)
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=10,
+        price_per_day=Decimal('100.00'),
+    )
+    t0 = timezone.now() - timedelta(days=20)
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        date=t0, created_by=actors['user'],
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=3,
+        date=t0 + timedelta(days=5), created_by=actors['user'],  # amount None
+    )
+    as_of = t0 + timedelta(days=10)
+    # returned 3*5*100 = 1500; outstanding 7*10*100 = 7000 → 8500
+    assert compute_item_base(item, as_of=as_of) == Decimal('8500.00')
+
+
+def test_rental_billing_base_uses_return_amounts(actors):
+    """End-to-end: a manual return amount drives summary['base']."""
+    rental = _make_rental(actors)  # due in 30d → no fine
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=10,
+        price_per_day=Decimal('100.00'),
+    )
+    t0 = timezone.now() - timedelta(days=8)
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        date=t0, created_by=actors['user'],
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=10,
+        date=t0 + timedelta(days=3), amount=Decimal('1234.00'),
+        created_by=actors['user'],
+    )
+    summary = compute_rental_billing(rental)
+    # auto would be 10*3*100 = 3000; stored amount wins
+    assert summary['base'] == Decimal('1234.00')
+
+
+def test_compute_return_amount_for_qty_uses_current_outstanding(actors):
+    """Default suggestion when the operator leaves the amount blank: FIFO rent
+    for returning `qty` units right now."""
+    rental = _make_rental(actors)
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=10,
+        price_per_day=Decimal('100.00'),
+    )
+    t0 = timezone.now() - timedelta(days=6)
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        date=t0, created_by=actors['user'],
+    )
+    as_of = t0 + timedelta(days=6)
+    # returning 7 now: 7 * 6 days * 100 = 4200
+    assert compute_return_amount_for_qty(item, 7, as_of=as_of) == Decimal('4200.00')
+
+
+def test_return_charge_map_reports_stored_or_auto(actors):
+    """Timeline map: stored amount when set, auto FIFO rent otherwise."""
+    rental = _make_rental(actors)
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=10,
+        price_per_day=Decimal('100.00'),
+    )
+    t0 = timezone.now() - timedelta(days=10)
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        date=t0, created_by=actors['user'],
+    )
+    m_auto = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=2,
+        date=t0 + timedelta(days=4), created_by=actors['user'],  # amount None
+    )
+    m_manual = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=3,
+        date=t0 + timedelta(days=6), amount=Decimal('999.00'),
+        created_by=actors['user'],
+    )
+    charges = return_charge_map(rental)
+    assert charges[m_auto.id] == Decimal('800.00')    # 2 * 4 * 100
+    assert charges[m_manual.id] == Decimal('999.00')   # stored
 
 
 def test_rental_billing_no_fine_after_close(actors):
