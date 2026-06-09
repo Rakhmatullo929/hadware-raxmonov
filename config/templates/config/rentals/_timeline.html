@@ -11,6 +11,12 @@
                         <span class="badge bg-success">{% trans "Возврат" %}</span>
                     {% endif %}
                     {{ m.rental_item.product.name }} — <strong>{{ m.qty }}</strong>
+                    {% if m.charge is not None %}
+                        <span class="text-nowrap ms-1">·
+                            <strong class="font-monospace">{{ m.charge|floatformat:"0" }}</strong>
+                            {% trans "сум" %}
+                        </span>
+                    {% endif %}
                     {% if m.note %}<div class="small text-muted mt-1">{{ m.note }}</div>{% endif %}
                 </div>
                 <span class="text-muted small text-nowrap ms-2">

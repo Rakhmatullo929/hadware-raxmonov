@@ -375,6 +375,16 @@ class Movement(models.Model):
     )
     kind = models.CharField(_('Тип'), max_length=10, choices=Kind.choices)
     qty = models.PositiveIntegerField(_('Количество'))
+    amount = models.DecimalField(
+        _('Сумма начисления'),
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_('Аренда, начисленная за возвращённые единицы. Только для '
+                    'возвратов; для выдачи и списаний — пусто (тогда считается '
+                    'автоматически по дням × цена).'),
+    )
     date = models.DateTimeField(_('Дата'), default=timezone.now)
     note = models.CharField(_('Примечание'), max_length=255, blank=True)
     created_by = models.ForeignKey(

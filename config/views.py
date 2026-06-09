@@ -885,6 +885,11 @@ def _rental_card_context(rental):
     for it in items:
         movements.extend(list(it.movements.select_related('created_by').all()))
     movements.sort(key=lambda m: m.date, reverse=True)
+    # Сумма начисления по каждому возврату (сохранённая либо авто-расчёт) —
+    # навешиваем прямо на объект движения, чтобы шаблон проверял `m.charge`.
+    charges = billing.return_charge_map(rental)
+    for m in movements:
+        m.charge = charges.get(m.id)
     payments = list(rental.payments.all())
     summary = billing.compute_rental_billing(rental)
     has_outstanding = any(it.outstanding_qty > 0 for it in items)
@@ -922,40 +927,33 @@ class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
         return ctx
 
 
-def _return_modal_context(rental, outstanding_items, *, inputs, errors, note):
+def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
+                          amount_inputs=None):
     """Контекст для модалки возврата.
 
-    Для каждой позиции считаем:
-      * unit_days  — накопленные unit-days (qty × дни, FIFO) до сих пор;
-      * days_avg   — округлённые «дни на единицу» (unit_days / outstanding) —
-                     удобно показывать оператору «за сколько дней оплачено»;
-      * billed     — Σ к оплате за эту позицию за период (unit_days × price/day).
-    Всё это даёт оператору цельную картину «сколько он вернёт и за какой
-    период», как просил пользователь.
+    Для каждой позиции считаем ``days_avg`` — округлённые «дни на единицу»
+    (unit_days / outstanding). Поле суммы начисления авто-подставляется на
+    клиенте как ``qty × days_avg × price`` (см. static/js/return-amount.js) и
+    правится оператором; итог в подвале тоже считается вживую.
     """
     rows = []
-    total_billed = Decimal('0.00')
     for it in outstanding_items:
-        unit_days = billing.compute_item_unit_days(it)
-        billed = (Decimal(unit_days) * it.price_per_day).quantize(Decimal('0.01'))
         out = it.outstanding_qty
+        unit_days = billing.compute_item_unit_days(it)
         days_avg = (unit_days // out) if out > 0 else 0
         rows.append({
             'item': it,
             'outstanding': out,
             'value': (inputs or {}).get(it.pk, ''),
-            'unit_days': unit_days,
+            'amount_value': (amount_inputs or {}).get(it.pk, ''),
             'days_avg': days_avg,
-            'billed': billed,
             'price_per_day': it.price_per_day,
         })
-        total_billed += billed
     return {
         'rental': rental,
         'rows': rows,
         'errors': errors,
         'note': note,
-        'total_billed': total_billed.quantize(Decimal('0.01')),
         'period_from': rental.created_at,
         'period_to': timezone.now(),
     }
@@ -981,12 +979,18 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
 
         note = (request.POST.get('note') or '').strip()
         inputs = {}
-        plan = []  # list of (item, qty)
+        amount_inputs = {}
+        plan = []  # list of (item, qty, amount|None)
         errors = []
+        amount_parser = MoneyDecimalField(
+            max_digits=12, decimal_places=2, required=False,
+        )
 
         for it in outstanding_items:
             raw = (request.POST.get(f'qty_{it.pk}') or '').strip()
             inputs[it.pk] = raw
+            raw_amount = (request.POST.get(f'amount_{it.pk}') or '').strip()
+            amount_inputs[it.pk] = raw_amount
             if raw == '':
                 continue
             try:
@@ -1015,7 +1019,24 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                     }
                 )
                 continue
-            plan.append((it, qty))
+            # Сумма начисления: пусто → посчитаем авто-расчёт при создании.
+            amount = None
+            if raw_amount:
+                try:
+                    amount = amount_parser.clean(raw_amount)
+                except ValidationError:
+                    errors.append(
+                        _('«%(name)s»: некорректная сумма.')
+                        % {'name': it.product.name}
+                    )
+                    continue
+                if amount is not None and amount < 0:
+                    errors.append(
+                        _('«%(name)s»: сумма не может быть отрицательной.')
+                        % {'name': it.product.name}
+                    )
+                    continue
+            plan.append((it, qty, amount))
 
         if not errors and not plan:
             errors.append(_('Укажите количество хотя бы по одной позиции.'))
@@ -1024,14 +1045,18 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
             return render(request, 'config/rentals/_return_modal.html',
                           _return_modal_context(rental, outstanding_items,
                                                 inputs=inputs, errors=errors,
-                                                note=note))
+                                                note=note,
+                                                amount_inputs=amount_inputs))
 
         with transaction.atomic():
-            for it, qty in plan:
+            for it, qty, amount in plan:
+                if amount is None:
+                    amount = billing.compute_return_amount_for_qty(it, qty)
                 Movement.objects.create(
                     rental_item=it,
                     kind=Movement.Kind.RETURN,
                     qty=qty,
+                    amount=amount,
                     note=note,
                     created_by=request.user,
                 )

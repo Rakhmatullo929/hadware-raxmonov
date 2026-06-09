@@ -40,8 +40,8 @@
                                     <th class="text-end">{% trans "К возврату" %}</th>
                                     <th class="text-end">{% trans "Дн." %}</th>
                                     <th class="text-end">{% trans "Цена/сут." %}</th>
-                                    <th class="text-end">{% trans "Σ за период" %}</th>
-                                    <th class="text-end" style="width: 9rem;">{% trans "Возвращаю" %}</th>
+                                    <th class="text-end" style="width: 7rem;">{% trans "Возвращаю" %}</th>
+                                    <th class="text-end" style="width: 10rem;">{% trans "Сумма, сум" %}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -51,26 +51,36 @@
                                         <td class="text-end">{{ row.outstanding }} {{ row.item.product.unit }}</td>
                                         <td class="text-end">{{ row.days_avg }}</td>
                                         <td class="text-end font-monospace">{{ row.price_per_day }}</td>
-                                        <td class="text-end fw-semibold font-monospace">{{ row.billed }}</td>
                                         <td>
                                             <input type="number"
-                                                   class="form-control form-control-sm text-end"
+                                                   class="form-control form-control-sm text-end return-qty"
                                                    name="qty_{{ row.item.pk }}"
                                                    min="0"
                                                    max="{{ row.outstanding }}"
                                                    value="{{ row.value }}"
-                                                   placeholder="0">
+                                                   placeholder="0"
+                                                   data-item="{{ row.item.pk }}"
+                                                   data-days="{{ row.days_avg }}"
+                                                   data-price="{{ row.price_per_day }}">
+                                        </td>
+                                        <td>
+                                            <input type="text"
+                                                   inputmode="decimal"
+                                                   class="form-control form-control-sm text-end money-input return-amount"
+                                                   name="amount_{{ row.item.pk }}"
+                                                   value="{{ row.amount_value }}"
+                                                   placeholder="0"
+                                                   data-item="{{ row.item.pk }}">
                                         </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr class="table-light">
-                                    <th colspan="4" class="text-end">{% trans "Итого за период (накоплено)" %}</th>
+                                    <th colspan="5" class="text-end">{% trans "Итого к начислению" %}</th>
                                     <th class="text-end text-primary fw-bold font-monospace">
-                                        {{ total_billed }} {% trans "сум" %}
+                                        <span id="return-total">0</span> {% trans "сум" %}
                                     </th>
-                                    <th></th>
                                 </tr>
                             </tfoot>
                         </table>

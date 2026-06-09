@@ -240,3 +240,32 @@ def test_add_item_modal_uses_picker_not_select(client_admin, rental_for_admin,
     assert 'Леса рамные' not in body
     # И поле должно называться `product` для бэкенда.
     assert 'name="product"' in body
+
+
+# ---------- срок возврата (data-return-days) ----------
+
+@pytest.fixture
+def kolonna_with_norm(cat):
+    return Product.objects.create(
+        name='Колонна с нормой', category=cat, unit='шт',
+        stock_total=10, daily_price=Decimal('120.00'),
+        deposit_per_unit=Decimal('0.00'),
+        expected_min_days=2, expected_max_days=5,
+    )
+
+
+def test_pick_renders_return_days_when_norm_set(client_staff, kolonna_with_norm):
+    """У товара с заданной нормой скрытый input несёт data-return-days=<макс>."""
+    url = reverse('rental_item_product_pick',
+                  args=[kolonna_with_norm.pk]) + '?row_id=abc123'
+    r = client_staff.get(url)
+    assert r.status_code == 200
+    assert 'data-return-days="5"' in r.content.decode()
+
+
+def test_pick_renders_empty_return_days_without_norm(client_staff, kolonna):
+    """У товара без нормы (expected_max_days=None) атрибут пустой —
+    JS такую позицию пропустит."""
+    url = reverse('rental_item_product_pick', args=[kolonna.pk]) + '?row_id=abc123'
+    r = client_staff.get(url)
+    assert 'data-return-days=""' in r.content.decode()
