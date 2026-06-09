@@ -17,5 +17,6 @@
     </div>
     <input type="hidden" name="{{ field_name|default:'item_product' }}"
            value="{{ product.pk }}"
-           data-price="{{ product.daily_price|unlocalize }}">
+           data-price="{{ product.daily_price|unlocalize }}"
+           data-return-days="{{ product.expected_max_days|default:'' }}">
 </div>

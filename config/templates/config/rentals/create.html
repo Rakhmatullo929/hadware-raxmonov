@@ -164,16 +164,68 @@
         document.getElementById('grand-total').textContent = fmt.format(perPeriodSum);
     }
 
+    // --- Авто-подстановка срока возврата по «Норме (макс)» товара ---
+    const dueInput = document.querySelector('[name="due_date"]');
+    // Если при загрузке поле уже заполнено (ре-рендер формы после ошибки
+    // submit) — считаем значение ручным и не трогаем.
+    let dueDateTouched = !!(dueInput && dueInput.value);
+
+    // Ручной ввод оператора замораживает авто-подстановку. Программная
+    // установка .value события не порождает, поэтому свои обновления сюда
+    // не попадают.
+    if (dueInput) {
+        ['input', 'change'].forEach(evt =>
+            dueInput.addEventListener(evt, () => { dueDateTouched = true; }));
+    }
+
+    function fmtLocal(d) {
+        // datetime-local ждёт 'YYYY-MM-DDTHH:MM' в ЛОКАЛЬНОМ времени.
+        // toISOString() уехал бы в UTC — собираем компоненты вручную.
+        const p = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` +
+               `T${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+
+    function syncDueDate() {
+        if (!dueInput || dueDateTouched) return;
+        // Собрать сроки со всех выбранных товаров (целые >= 1).
+        const days = [];
+        document.querySelectorAll('input[name="item_product"]').forEach(inp => {
+            const n = parseInt(inp.dataset.returnDays || '', 10);
+            if (Number.isInteger(n) && n >= 1) days.push(n);
+        });
+        if (!days.length) return;          // нет норм — поле не трогаем
+        const n = Math.min(...days);       // самый короткий срок
+        const base = readDt('created_at') || new Date();
+        const due = new Date(base.getTime() + n * 86400000);
+        dueInput.value = fmtLocal(due);    // программно — флаг не взводится
+        recalc();
+    }
+
     // Реагируем на любые изменения внутри формы — input/change перекрывают
     // и текстовые поля, и selects, и datetime-local.
     document.addEventListener('input', recalc);
     document.addEventListener('change', recalc);
 
-    // Когда htmx добавляет новую строку — пересчитать заново.
-    document.body.addEventListener('htmx:afterSwap', recalc);
-    document.body.addEventListener('htmx:afterSettle', recalc);
+    // Изменение времени выдачи сдвигает базу авто-срока (пока не тронуто вручную).
+    const createdInput = document.querySelector('[name="created_at"]');
+    if (createdInput) {
+        ['input', 'change'].forEach(evt =>
+            createdInput.addEventListener(evt, syncDueDate));
+    }
 
-    document.addEventListener('DOMContentLoaded', recalc);
+    // Когда htmx подменяет строку/пикер (выбор, смена, очистка, удаление) —
+    // пересчитать срок и итоги.
+    document.body.addEventListener('htmx:afterSwap', recalc);
+    document.body.addEventListener('htmx:afterSettle', () => {
+        syncDueDate();
+        recalc();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        syncDueDate();
+        recalc();
+    });
 })();
 </script>
 {% endblock %}
