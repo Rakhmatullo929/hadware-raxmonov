@@ -1346,3 +1346,24 @@ msgstr "Parol"
 #: templates/registration/login.html:57
 msgid "Войти"
 msgstr "Kirish"
+
+#: config/models.py:379
+msgid "Сумма начисления"
+msgstr "Hisoblangan summa"
+
+#: config/models.py:384
+msgid ""
+"Аренда, начисленная за возвращённые единицы. Только для возвратов; для выдачи "
+"и списаний — пусто (тогда считается автоматически по дням × цена)."
+msgstr ""
+"Qaytarilgan donalar uchun hisoblangan ijara. Faqat qaytarishlar uchun; "
+"berish va hisobdan chiqarish uchun — bo'sh (u holda kunlar × narx bo'yicha "
+"avtomatik hisoblanadi)."
+
+#: config/templates/config/rentals/_return_modal.html:44
+msgid "Сумма, сум"
+msgstr "Summa, so'm"
+
+#: config/templates/config/rentals/_return_modal.html:80
+msgid "Итого к начислению"
+msgstr "Jami hisoblangan summa"
