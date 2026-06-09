@@ -563,6 +563,132 @@ def report_stock(request):
     })
 
 
+# ---------- reports: returns (приёмка возврата товара) ----------
+
+def _movement_local_date(m):
+    """Локальная дата движения (как у фильтра ``date__date``)."""
+    dt = m.date
+    if timezone.is_aware(dt):
+        dt = timezone.localtime(dt)
+    return dt.date()
+
+
+def _returns_rows(date_from, date_to):
+    """``(rows, daily, totals)`` по движениям ВОЗВРАТА за период.
+
+    * ``rows``   — ``[{date, customer, rental_id, product, qty, amount}]``, по дате;
+    * ``daily``  — ``{'labels': [...], 'values': [float, ...]}`` Σ начислено по дням;
+    * ``totals`` — ``{'amount': Decimal, 'qty': int, 'count': int}``.
+
+    Сумма берётся из ``billing.return_charge_map`` (сохранённый ``Movement.amount``
+    либо авто-расчёт ``unit_days × price``) — один вызов на аренду, FIFO не дублируем.
+    """
+    movements = list(
+        Movement.objects
+        .filter(
+            kind=Movement.Kind.RETURN,
+            date__date__gte=date_from,
+            date__date__lte=date_to,
+        )
+        .select_related(
+            'rental_item__product',
+            'rental_item__rental__customer',
+        )
+        .order_by('date', 'id')
+    )
+
+    charge_by_mid = {}
+    seen_rentals = set()
+    for m in movements:
+        rental = m.rental_item.rental
+        if rental.id not in seen_rentals:
+            seen_rentals.add(rental.id)
+            charge_by_mid.update(billing.return_charge_map(rental))
+
+    rows = []
+    by_day = {}
+    total_amount = Decimal('0.00')
+    total_qty = 0
+    for m in movements:
+        amount = charge_by_mid.get(m.id, Decimal('0.00'))
+        d = _movement_local_date(m)
+        rows.append({
+            'date': m.date,
+            'customer': m.rental_item.rental.customer,
+            'rental_id': m.rental_item.rental_id,
+            'product': m.rental_item.product,
+            'qty': m.qty,
+            'amount': amount,
+        })
+        by_day[d] = by_day.get(d, Decimal('0.00')) + amount
+        total_amount += amount
+        total_qty += m.qty
+
+    labels, values = [], []
+    cur = date_from
+    while cur <= date_to:
+        labels.append(cur.isoformat())
+        values.append(float(by_day.get(cur, Decimal('0.00'))))
+        cur += timedelta(days=1)
+
+    daily = {'labels': labels, 'values': values}
+    totals = {'amount': total_amount, 'qty': total_qty, 'count': len(movements)}
+    return rows, daily, totals
+
+
+@role_required('admin')
+def report_returns(request):
+    date_from, date_to = _parse_period(request)
+    rows, daily, totals = _returns_rows(date_from, date_to)
+    return render(request, 'config/reports/returns.html', {
+        'today': timezone.localdate(),
+        'date_from': date_from,
+        'date_to': date_to,
+        'rows': rows,
+        'labels': daily['labels'],
+        'values': daily['values'],
+        'totals': totals,
+    })
+
+
+@role_required('admin')
+def report_returns_csv(request):
+    import csv
+    from io import StringIO
+
+    date_from, date_to = _parse_period(request)
+    rows, _daily, _totals = _returns_rows(date_from, date_to)
+
+    buffer = StringIO()
+    writer = csv.writer(buffer, delimiter=';')
+    writer.writerow([
+        _('Дата'), _('Клиент'), _('Телефон'), _('Аренда №'),
+        _('Товар'), _('Кол-во'), _('Начислено'),
+    ])
+    for r in rows:
+        dt = r['date']
+        if timezone.is_aware(dt):
+            dt = timezone.localtime(dt)
+        writer.writerow([
+            dt.strftime('%Y-%m-%d %H:%M'),
+            r['customer'].full_name,
+            r['customer'].phone or '',
+            r['rental_id'],
+            r['product'].name,
+            r['qty'],
+            f"{r['amount']:.2f}",
+        ])
+
+    body = '﻿' + buffer.getvalue()  # UTF-8 BOM for Excel
+    response = HttpResponse(
+        body.encode('utf-8'),
+        content_type='text/csv; charset=utf-8',
+    )
+    fname = f'returns-{date_from.isoformat()}_{date_to.isoformat()}.csv'
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return response
+
+
 # ---------- products ----------
 
 class ProductListView(StaffOrAdminRequiredMixin, ListView):
