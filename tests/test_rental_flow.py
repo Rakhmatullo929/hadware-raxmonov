@@ -220,7 +220,7 @@ def test_contract_print_page_renders(client_admin, admin_user, customer, product
     r = client_admin.get(f'/rentals/{rental.pk}/contract/')
     assert r.status_code == 200
     body = r.content.decode()
-    assert 'ДОГОВОР АРЕНДЫ' in body
+    assert 'ИЖАРА ШАРТНОМАСИ' in body
     assert customer.full_name in body
     assert product.name in body
     assert '@media print' in body  # print layout is wired

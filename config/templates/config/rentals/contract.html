@@ -1,20 +1,20 @@
 {% extends 'print_base.html' %}
 {% load i18n %}
 
-{% block title %}{% blocktrans with rid=rental.id %}Договор аренды #{{ rid }}{% endblocktrans %}{% endblock %}
+{% block title %}{% blocktrans with rid=rental.id %}Ижара шартномаси #{{ rid }}{% endblocktrans %}{% endblock %}
 
 {% block page_class %}print-page--{{ size }}{% endblock %}
 
 {% block content %}
 <div class="text-center mb-3">
-    <h1 class="contract-h1 mb-1">{% blocktrans with rid=rental.id %}ДОГОВОР АРЕНДЫ № {{ rid }}{% endblocktrans %}</h1>
-    <div class="text-muted small">{% blocktrans with d=rental.created_at|date:"d.m.Y" %}от {{ d }}, г. Ташкент{% endblocktrans %}</div>
+    <h1 class="contract-h1 mb-1">{% blocktrans with rid=rental.id %}ИЖАРА ШАРТНОМАСИ № {{ rid }}{% endblocktrans %}</h1>
+    <div class="text-muted small">{% blocktrans with d=rental.created_at|date:"d.m.Y" %}{{ d }}, Тошкент ш.{% endblocktrans %}</div>
 </div>
 
 {% if size == 'quarter' %}
     {# --- Краткая выписка «для своих»: только клиент + позиции + ключевые даты --- #}
     <div class="mb-2">
-        <strong>{% trans "Арендатор:" %}</strong>
+        <strong>{% trans "Ижарага олувчи:" %}</strong>
         {{ rental.customer.full_name }}
         {% if rental.customer.code %} · <span class="customer-code">№ {{ rental.customer.code }}</span>{% endif %}
         {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
@@ -24,9 +24,9 @@
         <thead>
             <tr>
                 <th style="width: 8%">№</th>
-                <th>{% trans "Наименование" %}</th>
-                <th class="text-end" style="width: 18%">{% trans "Кол-во" %}</th>
-                <th style="width: 14%">{% trans "Ед." %}</th>
+                <th>{% trans "Номи" %}</th>
+                <th class="text-end" style="width: 18%">{% trans "Сони" %}</th>
+                <th style="width: 14%">{% trans "Бирл." %}</th>
             </tr>
         </thead>
         <tbody>
@@ -36,7 +36,7 @@
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
-                            <div class="small fst-italic">{% trans "в комплекте" %}: {{ it.product.included_kit }}</div>
+                            <div class="small fst-italic">{% trans "тўпламда" %}: {{ it.product.included_kit }}</div>
                         {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
@@ -46,32 +46,32 @@
         </tbody>
     </table>
 
-    <div class="small mb-3">
-        {% trans "Выдано:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong>
-        · {% trans "Возврат:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong>
-        · {% trans "Залог при выдаче:" %} <strong>{{ deposit_paid }}</strong> {% trans "сум" %}
+    <div class="small mb-1">
+        {% trans "Берилди:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong>
+        · {% trans "Қайтариш:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong>
+        · {% trans "Гаров:" %} <strong>{{ deposit_paid }}</strong> {% trans "сўм" %}
     </div>
+    <div class="small fst-italic mb-3">{% trans "Қайтаришда тоза ҳолатда топширилади." %}</div>
 
 {% else %}
     {# --- Half / Full: стороны и таблица позиций с ценами --- #}
     <div class="row mb-3">
         <div class="col-6">
-            <strong>{% trans "Арендодатель:" %}</strong>
-            <div>{% trans "ООО «Rakhmonov — учёт аренды»" %}</div>
-            <div>{% trans "ИНН ____________" %}</div>
-            <div>{% trans "Тел.: ____________" %}</div>
+            <strong>{% trans "Ижарага берувчи:" %}</strong>
+            <div>{% trans "«Rakhmonov — ижара ҳисоби» МЧЖ" %}</div>
+            <div>{% trans "Тел.: +998906364044" %}</div>
         </div>
         <div class="col-6">
-            <strong>{% trans "Арендатор:" %}</strong>
+            <strong>{% trans "Ижарага олувчи:" %}</strong>
             <div>{{ rental.customer.full_name }}</div>
             {% if rental.customer.code %}
-                <div>{% trans "Внутр. номер:" %} <strong>№ {{ rental.customer.code }}</strong></div>
+                <div>{% trans "Ички рақам:" %} <strong>№ {{ rental.customer.code }}</strong></div>
             {% endif %}
             {% if rental.customer.passport %}
                 <div>{% trans "Паспорт:" %} {{ rental.customer.passport }}</div>
             {% endif %}
             {% if rental.customer.address %}
-                <div>{% trans "Адрес:" %} {{ rental.customer.address }}</div>
+                <div>{% trans "Манзил:" %} {{ rental.customer.address }}</div>
             {% endif %}
             {% if rental.customer.phone %}
                 <div>{% trans "Тел.:" %} {{ rental.customer.phone }}</div>
@@ -79,20 +79,20 @@
         </div>
     </div>
 
-    <h2 class="contract-h2">{% trans "1. Предмет договора" %}</h2>
+    <h2 class="contract-h2">{% trans "1. Шартнома предмети" %}</h2>
     <p class="mb-2">
-        {% trans "Арендодатель передаёт, а Арендатор принимает во временное возмездное пользование оборудование, перечисленное ниже:" %}
+        {% trans "Ижарага берувчи топширади, Ижарага олувчи эса қуйида кўрсатилган ускуналарни вақтинча, ҳақ эвазига фойдаланишга қабул қилади:" %}
     </p>
 
     <table class="table table-bordered table-sm">
         <thead>
             <tr>
                 <th>№</th>
-                <th>{% trans "Наименование" %}</th>
-                <th class="text-end">{% trans "Кол-во" %}</th>
-                <th>{% trans "Ед." %}</th>
-                <th class="text-end">{% trans "Цена/сут., сум" %}</th>
-                <th class="text-end">{% trans "Залог за ед., сум" %}</th>
+                <th>{% trans "Номи" %}</th>
+                <th class="text-end">{% trans "Сони" %}</th>
+                <th>{% trans "Бирл." %}</th>
+                <th class="text-end">{% trans "Нарх/кун, сўм" %}</th>
+                <th class="text-end">{% trans "Гаров/бирл., сўм" %}</th>
             </tr>
         </thead>
         <tbody>
@@ -102,7 +102,7 @@
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
-                            <div class="small fst-italic">{% trans "в комплекте" %}: {{ it.product.included_kit }}</div>
+                            <div class="small fst-italic">{% trans "тўпламда" %}: {{ it.product.included_kit }}</div>
                         {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
@@ -114,44 +114,26 @@
         </tbody>
         <tfoot>
             <tr>
-                <th colspan="5" class="text-end">{% trans "Залог суммарно" %}</th>
+                <th colspan="5" class="text-end">{% trans "Жами гаров" %}</th>
                 <th class="text-end">{{ total_deposit_due }}</th>
             </tr>
         </tfoot>
     </table>
 
-    <h2 class="contract-h2">{% trans "2. Сроки и оплата" %}</h2>
+    <h2 class="contract-h2">{% trans "2. Муддат ва тўлов" %}</h2>
     <ul class="mb-2">
-        <li>{% trans "Дата выдачи:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong></li>
-        <li>{% trans "Срок возврата:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong></li>
-        <li>{% trans "Внесённый залог при выдаче:" %}
-            <strong>{{ deposit_paid }}</strong> {% trans "сум" %}</li>
-        <li>{% trans "Расчётный коэффициент штрафа за просрочку:" %}
-            <strong>{{ fine_coef }}</strong> {% trans "от стоимости суток за каждую просроченную единицу." %}</li>
+        <li>{% trans "Бериш санаси:" %} <strong>{{ rental.created_at|date:"d.m.Y H:i" }}</strong></li>
+        <li>{% trans "Қайтариш муддати:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong></li>
+        <li>{% trans "Беришда олинган гаров:" %}
+            <strong>{{ deposit_paid }}</strong> {% trans "сўм" %}</li>
+        <li>{% trans "Кечиктирилганлик жаримаси коэффициенти:" %}
+            <strong>{{ fine_coef }}</strong> {% trans "— ҳар бир кечиктирилган бирлик учун кунлик нархдан." %}</li>
+        <li>{% trans "Опалубка ёки товар қайтарилаётганда тоза ҳолатда топширилиши шарт." %}</li>
     </ul>
 
-    {% if size == 'full' %}
-        <h2 class="contract-h2">{% trans "3. Обязанности арендатора" %}</h2>
-        <ol class="mb-2">
-            <li>{% trans "Использовать оборудование по назначению, не передавать третьим лицам." %}</li>
-            <li>{% trans "Вернуть оборудование в исправном состоянии в установленный срок." %}</li>
-            <li>{% trans "В случае повреждения / утраты возместить полную стоимость, удерживается из залога." %}</li>
-            <li>{% trans "При просрочке возврата уплатить штраф согласно п. 2." %}</li>
-        </ol>
-    {% endif %}
-
     {% if rental.note %}
-        <h2 class="contract-h2">{% if size == 'full' %}{% trans "4. Дополнительно" %}{% else %}{% trans "Дополнительно" %}{% endif %}</h2>
+        <h2 class="contract-h2">{% if size == 'full' %}{% trans "3. Қўшимча" %}{% else %}{% trans "Қўшимча" %}{% endif %}</h2>
         <p>{{ rental.note|linebreaksbr }}</p>
     {% endif %}
 {% endif %}
-
-<div class="row mt-4 contract-signatures">
-    <div class="col-6">
-        <div class="sig-line">{% trans "Арендодатель / подпись · печать" %}</div>
-    </div>
-    <div class="col-6">
-        <div class="sig-line">{% trans "Арендатор / подпись" %}</div>
-    </div>
-</div>
 {% endblock %}
