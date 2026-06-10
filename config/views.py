@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -17,7 +18,7 @@ from django.db.models import (
     Sum,
     Value,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Replace
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
@@ -691,6 +692,31 @@ def report_returns_csv(request):
 
 # ---------- products ----------
 
+# Разделитель размера в названиях товаров пишется кириллической «х»
+# (напр. «Корейская опалубка 2х1»). Но оператор при поиске может набрать
+# латинскую x, знак умножения × или кириллическую х — и в любом регистре.
+# Эти помощники приводят и запрос, и поле к одной форме, чтобы поиск находил
+# товар независимо от того, каким символом записан размер. Запятая → точка:
+# в прайс-листе размеры писались через запятую (2,2x40), в каталоге — точкой.
+_SIZE_SEP_CHARS = '×xXхХ'
+
+
+def normalize_size_query(q: str) -> str:
+    """Канонизировать пользовательский ввод поиска товара."""
+    q = re.sub(f'[{_SIZE_SEP_CHARS}]', 'х', q)
+    return q.replace(',', '.')
+
+
+def annotate_size_normalized_name(qs):
+    """Добавить `_norm_name` — название с разделителем размера, приведённым к
+    кириллической «х», и запятой → точке."""
+    expr = F('name')
+    for ch in ('×', 'x', 'X', 'Х'):
+        expr = Replace(expr, Value(ch), Value('х'))
+    expr = Replace(expr, Value(','), Value('.'))
+    return qs.annotate(_norm_name=expr)
+
+
 class ProductListView(StaffOrAdminRequiredMixin, ListView):
     model = Product
     template_name = 'config/products/list.html'
@@ -702,7 +728,8 @@ class ProductListView(StaffOrAdminRequiredMixin, ListView):
         q = self.request.GET.get('q', '').strip()
         category_id = self.request.GET.get('category', '').strip()
         if q:
-            qs = qs.filter(name__icontains=q)
+            qs = annotate_size_normalized_name(qs).filter(
+                _norm_name__icontains=normalize_size_query(q))
         if category_id.isdigit():
             qs = qs.filter(category_id=int(category_id))
         return qs
@@ -1619,9 +1646,9 @@ class ItemProductSearchView(View):
             return render(request,
                           'config/rentals/_item_product_results.html', ctx)
         products = (
-            Product.objects
-            .filter(is_active=True)
-            .filter(Q(name__icontains=q))
+            annotate_size_normalized_name(
+                Product.objects.filter(is_active=True))
+            .filter(_norm_name__icontains=normalize_size_query(q))
             .order_by('name')[:10]
         )
         ctx.update(products=products, too_short=False)

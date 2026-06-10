@@ -76,11 +76,12 @@ def test_seed_created_catalog(db):
     for name in ['Корейская опалубка', 'Финская опалубка', 'Колонна',
                  'Стойка телескопическая домкрат', 'Леса строительные']:
         assert Category.objects.filter(name=name).exists(), name
-    p = Product.objects.get(name='Корейская опалубка 2×1')
+    # Разделитель размера в названиях — кириллическая «х» (0019_rename_size_separator).
+    p = Product.objects.get(name='Корейская опалубка 2х1')
     assert p.included_kit == 'Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3'
     # Цена проставлена прайс-листом 0018_seed_pricelist.
     assert p.unit == 'шт' and p.daily_price == 6000
-    col = Product.objects.get(name='Колонна 3.7×40')
+    col = Product.objects.get(name='Колонна 3.7х40')
     assert col.included_kit == 'Тайрод ×24'
     # Счётчики после 0018 (добавлены позиции прайс-листа):
     # Корейская 31+2, Финская 5+14, Колонна 9+4.
