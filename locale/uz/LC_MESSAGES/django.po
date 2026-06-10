@@ -1367,3 +1367,61 @@ msgstr "Summa, so'm"
 #: config/templates/config/rentals/_return_modal.html:80
 msgid "Итого к начислению"
 msgstr "Jami hisoblangan summa"
+
+#: config/templates/config/reports/index.html:51
+#: config/templates/config/reports/returns.html:5
+#: config/templates/config/reports/returns.html:8
+msgid "Возвраты товара"
+msgstr "Tovar qaytarishlari"
+
+#: config/templates/config/reports/index.html:55
+msgid "Приёмка возвратов по дням: позиции и начисленная аренда. Экспорт в CSV."
+msgstr ""
+"Kunlar bo'yicha qaytarishlarni qabul qilish: pozitsiyalar va hisoblangan "
+"ijara. CSV'ga eksport."
+
+#: config/templates/config/reports/returns.html:13
+msgid ""
+"Приёмка возвращённого товара и начисленная за него аренда. Это начисление, а "
+"не деньги в кассе — фактические платежи смотрите в отчёте «Способы оплаты»."
+msgstr ""
+"Qaytarilgan tovarni qabul qilish va u uchun hisoblangan ijara. Bu hisoblangan "
+"summa, kassadagi pul emas — haqiqiy to'lovlarni «To'lov usullari» hisobotida "
+"ko'ring."
+
+#: config/templates/config/reports/returns.html:36
+msgid "Скачать CSV"
+msgstr "CSV yuklab olish"
+
+#: config/templates/config/reports/returns.html:44
+msgid "Σ начислено за период"
+msgstr "Davr uchun Σ hisoblangan"
+
+#: config/templates/config/reports/returns.html:52
+msgid "Принято позиций"
+msgstr "Qabul qilingan pozitsiyalar"
+
+#: config/templates/config/reports/returns.html:58
+msgid "Возвратов (движений)"
+msgstr "Qaytarishlar (harakatlar)"
+
+#: config/templates/config/reports/returns.html:72
+#: config/templates/config/reports/returns.html:90 config/views.py:667
+msgid "Начислено"
+msgstr "Hisoblangan"
+
+#: config/templates/config/reports/returns.html:84
+msgid "За выбранный период возвратов не было."
+msgstr "Tanlangan davrda qaytarishlar bo'lmagan."
+
+#: config/templates/config/reports/returns.html:91
+msgid "Итого"
+msgstr "Jami"
+
+#: config/templates/config/reports/returns.html:114
+msgid "Начислено за возврат"
+msgstr "Qaytarish uchun hisoblangan"
+
+#: config/views.py:665
+msgid "Аренда №"
+msgstr "Ijara №"
