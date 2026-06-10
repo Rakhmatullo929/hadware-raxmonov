@@ -47,7 +47,9 @@ def _make_rental_with(product, customer, staff_user):
 
 
 def test_product_list_shows_included_kit(client_admin, kit_product):
-    resp = client_admin.get(reverse('product_list'))
+    # Каталог большой и постраничный — ищем конкретный товар, чтобы тест не
+    # зависел от того, на какую страницу он попал.
+    resp = client_admin.get(reverse('product_list'), {'q': 'Корейская опалубка 2×1'})
     assert resp.status_code == 200
     body = resp.content.decode()
     assert 'Зажим ×3, Фиксатор ×3' in body
@@ -76,12 +78,15 @@ def test_seed_created_catalog(db):
         assert Category.objects.filter(name=name).exists(), name
     p = Product.objects.get(name='Корейская опалубка 2×1')
     assert p.included_kit == 'Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3'
-    assert p.unit == 'шт' and p.daily_price == 0
+    # Цена проставлена прайс-листом 0018_seed_pricelist.
+    assert p.unit == 'шт' and p.daily_price == 6000
     col = Product.objects.get(name='Колонна 3.7×40')
     assert col.included_kit == 'Тайрод ×24'
-    assert Product.objects.filter(category__name='Корейская опалубка').count() == 31
-    assert Product.objects.filter(category__name='Финская опалубка').count() == 5
-    assert Product.objects.filter(category__name='Колонна').count() == 9
+    # Счётчики после 0018 (добавлены позиции прайс-листа):
+    # Корейская 31+2, Финская 5+14, Колонна 9+4.
+    assert Product.objects.filter(category__name='Корейская опалубка').count() == 33
+    assert Product.objects.filter(category__name='Финская опалубка').count() == 19
+    assert Product.objects.filter(category__name='Колонна').count() == 13
     old = Product.objects.filter(
         name__in=['Финская фанера', 'Стойка телескопическая 3.0 м'],
     )
