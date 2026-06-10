@@ -11,6 +11,8 @@ urlpatterns = [
     path('reports/debtors/', views.report_debtors, name='report_debtors'),
     path('reports/debtors.csv', views.report_debtors_csv, name='report_debtors_csv'),
     path('reports/stock/', views.report_stock, name='report_stock'),
+    path('reports/returns/', views.report_returns, name='report_returns'),
+    path('reports/returns.csv', views.report_returns_csv, name='report_returns_csv'),
     path(
         'reports/payment-methods/',
         views.report_payment_methods,

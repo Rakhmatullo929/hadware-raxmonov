@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Возвраты товара" %} — {% trans "Отчёты" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{% trans "Возвраты товара" %}</h1>
+    <a href="{% url 'reports' %}" class="btn btn-link btn-sm">{% trans "← К списку отчётов" %}</a>
+</div>
+
+<p class="text-muted small">
+    {% trans "Приёмка возвращённого товара и начисленная за него аренда. Это начисление, а не деньги в кассе — фактические платежи смотрите в отчёте «Способы оплаты»." %}
+</p>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "С" %}</label>
+            <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "По" %}</label>
+            <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"
+                   class="form-control form-control-sm">
+        </div>
+        <div class="col-md-6">
+            <button type="submit" class="btn btn-sm btn-primary">{% trans "Применить" %}</button>
+            <a href="{% url 'report_returns' %}?date_from={{ today|date:'Y-m-d' }}&date_to={{ today|date:'Y-m-d' }}"
+               class="btn btn-sm btn-outline-secondary">{% trans "Сегодня" %}</a>
+            <a href="{% url 'report_returns' %}" class="btn btn-sm btn-link">{% trans "Сброс" %}</a>
+            <a href="{% url 'report_returns_csv' %}?date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}"
+               class="btn btn-sm btn-outline-success float-end">{% trans "Скачать CSV" %}</a>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Σ начислено за период" %}</div>
+            <div class="h4 mb-0">{{ totals.amount|floatformat:2 }}</div>
+            <div class="small text-muted">{{ date_from|date:"d.m.Y" }} — {{ date_to|date:"d.m.Y" }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Принято позиций" %}</div>
+            <div class="h4 mb-0">{{ totals.qty }} <span class="small text-muted">{% trans "шт" %}</span></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-body py-2">
+            <div class="small text-muted">{% trans "Возвратов (движений)" %}</div>
+            <div class="h4 mb-0">{{ totals.count }}</div>
+        </div>
+    </div>
+</div>
+
+<canvas id="returnsChart" height="80" class="mb-4"></canvas>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>{% trans "Дата" %}</th>
+                <th>{% trans "Клиент" %}</th>
+                <th>{% trans "Аренда" %}</th>
+                <th>{% trans "Товар" %}</th>
+                <th class="text-end">{% trans "Кол-во" %}</th>
+                <th class="text-end">{% trans "Начислено" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+                <tr>
+                    <td class="text-nowrap">{{ r.date|date:"d.m.Y H:i" }}</td>
+                    <td>{{ r.customer.full_name }}</td>
+                    <td><a href="{% url 'rental_detail' r.rental_id %}">#{{ r.rental_id }}</a></td>
+                    <td>{{ r.product.name }}</td>
+                    <td class="text-end">{{ r.qty }}</td>
+                    <td class="text-end">{{ r.amount|floatformat:2 }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        {% trans "За выбранный период возвратов не было." %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        {% if rows %}
+            <tfoot>
+                <tr class="fw-bold border-top">
+                    <td colspan="4">{% trans "Итого" %}</td>
+                    <td class="text-end">{{ totals.qty }}</td>
+                    <td class="text-end">{{ totals.amount|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        {% endif %}
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{{ labels|json_script:"returns-labels" }}
+{{ values|json_script:"returns-values" }}
+<script>
+(function () {
+    const labels = JSON.parse(document.getElementById('returns-labels').textContent);
+    const values = JSON.parse(document.getElementById('returns-values').textContent);
+    new Chart(document.getElementById('returnsChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {label: '{% trans "Начислено за возврат" %}', data: values,
+                 backgroundColor: 'rgba(25,135,84,0.7)'},
+            ],
+        },
+        options: {
+            responsive: true,
+            scales: {y: {beginAtZero: true}},
+        },
+    });
+})();
+</script>
+{% endblock %}
