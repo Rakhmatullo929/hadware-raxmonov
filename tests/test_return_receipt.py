@@ -117,3 +117,22 @@ def test_return_post_emits_open_receipt_trigger(
     assert f'm={ret.id}' in url
     assert 'autoprint=1' in url
     assert str(rental.pk) in url
+
+
+def test_return_receipt_js_asset_exists():
+    from pathlib import Path
+
+    from django.conf import settings
+
+    p = Path(settings.BASE_DIR) / 'static' / 'js' / 'return-receipt.js'
+    assert p.is_file(), 'static/js/return-receipt.js отсутствует'
+    content = p.read_text(encoding='utf-8')
+    assert 'openReturnReceipt' in content
+    assert 'window.open' in content
+
+
+def test_base_includes_return_receipt_js(client_staff, rental_with_returns):
+    r, item, m1, m2 = rental_with_returns
+    resp = client_staff.get(f'/rentals/{r.pk}/')
+    assert resp.status_code == 200
+    assert 'js/return-receipt.js' in resp.content.decode()
