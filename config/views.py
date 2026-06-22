@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 from datetime import date, datetime, timedelta
@@ -19,7 +20,7 @@ from django.db.models import (
     Value,
 )
 from django.db.models.functions import Coalesce, Replace
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -1112,6 +1113,66 @@ def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
     }
 
 
+def _parse_movement_ids(raw):
+    """'1,2,x,3' → [1, 2, 3]. Невалидные токены отбрасываются."""
+    ids = []
+    for tok in (raw or '').split(','):
+        tok = tok.strip()
+        if tok.isdigit():
+            ids.append(int(tok))
+    return ids
+
+
+def build_return_receipt_context(rental, movement_ids):
+    """Контекст чека возврата по партии движений (см. ?m=...).
+
+    Берём только движения ВОЗВРАТА этой аренды с указанными id (чужие/
+    несуществующие отбрасываются). Суммы — через billing.return_charge_map
+    (тот же источник, что таймлайн/отчёт). Строки отсортированы по дате;
+    receipt_dt — момент самого раннего движения партии.
+    """
+    charges = billing.return_charge_map(rental)
+    movements = (
+        Movement.objects
+        .filter(
+            rental_item__rental=rental,
+            kind=Movement.Kind.RETURN,
+            id__in=movement_ids,
+        )
+        .select_related('rental_item__product__category')
+        .order_by('date', 'id')
+    )
+    rows = []
+    total_qty = 0
+    total_amount = Decimal('0.00')
+    note = ''
+    for m in movements:
+        it = m.rental_item
+        amount = charges.get(m.id) or Decimal('0.00')
+        rows.append({
+            'category': it.product.category,
+            'name': it.product.name,
+            'qty': m.qty,
+            'unit': it.product.unit,
+            'price_per_day': it.price_per_day,
+            'amount': amount,
+            'date': m.date,
+        })
+        total_qty += m.qty
+        total_amount += amount
+        if not note and m.note:
+            note = m.note
+    return {
+        'rental': rental,
+        'customer': rental.customer,
+        'rows': rows,
+        'total_qty': total_qty,
+        'total_amount': total_amount,
+        'receipt_dt': rows[0]['date'] if rows else None,
+        'note': note,
+    }
+
+
 class RentalReturnView(StaffOrAdminRequiredMixin, View):
     def get(self, request, pk):
         rental = get_object_or_404(Rental, pk=pk)
@@ -1201,11 +1262,12 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                                                 note=note,
                                                 amount_inputs=amount_inputs))
 
+        created_ids = []
         with transaction.atomic():
             for it, qty, amount in plan:
                 if amount is None:
                     amount = billing.compute_return_amount_for_qty(it, qty)
-                Movement.objects.create(
+                mv = Movement.objects.create(
                     rental_item=it,
                     kind=Movement.Kind.RETURN,
                     qty=qty,
@@ -1213,6 +1275,7 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                     note=note,
                     created_by=request.user,
                 )
+                created_ids.append(mv.pk)
             rental.refresh_from_db()
             rental.maybe_auto_close()
 
@@ -1228,7 +1291,17 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
         )
         ctx = _rental_card_context(rental)
         ctx['is_admin'] = user_is_admin(request.user)
-        return render(request, 'config/rentals/_oob_refresh.html', ctx)
+        response = render(request, 'config/rentals/_oob_refresh.html', ctx)
+        if created_ids:
+            ids_q = ','.join(str(i) for i in created_ids)
+            receipt_url = (
+                reverse('rental_return_receipt', args=[rental.pk])
+                + f'?m={ids_q}&autoprint=1'
+            )
+            response['HX-Trigger'] = json.dumps(
+                {'openReturnReceipt': {'url': receipt_url}}
+            )
+        return response
 
 
 class RentalCloseView(AdminRequiredMixin, View):
@@ -1330,6 +1403,33 @@ def rental_contract(request, pk):
 
 
 @role_required('staff', 'admin')
+def rental_return_receipt(request, pk):
+    """HTML-чек возврата (печать из браузера). ?m=ids — партия движений,
+    ?size=full|half|quarter (по умолчанию quarter), ?autoprint=1 — печать сразу."""
+    from .contract_pdf import ALLOWED_SIZES
+
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    ids = _parse_movement_ids(request.GET.get('m'))
+    ctx = build_return_receipt_context(rental, ids)
+    if not ctx['rows']:
+        raise Http404('Нет движений возврата для чека.')
+
+    size = request.GET.get('size')
+    if size not in ALLOWED_SIZES:
+        size = 'quarter'
+    ids_q = ','.join(str(i) for i in ids)
+    ctx.update({
+        'size': size,
+        'autoprint': request.GET.get('autoprint') == '1',
+        'pdf_url': reverse('rental_return_receipt_pdf', args=[rental.pk]) + f'?m={ids_q}',
+        'back_url': reverse('rental_detail', args=[rental.pk]),
+    })
+    return render(request, 'config/rentals/return_receipt.html', ctx)
+
+
+@role_required('staff', 'admin')
 def rental_contract_pdf(request, pk):
     """Скачать договор аренды как PDF (fpdf2, без системных зависимостей).
 
@@ -1360,6 +1460,33 @@ def rental_contract_pdf(request, pk):
     filename = f'contract-{rental.pk}-{size}.pdf'
     disposition = 'inline' if request.GET.get('inline') else 'attachment'
     response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    return response
+
+
+@role_required('staff', 'admin')
+def rental_return_receipt_pdf(request, pk):
+    """Скачать чек возврата как PDF (fpdf2). Параметр ?m=ids — партия движений."""
+    from .pdf_common import PdfDependencyMissing, PdfFontMissing
+    from .return_receipt_pdf import build_return_receipt_pdf
+
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    ids = _parse_movement_ids(request.GET.get('m'))
+    ctx = build_return_receipt_context(rental, ids)
+    if not ctx['rows']:
+        raise Http404('Нет движений возврата для чека.')
+    try:
+        pdf_bytes = build_return_receipt_pdf(ctx)
+    except (PdfFontMissing, PdfDependencyMissing) as e:
+        messages.error(request, str(e))
+        return HttpResponseRedirect(reverse('rental_detail', args=[rental.pk]))
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'inline' if request.GET.get('inline') else 'attachment'
+    response['Content-Disposition'] = (
+        f'{disposition}; filename="return-receipt-{rental.pk}.pdf"'
+    )
     return response
 
 

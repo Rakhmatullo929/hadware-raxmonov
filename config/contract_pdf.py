@@ -14,13 +14,19 @@
 тогда, когда библиотека ещё не установлена (она нужна только для PDF).
 """
 from decimal import Decimal
-from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-BASE_DIR = Path(settings.BASE_DIR)
+from .pdf_common import (
+    PdfDependencyMissing as ContractDependencyMissing,
+    PdfFontMissing as ContractFontMissing,
+    draw_watermark,
+    load_fpdf,
+    money as _money,
+    resolve_fonts,
+)
 
 SIZE_FULL = 'full'
 SIZE_HALF = 'half'
@@ -96,108 +102,6 @@ _LAYOUTS = {
         'item_columns': 'compact',     # без цены/залога — только позиция и кол-во
     },
 }
-
-
-# Порядок поиска шрифта с поддержкой кириллицы и узбекской латиницы.
-_FONT_CANDIDATES = [
-    getattr(settings, 'CONTRACT_PDF_FONT_PATH', None),
-    BASE_DIR / 'static' / 'fonts' / 'DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',          # Debian/Ubuntu
-    '/usr/share/fonts/dejavu/DejaVuSans.ttf',                    # RHEL/Fedora
-    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',     # macOS
-    '/Library/Fonts/Arial Unicode.ttf',                         # macOS (alt)
-]
-_BOLD_CANDIDATES = [
-    getattr(settings, 'CONTRACT_PDF_FONT_BOLD_PATH', None),
-    BASE_DIR / 'static' / 'fonts' / 'DejaVuSans-Bold.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
-]
-
-
-class ContractFontMissing(RuntimeError):
-    pass
-
-
-class ContractDependencyMissing(RuntimeError):
-    """Бросается, когда не установлен `fpdf2` — PDF собрать нечем."""
-    pass
-
-
-def _first_existing(paths):
-    for p in paths:
-        if not p:
-            continue
-        p = Path(p)
-        if p.is_file():
-            return str(p)
-    return None
-
-
-def _money(value) -> str:
-    q = Decimal(value or 0).quantize(Decimal('0.01'))
-    # 12345.60 -> "12 345.60"
-    intpart, _, frac = f'{q:.2f}'.partition('.')
-    neg = intpart.startswith('-')
-    intpart = intpart.lstrip('-')
-    groups = []
-    while intpart:
-        groups.insert(0, intpart[-3:])
-        intpart = intpart[:-3]
-    return ('-' if neg else '') + ' '.join(groups) + '.' + frac
-
-
-# Основные «ручки» подстройки водяного знака:
-#   _WATERMARK_GRAY         — серый тон (0 — чёрный … 255 — белый); чем выше, тем бледнее;
-#   _WATERMARK_TEXT         — текст знака;
-#   _WATERMARK_WIDTH_FACTOR — на какую долю меньшей стороны листа растягивать слово.
-_WATERMARK_GRAY = 205
-_WATERMARK_TEXT = 'Raxmonov'
-_WATERMARK_WIDTH_FACTOR = 0.9
-
-
-def draw_watermark(pdf):
-    """Бледный диагональный текстовый водяной знак (``_WATERMARK_TEXT``) по
-    центру текущей страницы PDF.
-
-    Вызывается из ``header()`` — поэтому ложится ПОД контент. Цвет
-    светло-серый (``_WATERMARK_GRAY``), что даёт «малозаметность» без
-    альфа-канала. Кегль подбирается так, чтобы слово заняло
-    ``_WATERMARK_WIDTH_FACTOR`` от меньшей стороны листа (масштабируется под
-    A4/A5/A6).
-
-    Знак рисуется встроенным core-шрифтом Helvetica (ASCII-текст рендерится
-    без TTF), поэтому функция не зависит от загруженного шрифта договора и
-    тестируется на «голом» ``fpdf.FPDF``.
-
-    ``pdf.rotation(...)`` создаёт локальное графическое состояние, так что
-    цвет и шрифт восстанавливаются автоматически на выходе из блока. Курсор
-    ``rotation`` не трогает, а ``set_xy``/``cell`` внутри блока его сдвигают —
-    поэтому позицию курсора возвращаем явно.
-
-    Направление наклона согласовано с HTML-печатью (там ``rotate(-30deg)``);
-    в fpdf2 положительный угол вращает в обратную сторону, поэтому здесь −30.
-    """
-    g = _WATERMARK_GRAY
-    x0, y0 = pdf.get_x(), pdf.get_y()
-    cx, cy = pdf.w / 2, pdf.h / 2
-    target_w = min(pdf.w, pdf.h) * _WATERMARK_WIDTH_FACTOR
-
-    with pdf.rotation(-30, cx, cy):
-        pdf.set_text_color(g, g, g)
-        # Подобрать кегль так, чтобы слово заняло target_w по ширине.
-        pdf.set_font('Helvetica', 'B', 100)
-        w100 = pdf.get_string_width(_WATERMARK_TEXT) or 1
-        size = 100 * target_w / w100
-        pdf.set_font('Helvetica', 'B', size)
-        tw = pdf.get_string_width(_WATERMARK_TEXT)
-        th = size * 0.3528  # pt → mm (примерная высота строки)
-        pdf.set_xy(cx - tw / 2, cy - th / 2)
-        pdf.cell(tw, th, _WATERMARK_TEXT, align='C')
-
-    # Цвет/шрифт вернул сам rotation() (локальный graphics state);
-    # курсор он не трогает — возвращаем его явно.
-    pdf.set_xy(x0, y0)
 
 
 def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
@@ -331,27 +235,13 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     :raises ContractFontMissing: если не найден ни один TTF-шрифт.
     :raises ContractDependencyMissing: если не установлен ``fpdf2``.
     """
-    try:
-        import fpdf as fpdf_module  # ленивый импорт: HTML-печать не зависит от него
-    except ImportError as exc:
-        raise ContractDependencyMissing(
-            'Для генерации PDF договора требуется пакет fpdf2. '
-            'Установите его в текущий Python-интерпретатор: '
-            '`pip install fpdf2`.'
-        ) from exc
+    fpdf_module = load_fpdf()
 
     from .models import Payment
 
     layout = _LAYOUTS[normalize_size(size)]
 
-    font_regular = _first_existing(_FONT_CANDIDATES)
-    if not font_regular:
-        raise ContractFontMissing(
-            'Не найден TTF-шрифт для PDF. Положите static/fonts/DejaVuSans.ttf '
-            'или установите системный (apt install fonts-dejavu-core), '
-            'либо задайте CONTRACT_PDF_FONT_PATH.'
-        )
-    font_bold = _first_existing(_BOLD_CANDIDATES)
+    font_regular, font_bold = resolve_fonts()
 
     items = list(rental.items.select_related('product').all())
     deposit_paid = sum(
