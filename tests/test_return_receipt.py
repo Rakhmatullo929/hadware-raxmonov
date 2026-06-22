@@ -87,3 +87,33 @@ def test_receipt_html_requires_auth(client, rental_with_returns):
     r, item, m1, m2 = rental_with_returns
     url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m1.id}'
     assert client.get(url).status_code in (302, 403)
+
+
+def test_return_post_emits_open_receipt_trigger(
+    client_admin, customer, product, admin_user,
+):
+    rental = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=admin_user,
+    )
+    item = RentalItem.objects.create(
+        rental=rental, product=product, qty=5, price_per_day=product.daily_price,
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=5, created_by=admin_user,
+    )
+
+    resp = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '2',
+    }, HTTP_HX_REQUEST='true')
+    assert resp.status_code == 200
+    assert 'HX-Trigger' in resp
+
+    payload = json.loads(resp['HX-Trigger'])
+    assert 'openReturnReceipt' in payload
+    url = payload['openReturnReceipt']['url']
+    ret = Movement.objects.get(rental_item=item, kind=Movement.Kind.RETURN)
+    assert f'm={ret.id}' in url
+    assert 'autoprint=1' in url
+    assert str(rental.pk) in url

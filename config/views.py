@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 from datetime import date, datetime, timedelta
@@ -1261,11 +1262,12 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                                                 note=note,
                                                 amount_inputs=amount_inputs))
 
+        created_ids = []
         with transaction.atomic():
             for it, qty, amount in plan:
                 if amount is None:
                     amount = billing.compute_return_amount_for_qty(it, qty)
-                Movement.objects.create(
+                mv = Movement.objects.create(
                     rental_item=it,
                     kind=Movement.Kind.RETURN,
                     qty=qty,
@@ -1273,6 +1275,7 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                     note=note,
                     created_by=request.user,
                 )
+                created_ids.append(mv.pk)
             rental.refresh_from_db()
             rental.maybe_auto_close()
 
@@ -1288,7 +1291,17 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
         )
         ctx = _rental_card_context(rental)
         ctx['is_admin'] = user_is_admin(request.user)
-        return render(request, 'config/rentals/_oob_refresh.html', ctx)
+        response = render(request, 'config/rentals/_oob_refresh.html', ctx)
+        if created_ids:
+            ids_q = ','.join(str(i) for i in created_ids)
+            receipt_url = (
+                reverse('rental_return_receipt', args=[rental.pk])
+                + f'?m={ids_q}&autoprint=1'
+            )
+            response['HX-Trigger'] = json.dumps(
+                {'openReturnReceipt': {'url': receipt_url}}
+            )
+        return response
 
 
 class RentalCloseView(AdminRequiredMixin, View):
