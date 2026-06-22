@@ -1,0 +1,81 @@
+{% extends 'print_base.html' %}
+{% load i18n l10n %}
+
+{% block title %}{% trans "Чек возврата" %}{% endblock %}
+{% block page_class %}print-page--{{ size }}{% endblock %}
+
+{% block content %}
+<div class="d-print-none mb-3">
+    <a href="{{ pdf_url }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-file-earmark-pdf"></i> {% trans "Скачать PDF" %}
+    </a>
+</div>
+
+<div class="text-center mb-2">
+    <div class="contract-h1">{% trans "ЧЕК ВОЗВРАТА" %}</div>
+    <div class="text-muted small">
+        {% blocktrans with rid=rental.pk %}Аренда №{{ rid }}{% endblocktrans %}
+        · {{ receipt_dt|date:"d.m.Y H:i" }}
+    </div>
+</div>
+
+<table class="table table-sm mb-2">
+    <tbody>
+        <tr>
+            <th class="text-muted" style="width:32%">{% trans "Клиент" %}</th>
+            <td>
+                {{ customer.full_name }}
+                {% if customer.code %}<span class="text-muted">· №{{ customer.code }}</span>{% endif %}
+                {% if customer.phone %}<br><span class="text-muted small">{{ customer.phone }}</span>{% endif %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>{% trans "Тип товара" %}</th>
+            <th>{% trans "Наименование" %}</th>
+            <th class="text-end">{% trans "Кол-во" %}</th>
+            <th class="text-end">{% trans "За день" %}</th>
+            <th class="text-end">{% trans "Стоимость" %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ row.category }}</td>
+            <td>{{ row.name }}</td>
+            <td class="text-end">{{ row.qty }} {{ row.unit }}</td>
+            <td class="text-end font-monospace">{{ row.price_per_day|unlocalize }}</td>
+            <td class="text-end font-monospace">{{ row.amount|unlocalize }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="table-light fw-bold">
+            <td colspan="3" class="text-end">{% trans "Итого" %}</td>
+            <td class="text-end">{{ total_qty }}</td>
+            <td></td>
+            <td class="text-end font-monospace">{{ total_amount|unlocalize }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="alert alert-light border fw-semibold">
+    {% blocktrans with q=total_qty s=total_amount|unlocalize %}Возврат: {{ q }} ед. на сумму {{ s }} сум{% endblocktrans %}
+</div>
+
+{% if note %}
+<div class="text-muted small">{% trans "Примечание" %}: {{ note }}</div>
+{% endif %}
+
+{% if autoprint %}
+<script data-autoprint>
+    window.addEventListener('load', function () { window.print(); });
+</script>
+{% endif %}
+{% endblock %}

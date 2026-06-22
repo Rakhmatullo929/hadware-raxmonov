@@ -1390,6 +1390,33 @@ def rental_contract(request, pk):
 
 
 @role_required('staff', 'admin')
+def rental_return_receipt(request, pk):
+    """HTML-чек возврата (печать из браузера). ?m=ids — партия движений,
+    ?size=full|half|quarter (по умолчанию quarter), ?autoprint=1 — печать сразу."""
+    from .contract_pdf import ALLOWED_SIZES
+
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    ids = _parse_movement_ids(request.GET.get('m'))
+    ctx = build_return_receipt_context(rental, ids)
+    if not ctx['rows']:
+        raise Http404('Нет движений возврата для чека.')
+
+    size = request.GET.get('size')
+    if size not in ALLOWED_SIZES:
+        size = 'quarter'
+    ids_q = ','.join(str(i) for i in ids)
+    ctx.update({
+        'size': size,
+        'autoprint': request.GET.get('autoprint') == '1',
+        'pdf_url': reverse('rental_return_receipt_pdf', args=[rental.pk]) + f'?m={ids_q}',
+        'back_url': reverse('rental_detail', args=[rental.pk]),
+    })
+    return render(request, 'config/rentals/return_receipt.html', ctx)
+
+
+@role_required('staff', 'admin')
 def rental_contract_pdf(request, pk):
     """Скачать договор аренды как PDF (fpdf2, без системных зависимостей).
 
