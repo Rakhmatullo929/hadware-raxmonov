@@ -90,6 +90,11 @@ urlpatterns = [
         views.rental_contract_pdf,
         name='rental_contract_pdf',
     ),
+    path(
+        'rentals/<int:pk>/return-receipt.pdf',
+        views.rental_return_receipt_pdf,
+        name='rental_return_receipt_pdf',
+    ),
     path('rentals/<int:pk>/close/', views.RentalCloseView.as_view(), name='rental_close'),
 
     path('rentals/<int:pk>/edit/', views.RentalEditView.as_view(), name='rental_edit'),

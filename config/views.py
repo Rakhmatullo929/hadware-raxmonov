@@ -19,7 +19,7 @@ from django.db.models import (
     Value,
 )
 from django.db.models.functions import Coalesce, Replace
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -1420,6 +1420,33 @@ def rental_contract_pdf(request, pk):
     filename = f'contract-{rental.pk}-{size}.pdf'
     disposition = 'inline' if request.GET.get('inline') else 'attachment'
     response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    return response
+
+
+@role_required('staff', 'admin')
+def rental_return_receipt_pdf(request, pk):
+    """Скачать чек возврата как PDF (fpdf2). Параметр ?m=ids — партия движений."""
+    from .pdf_common import PdfDependencyMissing, PdfFontMissing
+    from .return_receipt_pdf import build_return_receipt_pdf
+
+    rental = get_object_or_404(
+        Rental.objects.select_related('customer'), pk=pk,
+    )
+    ids = _parse_movement_ids(request.GET.get('m'))
+    ctx = build_return_receipt_context(rental, ids)
+    if not ctx['rows']:
+        raise Http404('Нет движений возврата для чека.')
+    try:
+        pdf_bytes = build_return_receipt_pdf(ctx)
+    except (PdfFontMissing, PdfDependencyMissing) as e:
+        messages.error(request, str(e))
+        return HttpResponseRedirect(reverse('rental_detail', args=[rental.pk]))
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'inline' if request.GET.get('inline') else 'attachment'
+    response['Content-Disposition'] = (
+        f'{disposition}; filename="return-receipt-{rental.pk}.pdf"'
+    )
     return response
 
 
