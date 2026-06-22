@@ -136,3 +136,18 @@ def test_base_includes_return_receipt_js(client_staff, rental_with_returns):
     resp = client_staff.get(f'/rentals/{r.pk}/')
     assert resp.status_code == 200
     assert 'js/return-receipt.js' in resp.content.decode()
+
+
+def test_receipt_uz_translation(client_staff, rental_with_returns):
+    # i18n_patterns(prefix_default_language=False): ru без префикса, uz — через
+    # /uz/. reverse под uz-локалью даёт /uz/...-URL, который LocaleMiddleware
+    # распознаёт и отдаёт чек по-узбекски.
+    from django.utils import translation
+
+    r, item, m1, m2 = rental_with_returns
+    with translation.override('uz'):
+        url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m1.id}'
+    assert url.startswith('/uz/')
+    body = client_staff.get(url).content.decode()
+    assert 'Tovar turi' in body   # узбекский заголовок «Тип товара»
+    assert 'Qaytarish' in body    # узбекский «возврат» (Qaytarish cheki)

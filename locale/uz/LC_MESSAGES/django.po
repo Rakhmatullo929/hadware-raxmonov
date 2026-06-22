@@ -1425,3 +1425,38 @@ msgstr "Qaytarish uchun hisoblangan"
 #: config/views.py:665
 msgid "Аренда №"
 msgstr "Ijara №"
+
+# --- Чек возврата (return receipt) ---
+msgid "Чек возврата"
+msgstr "Qaytarish cheki"
+
+msgid "Скачать PDF"
+msgstr "PDF yuklab olish"
+
+msgid "ЧЕК ВОЗВРАТА"
+msgstr "QAYTARISH CHEKI"
+
+msgid "Аренда №%(n)s"
+msgstr "Ijara №%(n)s"
+
+msgid "Аренда №%(rid)s"
+msgstr "Ijara №%(rid)s"
+
+msgid "Клиент:"
+msgstr "Mijoz:"
+
+msgid "Тип товара"
+msgstr "Tovar turi"
+
+msgid "За день"
+msgstr "Kuniga"
+
+msgid "Стоимость"
+msgstr "Narxi"
+
+msgid "Возврат: %(q)s ед. на сумму %(s)s сум"
+msgstr "Qaytarildi: %(q)s dona, %(s)s so'm"
+
+msgid "Примечание: "
+msgstr "Izoh: "
+
