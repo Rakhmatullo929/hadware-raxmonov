@@ -1112,6 +1112,66 @@ def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
     }
 
 
+def _parse_movement_ids(raw):
+    """'1,2,x,3' → [1, 2, 3]. Невалидные токены отбрасываются."""
+    ids = []
+    for tok in (raw or '').split(','):
+        tok = tok.strip()
+        if tok.isdigit():
+            ids.append(int(tok))
+    return ids
+
+
+def build_return_receipt_context(rental, movement_ids):
+    """Контекст чека возврата по партии движений (см. ?m=...).
+
+    Берём только движения ВОЗВРАТА этой аренды с указанными id (чужие/
+    несуществующие отбрасываются). Суммы — через billing.return_charge_map
+    (тот же источник, что таймлайн/отчёт). Строки отсортированы по дате;
+    receipt_dt — момент самого раннего движения партии.
+    """
+    charges = billing.return_charge_map(rental)
+    movements = (
+        Movement.objects
+        .filter(
+            rental_item__rental=rental,
+            kind=Movement.Kind.RETURN,
+            id__in=movement_ids,
+        )
+        .select_related('rental_item__product__category')
+        .order_by('date', 'id')
+    )
+    rows = []
+    total_qty = 0
+    total_amount = Decimal('0.00')
+    note = ''
+    for m in movements:
+        it = m.rental_item
+        amount = charges.get(m.id) or Decimal('0.00')
+        rows.append({
+            'category': it.product.category,
+            'name': it.product.name,
+            'qty': m.qty,
+            'unit': it.product.unit,
+            'price_per_day': it.price_per_day,
+            'amount': amount,
+            'date': m.date,
+        })
+        total_qty += m.qty
+        total_amount += amount
+        if not note and m.note:
+            note = m.note
+    return {
+        'rental': rental,
+        'customer': rental.customer,
+        'rows': rows,
+        'total_qty': total_qty,
+        'total_amount': total_amount,
+        'receipt_dt': rows[0]['date'] if rows else None,
+        'note': note,
+    }
+
+
 class RentalReturnView(StaffOrAdminRequiredMixin, View):
     def get(self, request, pk):
         rental = get_object_or_404(Rental, pk=pk)

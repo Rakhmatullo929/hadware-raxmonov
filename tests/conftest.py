@@ -4,8 +4,17 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.test import Client
+from django.utils import timezone
 
-from config.models import Category, Customer, Product
+from config.models import (
+    Category,
+    Customer,
+    Movement,
+    Product,
+    Rental,
+    RentalItem,
+)
 
 
 @pytest.fixture
@@ -55,3 +64,43 @@ def customer(db):
         full_name='Тестовый клиент',
         phone='+998 90 000 00 00',
     )
+
+
+@pytest.fixture
+def client_staff(staff_user):
+    c = Client(SERVER_NAME='localhost')
+    c.login(username='alice', password='pwpwpwpw')
+    return c
+
+
+@pytest.fixture
+def client_admin(admin_user):
+    c = Client(SERVER_NAME='localhost')
+    c.login(username='bob', password='pwpwpwpw')
+    return c
+
+
+@pytest.fixture
+def rental_with_returns(db, customer, product, staff_user):
+    """Аренда: выдано 10, два возврата (4 и 3) с явными суммами 400 и 300."""
+    r = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=staff_user,
+    )
+    item = RentalItem.objects.create(
+        rental=r, product=product, qty=10, price_per_day=product.daily_price,
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=10,
+        created_by=staff_user,
+    )
+    m1 = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=4,
+        amount=Decimal('400.00'), note='партия возврата', created_by=staff_user,
+    )
+    m2 = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=3,
+        amount=Decimal('300.00'), created_by=staff_user,
+    )
+    return r, item, m1, m2
