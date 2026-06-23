@@ -8,7 +8,7 @@
 {% block content %}
 <div class="text-center mb-3">
     <h1 class="contract-h1 mb-1">{% blocktrans with rid=rental.id %}ИЖАРА ШАРТНОМАСИ № {{ rid }}{% endblocktrans %}</h1>
-    <div class="text-muted small">{% blocktrans with d=rental.created_at|date:"d.m.Y" %}{{ d }}, Тошкент ш.{% endblocktrans %}</div>
+    <div class="text-muted small">{{ rental.created_at|date:"d.m.Y" }}</div>
 </div>
 
 {% if size == 'quarter' %}
@@ -87,9 +87,6 @@
             {% endif %}
             {% if rental.customer.passport %}
                 <div>{% trans "Паспорт:" %} {{ rental.customer.passport }}</div>
-            {% endif %}
-            {% if rental.customer.address %}
-                <div>{% trans "Манзил:" %} {{ rental.customer.address }}</div>
             {% endif %}
             {% if rental.customer.phone %}
                 <div>{% trans "Тел.:" %} {{ rental.customer.phone }}</div>

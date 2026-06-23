@@ -148,24 +148,43 @@ def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
     return _ContractPDF()
 
 
+def _fit_text(pdf, text, cell_w, pad=1.2):
+    """Обрезать text с многоточием, чтобы влез в ячейку шириной cell_w (мм).
+
+    fpdf ``cell`` не обрезает текст — длинная строка вылезает в соседнюю
+    колонку. Здесь укорачиваем по фактической ширине текущего шрифта.
+    """
+    s = str(text)
+    avail = max(cell_w - pad, 1)
+    if pdf.get_string_width(s) <= avail:
+        return s
+    ell = '…'
+    while s and pdf.get_string_width(s + ell) > avail:
+        s = s[:-1]
+    return (s + ell) if s else ell
+
+
 def _draw_items_table(pdf, layout, items, total_cost):
     """Таблица позиций: №, Тип, Наименование, Кол-во, Ед., Цена/сут, Стоимость.
 
     Стоимость позиции = кол-во × цена/сут. Колонки одинаковы для всех форматов
-    (для A6 шрифт мельче, см. layout)."""
+    (для A6 шрифт мельче, см. layout). Длинные «Тип»/«Наименование» обрезаются
+    по ширине ячейки, чтобы не налезать на соседние колонки."""
     w = pdf.epw
     row_h = layout['row_h']
     base = layout['font_small']
 
     # frac: №, Тури, Номи, Сони, Бирл., Нарх/кун, Қиймат — сумма = 1.00
+    fr_num, fr_type, fr_name = 0.06, 0.18, 0.31
+    fr_qty, fr_unit, fr_price, fr_cost = 0.09, 0.09, 0.135, 0.135
     headers = [
-        ('№', 0.06, 'C'),
-        (_('Тури'), 0.19, 'L'),
-        (_('Номи'), 0.29, 'L'),
-        (_('Сони'), 0.10, 'R'),
-        (_('Бирл.'), 0.09, 'C'),
-        (_('Нарх/кун'), 0.135, 'R'),
-        (_('Қиймат'), 0.135, 'R'),
+        ('№', fr_num, 'C'),
+        (_('Тури'), fr_type, 'L'),
+        (_('Номи'), fr_name, 'L'),
+        (_('Сони'), fr_qty, 'R'),
+        (_('Бирл.'), fr_unit, 'C'),
+        (_('Нарх/кун'), fr_price, 'R'),
+        (_('Қиймат'), fr_cost, 'R'),
     ]
 
     pdf.set_font('Body', 'B', base)
@@ -178,13 +197,13 @@ def _draw_items_table(pdf, layout, items, total_cost):
     for idx, it in enumerate(items, start=1):
         line_cost = it.qty * it.price_per_day
         row = [
-            (str(idx), 0.06, 'C'),
-            (str(it.product.category), 0.19, 'L'),
-            (it.product.name, 0.29, 'L'),
-            (str(it.qty), 0.10, 'R'),
-            (it.product.unit, 0.09, 'C'),
-            (_money(it.price_per_day), 0.135, 'R'),
-            (_money(line_cost), 0.135, 'R'),
+            (str(idx), fr_num, 'C'),
+            (_fit_text(pdf, it.product.category, w * fr_type), fr_type, 'L'),
+            (_fit_text(pdf, it.product.name, w * fr_name), fr_name, 'L'),
+            (str(it.qty), fr_qty, 'R'),
+            (_fit_text(pdf, it.product.unit, w * fr_unit), fr_unit, 'C'),
+            (_money(it.price_per_day), fr_price, 'R'),
+            (_money(line_cost), fr_cost, 'R'),
         ]
         if pdf.will_page_break(row_h):
             pdf.add_page()
@@ -271,7 +290,7 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     pdf.set_text_color(110, 110, 110)
     pdf.cell(
         0, layout['subheader_h'],
-        _('%(d)s, Тошкент ш.') % {'d': rental.created_at.strftime('%d.%m.%Y %H:%M')},
+        rental.created_at.strftime('%d.%m.%Y %H:%M'),
         align='C', new_x='LMARGIN', new_y='NEXT',
     )
     pdf.set_text_color(0, 0, 0)
@@ -305,8 +324,6 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
             renter_lines.append(_('Ички рақам: № %(c)s') % {'c': cust.code})
         if cust.passport:
             renter_lines.append(_('Паспорт: %(p)s') % {'p': cust.passport})
-        if cust.address:
-            renter_lines.append(_('Манзил: %(a)s') % {'a': cust.address})
         if cust.phone:
             renter_lines.append(_('Тел.: %(t)s') % {'t': cust.phone})
         pdf.set_xy(pdf.l_margin + col + 4, y1)
