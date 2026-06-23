@@ -48,6 +48,7 @@ def normalize_size(value):
 _LAYOUTS = {
     SIZE_FULL: {
         'page_format': 'A4',
+        'orientation': 'P',              # A4 — вертикально
         'margins': (18, 16, 18),         # left, top, right
         'auto_break_margin': 18,
         'font_base': 10,
@@ -66,6 +67,7 @@ _LAYOUTS = {
     },
     SIZE_HALF: {
         'page_format': 'A5',
+        'orientation': 'L',              # меньше A4 — горизонтально (альбом)
         'margins': (14, 12, 14),
         'auto_break_margin': 14,
         'font_base': 9,
@@ -83,8 +85,10 @@ _LAYOUTS = {
         'item_columns': 'wide',
     },
     SIZE_QUARTER: {
-        # A6 не всегда есть в PAGE_FORMATS у fpdf2 — задаём в мм явно.
+        # A6 не всегда есть в PAGE_FORMATS у fpdf2 — задаём в мм явно
+        # (портретный кортеж; orientation='L' развернёт в 148×105 альбом).
         'page_format': (105, 148),
+        'orientation': 'L',             # меньше A4 — горизонтально (альбом)
         'margins': (8, 8, 8),
         'auto_break_margin': 8,
         'font_base': 8,
@@ -113,7 +117,10 @@ def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
 
     class _ContractPDF(fpdf_module.FPDF):
         def __init__(self):
-            super().__init__(format=layout['page_format'])
+            super().__init__(
+                orientation=layout.get('orientation', 'P'),
+                format=layout['page_format'],
+            )
             ml, mt, mr = layout['margins']
             self.set_auto_page_break(
                 auto=True, margin=layout['auto_break_margin'],

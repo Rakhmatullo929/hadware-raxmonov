@@ -161,3 +161,20 @@
     {% endif %}
 {% endif %}
 {% endblock %}
+
+{# Форматы меньше A4 печатаем горизонтально (альбом) — больше места под таблицу.
+   Переопределяем только в договоре; чек возврата (тот же print_base) остаётся
+   вертикальным. #}
+{% block page_size_print %}
+    {% if size == 'half' %}
+        <style>
+            @media print { @page { size: A5 landscape; margin: 10mm; } }
+            @media screen { .print-page--half { max-width: 21cm; } }
+        </style>
+    {% elif size == 'quarter' %}
+        <style>
+            @media print { @page { size: A6 landscape; margin: 6mm; } }
+            @media screen { .print-page--quarter { max-width: 14.8cm; } }
+        </style>
+    {% endif %}
+{% endblock %}
