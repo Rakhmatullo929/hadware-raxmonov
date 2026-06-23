@@ -133,6 +133,39 @@ def test_pdf_handles_rental_without_note(client_staff, customer, product, staff_
     assert resp.content[:5] == b'%PDF-'
 
 
+def test_contract_html_shows_type_and_cost(client_staff, rental, category):
+    """Договор показывает «Тип товара» (категорию), колонку «Қиймат» и итог."""
+    for size in ('full', 'half', 'quarter'):
+        url = reverse('rental_contract', args=[rental.pk]) + f'?size={size}'
+        body = client_staff.get(url).content.decode()
+        assert category.name in body            # тип товара (категория)
+        assert 'Тури' in body                   # заголовок колонки типа
+        assert 'Қиймат' in body                 # колонка стоимости
+        assert 'Жами (кунлик)' in body          # итог по стоимости
+
+
+def test_contract_html_shows_returns(client_staff, rental, staff_user):
+    """Когда есть возврат — договор показывает «сколько вернул и на какую сумму»."""
+    item = rental.items.first()
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=2,
+        amount=Decimal('200.00'), created_by=staff_user,
+    )
+    body = client_staff.get(reverse('rental_contract', args=[rental.pk])).content.decode()
+    assert 'Қайтарилди' in body
+
+
+def test_contract_pdf_with_returns_builds(rental, staff_user):
+    item = rental.items.first()
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=2,
+        amount=Decimal('200.00'), created_by=staff_user,
+    )
+    pdf = build_contract_pdf(rental, size='full')
+    assert pdf[:5] == b'%PDF-'
+    assert len(pdf) > 1000
+
+
 def test_logo_svg_asset_exists():
     """Монохромный знак-логотип для водяного знака должен быть в static/img/."""
     p = Path(settings.BASE_DIR) / 'static' / 'img' / 'logo.svg'

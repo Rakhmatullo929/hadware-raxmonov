@@ -148,29 +148,25 @@ def _make_contract_pdf(fpdf_module, font_regular, font_bold, layout):
     return _ContractPDF()
 
 
-def _draw_items_table(pdf, layout, items, total_deposit_due):
-    """Таблица позиций. Колонки зависят от layout['item_columns']."""
+def _draw_items_table(pdf, layout, items, total_cost):
+    """Таблица позиций: №, Тип, Наименование, Кол-во, Ед., Цена/сут, Стоимость.
+
+    Стоимость позиции = кол-во × цена/сут. Колонки одинаковы для всех форматов
+    (для A6 шрифт мельче, см. layout)."""
     w = pdf.epw
     row_h = layout['row_h']
     base = layout['font_small']
 
-    if layout['item_columns'] == 'compact':
-        # quarter: только №, наименование, кол-во, ед.
-        headers = [
-            ('№', 0.10, 'C'),
-            (_('Номи'), 0.62, 'L'),
-            (_('Сони'), 0.16, 'R'),
-            (_('Бирл.'), 0.12, 'C'),
-        ]
-    else:
-        headers = [
-            ('№', 0.07, 'C'),
-            (_('Номи'), 0.40, 'L'),
-            (_('Сони'), 0.12, 'R'),
-            (_('Бирл.'), 0.10, 'C'),
-            (_('Нарх/кун'), 0.16, 'R'),
-            (_('Гаров/бирл.'), 0.15, 'R'),
-        ]
+    # frac: №, Тури, Номи, Сони, Бирл., Нарх/кун, Қиймат — сумма = 1.00
+    headers = [
+        ('№', 0.06, 'C'),
+        (_('Тури'), 0.19, 'L'),
+        (_('Номи'), 0.29, 'L'),
+        (_('Сони'), 0.10, 'R'),
+        (_('Бирл.'), 0.09, 'C'),
+        (_('Нарх/кун'), 0.135, 'R'),
+        (_('Қиймат'), 0.135, 'R'),
+    ]
 
     pdf.set_font('Body', 'B', base)
     pdf.set_fill_color(238, 240, 242)
@@ -180,22 +176,16 @@ def _draw_items_table(pdf, layout, items, total_deposit_due):
 
     pdf.set_font('Body', size=base)
     for idx, it in enumerate(items, start=1):
-        if layout['item_columns'] == 'compact':
-            row = [
-                (str(idx), 0.10, 'C'),
-                (it.product.name, 0.62, 'L'),
-                (str(it.qty), 0.16, 'R'),
-                (it.product.unit, 0.12, 'C'),
-            ]
-        else:
-            row = [
-                (str(idx), 0.07, 'C'),
-                (it.product.name, 0.40, 'L'),
-                (str(it.qty), 0.12, 'R'),
-                (it.product.unit, 0.10, 'C'),
-                (_money(it.price_per_day), 0.16, 'R'),
-                (_money(it.product.deposit_per_unit), 0.15, 'R'),
-            ]
+        line_cost = it.qty * it.price_per_day
+        row = [
+            (str(idx), 0.06, 'C'),
+            (str(it.product.category), 0.19, 'L'),
+            (it.product.name, 0.29, 'L'),
+            (str(it.qty), 0.10, 'R'),
+            (it.product.unit, 0.09, 'C'),
+            (_money(it.price_per_day), 0.135, 'R'),
+            (_money(line_cost), 0.135, 'R'),
+        ]
         if pdf.will_page_break(row_h):
             pdf.add_page()
         for text, frac, align in row:
@@ -216,13 +206,11 @@ def _draw_items_table(pdf, layout, items, total_deposit_due):
             pdf.set_text_color(0, 0, 0)
             pdf.set_font('Body', size=base)
 
-    # Итоговая строка с суммой залога — только когда есть колонка залога.
-    if layout['item_columns'] != 'compact':
-        pdf.set_font('Body', 'B', base)
-        pdf.cell(w * 0.85, row_h, _('Жами гаров'), border=1, align='R')
-        pdf.cell(w * 0.15, row_h, _money(total_deposit_due),
-                 border=1, align='R')
-        pdf.ln(row_h + 3)
+    # Итог: суммарная стоимость аренды в сутки (Σ кол-во × цена/сут).
+    pdf.set_font('Body', 'B', base)
+    pdf.cell(w * 0.865, row_h, _('Жами (кунлик)'), border=1, align='R')
+    pdf.cell(w * 0.135, row_h, _money(total_cost), border=1, align='R')
+    pdf.ln(row_h + 3)
 
 
 def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
@@ -237,13 +225,21 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     """
     fpdf_module = load_fpdf()
 
-    from .models import Payment
+    from django.db.models import Sum
+
+    from . import billing
+    from .models import Movement, Payment
 
     layout = _LAYOUTS[normalize_size(size)]
 
     font_regular, font_bold = resolve_fonts()
 
-    items = list(rental.items.select_related('product').all())
+    items = list(
+        rental.items.select_related('product', 'product__category').all()
+    )
+    total_cost = sum(
+        (it.qty * it.price_per_day for it in items), Decimal('0.00'),
+    )
     deposit_paid = sum(
         (p.amount for p in rental.payments.filter(kind=Payment.Kind.DEPOSIT)),
         Decimal('0.00'),
@@ -251,6 +247,14 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     total_deposit_due = sum(
         (it.product.deposit_per_unit * it.qty for it in items),
         Decimal('0.00'),
+    )
+    # «Сколько вернул и на какую сумму»: суммарный возврат по аренде.
+    charges = billing.return_charge_map(rental)
+    returned_amount = sum(charges.values(), Decimal('0.00'))
+    returned_qty = (
+        Movement.objects
+        .filter(rental_item__rental=rental, kind=Movement.Kind.RETURN)
+        .aggregate(q=Sum('qty'))['q'] or 0
     )
     fine_coef = getattr(settings, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5'))
 
@@ -342,7 +346,7 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
         ), new_x='LMARGIN', new_y='NEXT')
         pdf.ln(1)
 
-    _draw_items_table(pdf, layout, items, total_deposit_due)
+    _draw_items_table(pdf, layout, items, total_cost)
 
     # ---- Сроки и оплата ----
     if layout['show_terms']:
@@ -354,6 +358,14 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
             _('Бериш санаси: %(d)s') % {'d': rental.created_at.strftime('%d.%m.%Y %H:%M')},
             _('Қайтариш муддати: %(d)s') % {'d': rental.due_date.strftime('%d.%m.%Y %H:%M')},
             _('Беришда олинган гаров: %(s)s сўм') % {'s': _money(deposit_paid)},
+            _('Ҳисобланган гаров (жами): %(s)s сўм') % {'s': _money(total_deposit_due)},
+        ]
+        if returned_qty:
+            bullets.append(
+                _('Қайтарилди: %(q)s дона · %(s)s сўм')
+                % {'q': returned_qty, 's': _money(returned_amount)}
+            )
+        bullets += [
             _('Кечиктирилганлик жаримаси коэффициенти: %(c)s — ҳар бир '
               'кечиктирилган бирлик учун кунлик нархдан.') % {'c': fine_coef},
             _('Опалубка ёки товар қайтарилаётганда тоза ҳолатда '
@@ -364,7 +376,7 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
                            new_x='LMARGIN', new_y='NEXT')
         pdf.ln(2)
     else:
-        # quarter: ужимаем до одной строки с ключевыми датами и залогом.
+        # quarter: ужимаем до строк с ключевыми датами, залогом и возвратом.
         pdf.set_font('Body', size=layout['font_small'])
         compact = (
             _('Берилди: %(d1)s · Қайтариш: %(d2)s · Гаров: %(s)s сўм')
@@ -376,6 +388,13 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
         )
         pdf.multi_cell(0, layout['line_h'], compact,
                        new_x='LMARGIN', new_y='NEXT')
+        if returned_qty:
+            pdf.multi_cell(
+                0, layout['line_h'],
+                _('Қайтарилди: %(q)s дона · %(s)s сўм')
+                % {'q': returned_qty, 's': _money(returned_amount)},
+                new_x='LMARGIN', new_y='NEXT',
+            )
         pdf.multi_cell(0, layout['line_h'],
                        _('Қайтаришда тоза ҳолатда топширилади.'),
                        new_x='LMARGIN', new_y='NEXT')
