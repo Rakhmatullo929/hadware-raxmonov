@@ -1379,8 +1379,12 @@ def rental_contract(request, pk):
         Rental.objects.select_related('customer'), pk=pk,
     )
     items = list(
-        rental.items.select_related('product').all()
+        rental.items.select_related('product', 'product__category').all()
     )
+    # Стоимость позиции = кол-во × цена/сут (аренда за сутки за эту позицию).
+    for it in items:
+        it.line_cost = it.qty * it.price_per_day
+    total_cost = sum((it.line_cost for it in items), Decimal('0.00'))
     deposit_paid = sum(
         (p.amount for p in rental.payments.filter(kind=Payment.Kind.DEPOSIT)),
         Decimal('0.00'),
@@ -1389,13 +1393,24 @@ def rental_contract(request, pk):
         (it.product.deposit_per_unit * it.qty for it in items),
         Decimal('0.00'),
     )
+    # «Сколько вернул и на какую сумму»: суммарный возврат по аренде.
+    charges = billing.return_charge_map(rental)
+    returned_amount = sum(charges.values(), Decimal('0.00'))
+    returned_qty = (
+        Movement.objects
+        .filter(rental_item__rental=rental, kind=Movement.Kind.RETURN)
+        .aggregate(q=Sum('qty'))['q'] or 0
+    )
     from django.conf import settings as _s
     size = normalize_size(request.GET.get('size'))
     return render(request, 'config/rentals/contract.html', {
         'rental': rental,
         'items': items,
+        'total_cost': total_cost,
         'deposit_paid': deposit_paid,
         'total_deposit_due': total_deposit_due,
+        'returned_qty': returned_qty,
+        'returned_amount': returned_amount,
         'fine_coef': getattr(_s, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5')),
         'back_url': reverse('rental_detail', args=[rental.pk]),
         'size': size,

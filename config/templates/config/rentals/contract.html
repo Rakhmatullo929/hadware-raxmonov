@@ -8,7 +8,7 @@
 {% block content %}
 <div class="text-center mb-3">
     <h1 class="contract-h1 mb-1">{% blocktrans with rid=rental.id %}ИЖАРА ШАРТНОМАСИ № {{ rid }}{% endblocktrans %}</h1>
-    <div class="text-muted small">{% blocktrans with d=rental.created_at|date:"d.m.Y" %}{{ d }}, Тошкент ш.{% endblocktrans %}</div>
+    <div class="text-muted small">{{ rental.created_at|date:"d.m.Y" }}</div>
 </div>
 
 {% if size == 'quarter' %}
@@ -23,16 +23,20 @@
     <table class="table table-bordered table-sm mb-2">
         <thead>
             <tr>
-                <th style="width: 8%">№</th>
+                <th style="width: 6%">№</th>
+                <th style="width: 22%">{% trans "Тури" %}</th>
                 <th>{% trans "Номи" %}</th>
-                <th class="text-end" style="width: 18%">{% trans "Сони" %}</th>
-                <th style="width: 14%">{% trans "Бирл." %}</th>
+                <th class="text-end" style="width: 12%">{% trans "Сони" %}</th>
+                <th style="width: 10%">{% trans "Бирл." %}</th>
+                <th class="text-end" style="width: 16%">{% trans "Нарх/кун" %}</th>
+                <th class="text-end" style="width: 16%">{% trans "Қиймат" %}</th>
             </tr>
         </thead>
         <tbody>
             {% for it in items %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
+                    <td>{{ it.product.category }}</td>
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
@@ -41,9 +45,17 @@
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td>{{ it.product.unit }}</td>
+                    <td class="text-end">{{ it.price_per_day }}</td>
+                    <td class="text-end">{{ it.line_cost }}</td>
                 </tr>
             {% endfor %}
         </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="6" class="text-end">{% trans "Жами (кунлик), сўм" %}</th>
+                <th class="text-end">{{ total_cost }}</th>
+            </tr>
+        </tfoot>
     </table>
 
     <div class="small mb-1">
@@ -51,6 +63,12 @@
         · {% trans "Қайтариш:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong>
         · {% trans "Гаров:" %} <strong>{{ deposit_paid }}</strong> {% trans "сўм" %}
     </div>
+    {% if returned_qty %}
+        <div class="small mb-1">
+            {% trans "Қайтарилди:" %} <strong>{{ returned_qty }}</strong> {% trans "дона" %}
+            · <strong>{{ returned_amount }}</strong> {% trans "сўм" %}
+        </div>
+    {% endif %}
     <div class="small fst-italic mb-3">{% trans "Қайтаришда тоза ҳолатда топширилади." %}</div>
 
 {% else %}
@@ -70,9 +88,6 @@
             {% if rental.customer.passport %}
                 <div>{% trans "Паспорт:" %} {{ rental.customer.passport }}</div>
             {% endif %}
-            {% if rental.customer.address %}
-                <div>{% trans "Манзил:" %} {{ rental.customer.address }}</div>
-            {% endif %}
             {% if rental.customer.phone %}
                 <div>{% trans "Тел.:" %} {{ rental.customer.phone }}</div>
             {% endif %}
@@ -88,17 +103,19 @@
         <thead>
             <tr>
                 <th>№</th>
+                <th>{% trans "Тури" %}</th>
                 <th>{% trans "Номи" %}</th>
                 <th class="text-end">{% trans "Сони" %}</th>
                 <th>{% trans "Бирл." %}</th>
                 <th class="text-end">{% trans "Нарх/кун, сўм" %}</th>
-                <th class="text-end">{% trans "Гаров/бирл., сўм" %}</th>
+                <th class="text-end">{% trans "Қиймат/сут, сўм" %}</th>
             </tr>
         </thead>
         <tbody>
             {% for it in items %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
+                    <td>{{ it.product.category }}</td>
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
@@ -108,14 +125,14 @@
                     <td class="text-end">{{ it.qty }}</td>
                     <td>{{ it.product.unit }}</td>
                     <td class="text-end">{{ it.price_per_day }}</td>
-                    <td class="text-end">{{ it.product.deposit_per_unit }}</td>
+                    <td class="text-end">{{ it.line_cost }}</td>
                 </tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr>
-                <th colspan="5" class="text-end">{% trans "Жами гаров" %}</th>
-                <th class="text-end">{{ total_deposit_due }}</th>
+                <th colspan="6" class="text-end">{% trans "Жами (кунлик), сўм" %}</th>
+                <th class="text-end">{{ total_cost }}</th>
             </tr>
         </tfoot>
     </table>
@@ -126,6 +143,13 @@
         <li>{% trans "Қайтариш муддати:" %} <strong>{{ rental.due_date|date:"d.m.Y H:i" }}</strong></li>
         <li>{% trans "Беришда олинган гаров:" %}
             <strong>{{ deposit_paid }}</strong> {% trans "сўм" %}</li>
+        <li>{% trans "Ҳисобланган гаров (жами):" %}
+            <strong>{{ total_deposit_due }}</strong> {% trans "сўм" %}</li>
+        {% if returned_qty %}
+            <li>{% trans "Қайтарилди:" %}
+                <strong>{{ returned_qty }}</strong> {% trans "дона" %}
+                · <strong>{{ returned_amount }}</strong> {% trans "сўм" %}</li>
+        {% endif %}
         <li>{% trans "Кечиктирилганлик жаримаси коэффициенти:" %}
             <strong>{{ fine_coef }}</strong> {% trans "— ҳар бир кечиктирилган бирлик учун кунлик нархдан." %}</li>
         <li>{% trans "Опалубка ёки товар қайтарилаётганда тоза ҳолатда топширилиши шарт." %}</li>
@@ -136,4 +160,21 @@
         <p>{{ rental.note|linebreaksbr }}</p>
     {% endif %}
 {% endif %}
+{% endblock %}
+
+{# Форматы меньше A4 печатаем горизонтально (альбом) — больше места под таблицу.
+   Переопределяем только в договоре; чек возврата (тот же print_base) остаётся
+   вертикальным. #}
+{% block page_size_print %}
+    {% if size == 'half' %}
+        <style>
+            @media print { @page { size: A5 landscape; margin: 10mm; } }
+            @media screen { .print-page--half { max-width: 21cm; } }
+        </style>
+    {% elif size == 'quarter' %}
+        <style>
+            @media print { @page { size: A6 landscape; margin: 6mm; } }
+            @media screen { .print-page--quarter { max-width: 14.8cm; } }
+        </style>
+    {% endif %}
 {% endblock %}
