@@ -4,6 +4,7 @@
 форматирование денег, ленивый импорт fpdf2, диагональный водяной знак.
 Чистый Python, без системных зависимостей.
 """
+import math
 from decimal import Decimal
 from pathlib import Path
 
@@ -89,29 +90,48 @@ def money(value) -> str:
     return ('-' if neg else '') + ' '.join(groups) + '.' + frac
 
 
-# Параметры водяного знака (перенесены из contract_pdf без изменений).
+# Параметры водяного знака.
 _WATERMARK_GRAY = 205
 _WATERMARK_TEXT = 'Raxmonov'
-_WATERMARK_WIDTH_FACTOR = 0.9
+_WATERMARK_ANGLE = -30           # угол наклона, согласован с HTML-печатью
+# Доля области печати, занимаемая знаком: <1 — компактно, с воздухом.
+_WATERMARK_FILL = 0.6
+# Вертикальный центр в долях области печати: чуть выше середины, чтобы знак
+# лёг за таблицей (она во всех форматах в верхней половине листа), а не
+# свисал в пустоту под ней.
+_WATERMARK_VPOS = 0.42
 
 
 def draw_watermark(pdf):
-    """Бледный диагональный текстовый водяной знак по центру текущей страницы.
+    """Бледный диагональный водяной знак, компактно вписанный за таблицу.
 
-    Рисуется встроенным core-шрифтом Helvetica (ASCII), не зависит от
-    загруженного TTF. ``pdf.rotation(...)`` восстанавливает цвет/шрифт сам;
-    курсор возвращаем явно. Угол −30° согласован с HTML-печатью.
+    Размер подбирается так, чтобы повёрнутый прямоугольник текста целиком
+    помещался в область печати (поля учтены через ``epw``/``eph``) при любом
+    формате и ориентации — A4 книжная, A5/A6 альбомная и т.д. Рисуется
+    встроенным core-шрифтом Helvetica (ASCII), не зависит от загруженного TTF.
+    ``pdf.rotation(...)`` восстанавливает цвет/шрифт сам; курсор возвращаем явно.
     """
     g = _WATERMARK_GRAY
     x0, y0 = pdf.get_x(), pdf.get_y()
-    cx, cy = pdf.w / 2, pdf.h / 2
-    target_w = min(pdf.w, pdf.h) * _WATERMARK_WIDTH_FACTOR
+    # Центр — по середине области печати (за вычетом полей), слегка приподнят.
+    cx = pdf.l_margin + pdf.epw / 2
+    cy = pdf.t_margin + pdf.eph * _WATERMARK_VPOS
 
-    with pdf.rotation(-30, cx, cy):
+    rad = math.radians(_WATERMARK_ANGLE)
+    cos_a, sin_a = abs(math.cos(rad)), abs(math.sin(rad))
+
+    pdf.set_font('Helvetica', 'B', 100)
+    w_ref = pdf.get_string_width(_WATERMARK_TEXT) or 1
+    ratio = (100 * 0.3528) / w_ref  # высота/ширина текста (pt → mm)
+
+    # Ширина текста, при которой повёрнутый габарит вписан в область печати.
+    fit_w = pdf.epw / (cos_a + ratio * sin_a)
+    fit_h = pdf.eph / (sin_a + ratio * cos_a)
+    target_w = min(fit_w, fit_h) * _WATERMARK_FILL
+
+    with pdf.rotation(_WATERMARK_ANGLE, cx, cy):
         pdf.set_text_color(g, g, g)
-        pdf.set_font('Helvetica', 'B', 100)
-        w100 = pdf.get_string_width(_WATERMARK_TEXT) or 1
-        size = 100 * target_w / w100
+        size = 100 * target_w / w_ref
         pdf.set_font('Helvetica', 'B', size)
         tw = pdf.get_string_width(_WATERMARK_TEXT)
         th = size * 0.3528  # pt → mm

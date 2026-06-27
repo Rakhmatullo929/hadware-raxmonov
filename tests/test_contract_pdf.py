@@ -207,6 +207,58 @@ def test_draw_watermark_keeps_single_page_and_restores_state():
     assert round(pdf.line_width, 4) == round(lw0, 4)
 
 
+@pytest.mark.parametrize('fmt,orient,margin', [
+    ('A4', 'P', 16),              # full
+    ('A5', 'L', 12),              # half (альбом)
+    ((105, 148), 'L', 8),         # quarter (альбом)
+    ((105, 148), 'P', 8),         # чек возврата (книжная)
+])
+def test_watermark_compact_and_fits_printable_area(fmt, orient, margin):
+    """Водяной знак вписан в область печати и сидит в верхней половине листа
+    (за таблицей) при любом формате/ориентации — A4 книжная, A5/A6 альбом."""
+    import math
+
+    import fpdf
+
+    from config import pdf_common
+    from config.pdf_common import draw_watermark
+
+    captured = {}
+    orig_cell = fpdf.FPDF.cell
+
+    def rec(self, w=0, h=0, text='', *a, **k):
+        if text == pdf_common._WATERMARK_TEXT:
+            captured['box'] = (self.get_x(), self.get_y(), w, h)
+        return orig_cell(self, w, h, text, *a, **k)
+
+    fpdf.FPDF.cell = rec
+    try:
+        pdf = fpdf.FPDF(orientation=orient, format=fmt)
+        pdf.set_margins(margin, margin, margin)
+        pdf.add_page()
+        draw_watermark(pdf)
+    finally:
+        fpdf.FPDF.cell = orig_cell
+
+    x, y, tw, th = captured['box']
+    cx, cy = x + tw / 2, y + th / 2          # знак центрирован на (cx, cy)
+    rad = math.radians(pdf_common._WATERMARK_ANGLE)
+    # Полугабариты повёрнутого прямоугольника текста.
+    hx = abs(tw / 2 * math.cos(rad)) + abs(th / 2 * math.sin(rad))
+    hy = abs(tw / 2 * math.sin(rad)) + abs(th / 2 * math.cos(rad))
+
+    eps = 0.1
+    # Целиком внутри области печати (с учётом полей) — нигде не вылезает.
+    assert cx - hx >= margin - eps
+    assert cx + hx <= pdf.w - margin + eps
+    assert cy - hy >= margin - eps
+    assert cy + hy <= pdf.h - margin + eps
+    # Компактно: не на весь лист.
+    assert tw < min(pdf.w, pdf.h)
+    # Приподнят над серединой листа — ложится за таблицу, а не под неё.
+    assert cy < pdf.h / 2
+
+
 def test_pdf_multipage_with_watermark_is_valid(
     client_staff, customer, product, staff_user,
 ):
