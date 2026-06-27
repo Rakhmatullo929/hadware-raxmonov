@@ -51,6 +51,8 @@ def build_return_receipt_pdf(ctx) -> bytes:
     when = ctx['receipt_dt'].strftime('%d.%m.%Y %H:%M') if ctx['receipt_dt'] else ''
     pdf.cell(0, 4, _('Аренда №%(n)s') % {'n': rental.pk} + ' · ' + when,
              align='C', new_x='LMARGIN', new_y='NEXT')
+    pdf.cell(0, 4, _('Тел.: +998906364044'), align='C',
+             new_x='LMARGIN', new_y='NEXT')
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
 
@@ -96,6 +98,18 @@ def build_return_receipt_pdf(ctx) -> bytes:
         for text, frac, align in cells:
             pdf.cell(w * frac, _ROW_H, str(text), border=1, align=align)
         pdf.ln()
+
+        # Допы комплекта (домножены на кол-во) — отдельной строкой под позицией.
+        kit = row.get('kit') or []
+        if kit:
+            kit_txt = _('Доп.: ') + ' · '.join(
+                f"{k['name']} {k['qty']}" for k in kit)
+            pdf.set_font('Body', size=6)
+            pdf.set_text_color(110, 110, 110)
+            pdf.multi_cell(w, _ROW_H, kit_txt, border='LR',
+                           new_x='LMARGIN', new_y='NEXT')
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font('Body', size=7)
 
     # ---- Итог ----
     pdf.set_font('Body', 'B', 7)

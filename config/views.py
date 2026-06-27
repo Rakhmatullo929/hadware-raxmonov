@@ -1157,6 +1157,12 @@ def build_return_receipt_context(rental, movement_ids):
             'price_per_day': it.price_per_day,
             'amount': amount,
             'date': m.date,
+            # Допы комплекта, домноженные на кол-во в этой партии возврата:
+            # «Зажим ×3» на 12 шт → 36 шт.
+            'kit': [
+                {'name': name, 'qty': per_unit * m.qty}
+                for name, per_unit in it.product.kit_items()
+            ],
         })
         total_qty += m.qty
         total_amount += amount

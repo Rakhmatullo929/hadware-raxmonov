@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.conf import settings
@@ -81,6 +82,25 @@ class Product(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.unit})'
+
+    # «Зажим ×3», допускаем латинскую x, кириллическую х и знак умножения ×.
+    _KIT_ITEM_RE = re.compile(r'^(.*?)\s*[×xXхХ]\s*(\d+)$')
+
+    def kit_items(self):
+        """Разобрать included_kit в список (название, кол-во на 1 шт).
+
+        Формат записи — «Зажим ×3, Фиксатор ×3»; число относится к одной
+        единице товара. Неразборные фрагменты молча пропускаются.
+        """
+        items = []
+        for part in self.included_kit.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            match = self._KIT_ITEM_RE.match(part)
+            if match:
+                items.append((match.group(1).strip(), int(match.group(2))))
+        return items
 
     def expected_window_label(self) -> str:
         """Удобная строка для UI: «1–2 дн.», «3 дн.», «—»."""

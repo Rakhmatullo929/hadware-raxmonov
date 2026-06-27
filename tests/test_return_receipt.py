@@ -153,3 +153,37 @@ def test_receipt_uz_translation(client_staff, rental_with_returns):
         body = client_staff.get(url).content.decode()
     assert 'Tovar turi' in body   # узбекский заголовок «Тип товара»
     assert 'Qaytarish' in body    # узбекский «возврат» (Qaytarish cheki)
+
+
+def test_build_context_scales_kit_totals(rental_with_kit_return):
+    r, item, m = rental_with_kit_return
+    ctx = build_return_receipt_context(r, [m.id])
+    kit = ctx['rows'][0]['kit']
+    assert [(k['name'], k['qty']) for k in kit] == [
+        ('Зажим', 36), ('Фиксатор', 36), ('Тайрод р/калпокча', 36), ('Штир/шайба', 36),
+    ]
+
+
+def test_build_context_kit_empty_for_plain_product(rental_with_returns):
+    r, item, m1, m2 = rental_with_returns
+    ctx = build_return_receipt_context(r, [m1.id, m2.id])
+    assert ctx['rows'][0]['kit'] == []
+
+
+def test_receipt_html_shows_kit_totals(client_staff, rental_with_kit_return):
+    r, item, m = rental_with_kit_return
+    url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
+    body = client_staff.get(url).content.decode()
+    assert 'Зажим' in body
+    assert '36' in body
+
+
+def test_receipt_html_kit_label_translated_uz(client_staff, rental_with_kit_return):
+    from django.utils import translation
+
+    r, item, m = rental_with_kit_return
+    with translation.override('uz'):
+        url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
+        body = client_staff.get(url).content.decode()
+    assert "Qo'shimcha" in body   # «Доп.» по-узбекски
+    assert 'Зажим 36' in body

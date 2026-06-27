@@ -51,3 +51,44 @@ def test_pdf_endpoint_font_missing_redirects(
     resp = client_staff.get(url)
     assert resp.status_code == 302
     assert reverse('rental_detail', args=[r.pk]) in resp['Location']
+
+
+def test_pdf_renders_kit_totals(rental_with_kit_return):
+    """PDF-чек выводит домноженные допы комплекта («Зажим 36» и т.д.).
+
+    Текст PDF не извлечь без доп. зависимостей, поэтому перехватываем строки,
+    которые билдер отправляет в cell/multi_cell.
+    """
+    r, item, m = rental_with_kit_return
+    ctx = build_return_receipt_context(r, [m.id])
+
+    from config.return_receipt_pdf import load_fpdf
+    fpdf_module = load_fpdf()
+    captured = []
+    orig_cell = fpdf_module.FPDF.cell
+    orig_multi = fpdf_module.FPDF.multi_cell
+
+    def _grab(args):
+        if len(args) > 2 and isinstance(args[2], str):
+            captured.append(args[2])
+
+    def rec_cell(self, *a, **k):
+        _grab(a)
+        return orig_cell(self, *a, **k)
+
+    def rec_multi(self, *a, **k):
+        _grab(a)
+        return orig_multi(self, *a, **k)
+
+    fpdf_module.FPDF.cell = rec_cell
+    fpdf_module.FPDF.multi_cell = rec_multi
+    try:
+        build_return_receipt_pdf(ctx)
+    finally:
+        fpdf_module.FPDF.cell = orig_cell
+        fpdf_module.FPDF.multi_cell = orig_multi
+
+    blob = ' '.join(captured)
+    assert 'Зажим 36' in blob
+    assert 'Фиксатор 36' in blob
+    assert 'Штир/шайба 36' in blob

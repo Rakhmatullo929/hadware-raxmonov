@@ -253,3 +253,29 @@ def test_product_form_has_included_kit_and_saves(category):
     assert form.is_valid(), form.errors
     obj = form.save()
     assert obj.included_kit.startswith('Зажим ×3')
+
+
+def test_kit_items_parses_name_and_per_unit_qty(category):
+    from config.models import Product
+    p = Product.objects.create(
+        name='Корейская опалубка 2×80', category=category, unit='шт',
+        included_kit='Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3',
+    )
+    assert p.kit_items() == [
+        ('Зажим', 3), ('Фиксатор', 3), ('Тайрод р/калпокча', 3), ('Штир/шайба', 3),
+    ]
+
+
+def test_kit_items_empty_when_no_kit(category):
+    from config.models import Product
+    p = Product.objects.create(name='Без комплекта', category=category)
+    assert p.kit_items() == []
+
+
+def test_kit_items_skips_unparsable_parts(category):
+    from config.models import Product
+    p = Product.objects.create(
+        name='Шум', category=category,
+        included_kit='Зажим ×2, мусор, Крючок ×1',
+    )
+    assert p.kit_items() == [('Зажим', 2), ('Крючок', 1)]

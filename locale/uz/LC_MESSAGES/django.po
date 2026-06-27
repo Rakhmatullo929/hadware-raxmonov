@@ -1460,3 +1460,15 @@ msgstr "Qaytarildi: %(q)s dona, %(s)s so'm"
 msgid "Примечание: "
 msgstr "Izoh: "
 
+
+#: config/return_receipt_pdf.py config/templates/config/rentals/return_receipt.html
+msgid "Тел.: +998906364044"
+msgstr "Tel.: +998906364044"
+
+#: config/templates/config/rentals/return_receipt.html
+msgid "Доп."
+msgstr "Qo'shimcha"
+
+#: config/return_receipt_pdf.py
+msgid "Доп.: "
+msgstr "Qo'shimcha: "

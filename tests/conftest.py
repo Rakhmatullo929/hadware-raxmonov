@@ -81,6 +81,36 @@ def client_admin(admin_user):
 
 
 @pytest.fixture
+def rental_with_kit_return(db, customer, category, staff_user):
+    """Аренда корейской опалубки 2×80, 12 шт, полный возврат.
+
+    Комплект на 1 шт: Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3,
+    Штир/шайба ×3 — значит на 12 шт каждого допа по 36.
+    """
+    product = Product.objects.create(
+        name='Корейская опалубка 2×80', category=category, unit='шт',
+        daily_price=Decimal('100.00'),
+        included_kit='Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3',
+    )
+    r = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=staff_user,
+    )
+    item = RentalItem.objects.create(
+        rental=r, product=product, qty=12, price_per_day=product.daily_price,
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=12, created_by=staff_user,
+    )
+    m = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=12,
+        amount=Decimal('1200.00'), created_by=staff_user,
+    )
+    return r, item, m
+
+
+@pytest.fixture
 def rental_with_returns(db, customer, product, staff_user):
     """Аренда: выдано 10, два возврата (4 и 3) с явными суммами 400 и 300."""
     r = Rental.objects.create(
