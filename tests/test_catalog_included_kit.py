@@ -56,10 +56,45 @@ def test_product_list_shows_included_kit(client_admin, kit_product):
 
 
 def test_html_contract_shows_included_kit(client_admin, kit_product, customer, admin_user):
+    # _make_rental_with выдаёт qty=2 → итог = 3 × 2 = 6 на компонент.
     rental = _make_rental_with(kit_product, customer, admin_user)
     resp = client_admin.get(reverse('rental_contract', args=[rental.pk]))
     assert resp.status_code == 200
-    assert 'Зажим ×3, Фиксатор ×3' in resp.content.decode()
+    body = resp.content.decode()
+    assert 'Зажим ×3' in body          # норма на 1 шт
+    assert 'Фиксатор ×3' in body
+    assert 'жами ×6' in body           # итог на строку (3 × 2)
+
+
+def test_parse_included_kit_computes_totals():
+    from config.models import parse_included_kit
+    out = parse_included_kit('Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3', 10)
+    assert out == [
+        {'name': 'Зажим', 'per_unit': 3, 'total': 30},
+        {'name': 'Фиксатор', 'per_unit': 3, 'total': 30},
+        {'name': 'Тайрод р/калпокча', 'per_unit': 3, 'total': 30},
+    ]
+
+
+def test_parse_included_kit_separators_and_edge_cases():
+    from config.models import parse_included_kit
+    # латинская x, кириллическая х, *
+    assert parse_included_kit('Болт x2', 4) == [{'name': 'Болт', 'per_unit': 2, 'total': 8}]
+    assert parse_included_kit('Гайка х5', 2) == [{'name': 'Гайка', 'per_unit': 5, 'total': 10}]
+    # компонент без числа — как есть
+    assert parse_included_kit('Сумка', 5) == [{'name': 'Сумка', 'per_unit': None, 'total': None}]
+    # пусто
+    assert parse_included_kit('', 5) == []
+    assert parse_included_kit(None, 5) == []
+
+
+def test_rentalitem_kit_breakdown(kit_product, customer, admin_user):
+    rental = _make_rental_with(kit_product, customer, admin_user)  # qty=2
+    item = rental.items.first()
+    assert item.kit_breakdown() == [
+        {'name': 'Зажим', 'per_unit': 3, 'total': 6},
+        {'name': 'Фиксатор', 'per_unit': 3, 'total': 6},
+    ]
 
 
 @pytest.mark.parametrize('size', ['full', 'half', 'quarter'])

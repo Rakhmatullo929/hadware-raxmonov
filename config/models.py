@@ -1,4 +1,5 @@
 import re
+import re
 from decimal import Decimal
 
 from django.conf import settings
@@ -288,6 +289,38 @@ class Rental(models.Model):
         return True
 
 
+# Компонент комплекта в included_kit: «Зажим ×3», «Тайрод р/калпокча ×3».
+# Разделитель ×: спецсимвол ×, латинская x, кириллическая х или *.
+_KIT_ITEM_RE = re.compile(r'^(?P<name>.*?)\s*[×xх*]\s*(?P<n>\d+)\s*$', re.IGNORECASE)
+
+
+def parse_included_kit(text, qty):
+    """Разобрать included_kit в список компонентов с нормой и итогом на строку.
+
+    '''Зажим ×3, Фиксатор ×3''' + qty=10 ->
+        [{'name': 'Зажим', 'per_unit': 3, 'total': 30},
+         {'name': 'Фиксатор', 'per_unit': 3, 'total': 30}]
+
+    Компонент без числа возвращается с ``per_unit=None`` (покажем как есть).
+    """
+    result = []
+    for part in (text or '').split(','):
+        part = part.strip()
+        if not part:
+            continue
+        m = _KIT_ITEM_RE.match(part)
+        if m:
+            n = int(m.group('n'))
+            result.append({
+                'name': m.group('name').strip(),
+                'per_unit': n,
+                'total': n * qty,
+            })
+        else:
+            result.append({'name': part, 'per_unit': None, 'total': None})
+    return result
+
+
 class RentalItem(models.Model):
     rental = models.ForeignKey(
         Rental,
@@ -314,6 +347,10 @@ class RentalItem(models.Model):
 
     def __str__(self):
         return f'{self.product} × {self.qty}'
+
+    def kit_breakdown(self):
+        """Комплект товара с нормой на 1 шт и итогом на эту позицию (× qty)."""
+        return parse_included_kit(self.product.included_kit, self.qty)
 
     @property
     def issued_qty(self) -> int:

@@ -217,13 +217,22 @@ def _draw_items_table(pdf, layout, items, total_cost):
         for text, frac, align in row:
             pdf.cell(w * frac, row_h, str(text), border=1, align=align)
         pdf.ln()
-        kit = (it.product.included_kit or '').strip()
-        if kit:
+        kit_parts = it.kit_breakdown()
+        if kit_parts:
+            bits = []
+            for c in kit_parts:
+                if c['per_unit'] is not None:
+                    bits.append(
+                        '%s ×%d (%s ×%d)'
+                        % (c['name'], c['per_unit'], _('жами'), c['total'])
+                    )
+                else:
+                    bits.append(c['name'])
             pdf.set_font('Body', '', max(base - 1, 6))
             pdf.set_text_color(110, 110, 110)
             pdf.multi_cell(
                 w, row_h - 1,
-                _('тўпламда') + ': ' + kit,
+                _('тўпламда') + ': ' + ', '.join(bits),
                 border='LR', align='L',
             )
             # multi_cell оставляет курсор справа — возвращаем к левому полю,

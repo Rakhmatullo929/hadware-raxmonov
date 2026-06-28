@@ -40,7 +40,9 @@
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
-                            <div class="small fst-italic">{% trans "тўпламда" %}: {{ it.product.included_kit }}</div>
+                            <div class="small fst-italic">{% trans "тўпламда" %}:
+                                {% for c in it.kit_breakdown %}{{ c.name }}{% if c.per_unit %} ×{{ c.per_unit }} ({% trans "жами" %} ×{{ c.total }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </div>
                         {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
@@ -119,7 +121,9 @@
                     <td>
                         {{ it.product.name }}
                         {% if it.product.included_kit %}
-                            <div class="small fst-italic">{% trans "тўпламда" %}: {{ it.product.included_kit }}</div>
+                            <div class="small fst-italic">{% trans "тўпламда" %}:
+                                {% for c in it.kit_breakdown %}{{ c.name }}{% if c.per_unit %} ×{{ c.per_unit }} ({% trans "жами" %} ×{{ c.total }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </div>
                         {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
