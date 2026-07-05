@@ -6,6 +6,9 @@
             <span class="text-muted small ms-2">
                 · {{ product.daily_price }}/{% trans "сут." %}
                 · {% trans "доступно" %} {{ product.available_stock }} {{ product.unit }}
+                {% if product.expected_min_days or product.expected_max_days %}
+                · {% trans "срок" %}: {{ product.expected_window_label }}
+                {% endif %}
             </span>
         </div>
         <button type="button" class="btn btn-sm btn-link p-0"

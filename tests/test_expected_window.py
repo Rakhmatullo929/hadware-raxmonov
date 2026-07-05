@@ -171,6 +171,8 @@ def test_product_form_accepts_valid_window(client_admin, category):
         'name': 'НовыйТовар', 'category': category.pk, 'unit': 'шт',
         'stock_total': '10', 'daily_price': '1.00',
         'deposit_per_unit': '0.00',
+        # Комплект теперь обязателен для любого товара (ProductForm.__init__).
+        'included_kit': 'Зажим ×3',
         'expected_min_days': '3', 'expected_max_days': '15',
         'is_active': 'on',
     })
