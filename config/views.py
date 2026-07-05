@@ -1006,6 +1006,17 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
                 except ValueError:
                     pass
 
+        # Текстовый поиск по клиенту: ФИО, телефон или код (как в форме
+        # создания аренды — CustomerSearchView). Работает независимо от
+        # фильтра по ID ниже, поэтому оба можно комбинировать.
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            qs = qs.filter(
+                Q(customer__full_name__icontains=query)
+                | Q(customer__phone__icontains=query)
+                | Q(customer__code__icontains=query)
+            )
+
         customer_id = self.request.GET.get('customer', '').strip()
         if customer_id.isdigit():
             qs = qs.filter(customer_id=int(customer_id))
@@ -1022,6 +1033,7 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
             'status': self.request.GET.get('status', ''),
             'date_from': self.request.GET.get('date_from', ''),
             'date_to': self.request.GET.get('date_to', ''),
+            'q': self.request.GET.get('q', ''),
             'customer': self.request.GET.get('customer', ''),
             'sort': self.request.GET.get('sort', 'due_date'),
         }
