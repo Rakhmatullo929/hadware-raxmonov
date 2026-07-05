@@ -248,6 +248,9 @@ def test_product_form_has_included_kit_and_saves(category):
         'daily_price': '0',
         'deposit_per_unit': '0',
         'included_kit': 'Зажим ×3, Фиксатор ×3, Тайрод р/калпокча ×3, Штир/шайба ×3',
+        # Норма срока теперь обязательна для любого товара (ProductForm.__init__).
+        'expected_min_days': '1',
+        'expected_max_days': '3',
         'is_active': 'on',
     })
     assert form.is_valid(), form.errors

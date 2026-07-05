@@ -97,6 +97,12 @@ class ProductForm(BootstrapFormMixin, forms.ModelForm):
             'included_kit',
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Комплект и норма (мин/макс) обязательны при заведении/правке товара.
+        for name in ('included_kit', 'expected_min_days', 'expected_max_days'):
+            self.fields[name].required = True
+
     def clean(self):
         cleaned = super().clean()
         lo = cleaned.get('expected_min_days')
