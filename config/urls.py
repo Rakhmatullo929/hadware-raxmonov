@@ -79,6 +79,8 @@ urlpatterns = [
     path('customers/new/', views.CustomerCreateView.as_view(), name='customer_create'),
     path('customers/<int:pk>/', views.CustomerDetailView.as_view(), name='customer_detail'),
     path('customers/<int:pk>/edit/', views.CustomerUpdateView.as_view(), name='customer_update'),
+    path('customers/<int:pk>/archive/', views.CustomerArchiveView.as_view(), name='customer_archive'),
+    path('customers/<int:pk>/unarchive/', views.CustomerUnarchiveView.as_view(), name='customer_unarchive'),
 
     path('rentals/', views.RentalListView.as_view(), name='rental_list'),
     path('rentals/new/', views.RentalCreateView.as_view(), name='rental_create'),

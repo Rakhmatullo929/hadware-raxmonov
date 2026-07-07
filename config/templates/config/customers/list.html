@@ -11,17 +11,27 @@
     </a>
 </div>
 
-<form class="row g-2 mb-3"
+<form class="row g-2 mb-3 align-items-center"
       hx-get="{% url 'customer_list' %}"
       hx-target="#customers-table"
       hx-swap="innerHTML"
-      hx-trigger="input changed delay:300ms from:input[name=q], search"
+      hx-trigger="input changed delay:300ms from:input[name=q], change from:input[name=archived], search"
       hx-push-url="true">
-    <div class="col-md-9">
+    <div class="col-md-7">
         <input type="search" class="form-control" name="q"
                value="{{ q }}" placeholder="{% trans 'Поиск по № клиента, ФИО или телефону...' %}">
     </div>
     <div class="col-md-3">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="archived-toggle" name="archived" value="1"
+                   {% if show_archived %}checked{% endif %}>
+            <label class="form-check-label" for="archived-toggle">
+                {% trans "Показать архив" %}{% if archived_count %} ({{ archived_count }}){% endif %}
+            </label>
+        </div>
+    </div>
+    <div class="col-md-2">
         <a href="{% url 'customer_list' %}" class="btn btn-outline-secondary w-100">{% trans "Сброс" %}</a>
     </div>
 </form>
