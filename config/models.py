@@ -155,6 +155,11 @@ class Customer(models.Model):
     address = models.CharField(_('Адрес'), max_length=255, blank=True)
     notes = models.TextField(_('Заметки'), blank=True)
     created_at = models.DateTimeField(_('Создан'), default=timezone.now, editable=False)
+    archived_at = models.DateTimeField(
+        _('Архивирован'), null=True, blank=True, db_index=True,
+        help_text=_('Если задано — клиент в архиве: скрыт из списка и поиска, '
+                    'но данные и история аренд сохранены.'),
+    )
 
     class Meta:
         verbose_name = _('Клиент')
@@ -176,10 +181,20 @@ class Customer(models.Model):
         return f'№ {self.code}' if self.code else ''
 
     @property
+    def is_archived(self) -> bool:
+        return self.archived_at is not None
+
+    @property
     def active_rentals_count(self) -> int:
         return self.rentals.filter(
             status__in=[Rental.Status.ACTIVE, Rental.Status.OVERDUE]
         ).count()
+
+    @property
+    def can_archive(self) -> bool:
+        """Архивировать можно только клиента без активных/просроченных аренд
+        («завершил сделку»). Уже архивного — нельзя (нечего архивировать)."""
+        return not self.is_archived and self.active_rentals_count == 0
 
     @property
     def outstanding_qty(self) -> int:

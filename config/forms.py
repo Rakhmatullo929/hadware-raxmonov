@@ -123,6 +123,9 @@ class CustomerForm(BootstrapFormMixin, forms.ModelForm):
             'code': forms.TextInput(attrs={
                 'placeholder': _('оставьте пустым — присвоится автоматически'),
             }),
+            # Компактное поле заметок (BootstrapFormMixin по умолчанию ставит 3
+            # строки — здесь явно уменьшаем до 2).
+            'notes': forms.Textarea(attrs={'rows': 2}),
         }
 
 

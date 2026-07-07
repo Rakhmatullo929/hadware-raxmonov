@@ -14,7 +14,11 @@
     {% endif %}
 
     {% for field in form %}
-        {% if field.field.widget.input_type == 'checkbox' %}
+        {% if field.name == 'category' %}
+            <div class="mb-3">
+                {% include 'config/products/_category_field.html' with category_field=field %}
+            </div>
+        {% elif field.field.widget.input_type == 'checkbox' %}
             <div class="form-check mb-3">
                 {{ field }}
                 <label class="form-check-label" for="{{ field.id_for_label }}">
@@ -43,4 +47,7 @@
     <button type="submit" class="btn btn-primary">{% trans "Сохранить" %}</button>
     <a href="{% url 'product_list' %}" class="btn btn-link">{% trans "Отмена" %}</a>
 </form>
+
+{# Слот для htmx-модалки быстрого создания категории (см. _category_field.html) #}
+<div id="modal-slot"></div>
 {% endblock %}

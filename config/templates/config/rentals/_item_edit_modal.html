@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n l10n %}
 <div class="modal show d-block" tabindex="-1"
      style="background-color: rgba(0,0,0,0.5);">
     <div class="modal-dialog">
@@ -9,7 +9,7 @@
             {% csrf_token %}
             <div class="modal-header">
                 <h5 class="modal-title">
-                    {% blocktrans with name=item.product.name %}Изменить количество · {{ name }}{% endblocktrans %}
+                    {% blocktrans with name=item.product.name %}Изменить позицию · {{ name }}{% endblocktrans %}
                 </h5>
                 <button type="button" class="btn-close"
                         aria-label="{% trans 'Закрыть' %}"
@@ -30,6 +30,12 @@
                 <label class="form-label">{% trans "Количество (заказано)" %}</label>
                 <input type="number" name="qty" min="1" step="1"
                        class="form-control" value="{{ item.qty }}">
+                <label class="form-label mt-3">{% trans "Цена за сутки" %}</label>
+                <input type="number" name="price_per_day" min="0" step="0.01"
+                       class="form-control" value="{{ item.price_per_day|unlocalize }}">
+                <div class="form-text">
+                    {% trans "Цена этой аренды (снимок); на справочник товара не влияет." %}
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-link"

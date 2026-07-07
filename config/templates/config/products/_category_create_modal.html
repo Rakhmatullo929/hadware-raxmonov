@@ -1,0 +1,48 @@
+{% load i18n %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <form class="modal-content"
+              hx-post="{% url 'category_create' %}"
+              hx-target="#modal-slot"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-tag me-1"></i>{% trans "Новая категория" %}
+                </h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        onclick="document.getElementById('modal-slot').innerHTML=''"></button>
+            </div>
+            <div class="modal-body">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                {% endif %}
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                            {% if field.field.required %}
+                                <span class="text-danger">*</span>
+                            {% endif %}
+                        </label>
+                        {{ field }}
+                        {% for err in field.errors %}
+                            <div class="invalid-feedback d-block">{{ err }}</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        onclick="document.getElementById('modal-slot').innerHTML=''">
+                    {% trans "Отмена" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check2 me-1"></i>{% trans "Создать и выбрать" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

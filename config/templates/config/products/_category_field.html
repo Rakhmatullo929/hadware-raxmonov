@@ -1,0 +1,29 @@
+{% load i18n %}
+{% comment %}
+  Поле «Категория» со встроенной кнопкой быстрого создания категории.
+
+  Кнопка «+» открывает модалку (htmx) в #modal-slot; после сохранения
+  CategoryCreateView возвращает этот же партиал с oob=True — select
+  заменяется на месте, новая категория уже выбрана, а остальные поля
+  формы товара не сбрасываются.
+
+  `category_field` — bound-поле формы (ProductForm.category).
+{% endcomment %}
+<div id="product-category-field"{% if oob %} hx-swap-oob="true"{% endif %}>
+    <label class="form-label" for="{{ category_field.id_for_label }}">
+        {{ category_field.label }}
+    </label>
+    <div class="input-group">
+        {{ category_field }}
+        <button type="button" class="btn btn-outline-secondary"
+                hx-get="{% url 'category_create' %}"
+                hx-target="#modal-slot" hx-swap="innerHTML"
+                title="{% trans 'Добавить категорию' %}"
+                aria-label="{% trans 'Добавить категорию' %}">
+            <i class="bi bi-plus-lg"></i>
+        </button>
+    </div>
+    {% for err in category_field.errors %}
+        <div class="invalid-feedback d-block">{{ err }}</div>
+    {% endfor %}
+</div>

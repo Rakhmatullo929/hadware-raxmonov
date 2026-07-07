@@ -2,7 +2,7 @@ import json
 import re
 import uuid
 from datetime import date, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -21,7 +21,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce, Replace
 from django.http import Http404, HttpResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -801,23 +801,47 @@ class ProductToggleActiveView(AdminRequiredMixin, View):
         )
 
 
-class CategoryCreateView(AdminRequiredMixin, CreateView):
-    model = Category
-    form_class = CategoryForm
-    template_name = 'config/products/form.html'
-    success_url = reverse_lazy('product_list')
+class CategoryCreateView(AdminRequiredMixin, View):
+    """Создание категории двумя путями.
 
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['title'] = _('Новая категория')
-        return ctx
+    Полная страница (ссылка «Категория» в списке товаров) — как обычная форма
+    с редиректом в список. htmx-запрос (кнопка «+» рядом с полем «Категория» в
+    форме товара) — модалка + OOB-подстановка новой категории в select, не
+    сбрасывая наполовину заполненную форму товара.
+    """
 
-    def form_valid(self, form):
+    full_page_context = {'title': _('Новая категория')}
+
+    def get(self, request):
+        form = CategoryForm()
+        if request.headers.get('HX-Request'):
+            return render(request, 'config/products/_category_create_modal.html',
+                          {'form': form})
+        return render(request, 'config/products/form.html',
+                      {'form': form, **self.full_page_context})
+
+    def post(self, request):
+        form = CategoryForm(request.POST)
+        is_htmx = bool(request.headers.get('HX-Request'))
+        if not form.is_valid():
+            if is_htmx:
+                return render(request, 'config/products/_category_create_modal.html',
+                              {'form': form})
+            return render(request, 'config/products/form.html',
+                          {'form': form, **self.full_page_context})
+        category = form.save()
+        if is_htmx:
+            # Отдаём только OOB-версию поля категории: модалка (в #modal-slot)
+            # получает пустой innerHTML и закрывается, а select обновляется на
+            # месте с уже выбранной новой категорией.
+            pform = ProductForm(initial={'category': category.pk})
+            return render(request, 'config/products/_category_field.html',
+                          {'category_field': pform['category'], 'oob': True})
         messages.success(
-            self.request,
-            _('Категория «%(name)s» создана.') % {'name': form.instance.name},
+            request,
+            _('Категория «%(name)s» создана.') % {'name': category.name},
         )
-        return super().form_valid(form)
+        return HttpResponseRedirect(reverse('product_list'))
 
 
 # ---------- customers ----------
@@ -830,6 +854,9 @@ class CustomerListView(StaffOrAdminRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = Customer.objects.order_by('full_name')
+        # По умолчанию архивные клиенты скрыты; ?archived=1 — показать архив.
+        if self.request.GET.get('archived') != '1':
+            qs = qs.filter(archived_at__isnull=True)
         q = self.request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(
@@ -847,6 +874,10 @@ class CustomerListView(StaffOrAdminRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['q'] = self.request.GET.get('q', '')
+        ctx['show_archived'] = self.request.GET.get('archived') == '1'
+        ctx['archived_count'] = Customer.objects.filter(
+            archived_at__isnull=False
+        ).count()
         return ctx
 
 
@@ -892,6 +923,50 @@ class CustomerUpdateView(StaffOrAdminRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+class CustomerArchiveView(StaffOrAdminRequiredMixin, View):
+    """Архивировать клиента, завершившего сделку (нет активных аренд).
+
+    Архив обратим (см. CustomerUnarchiveView) и лишь скрывает клиента из
+    списка и поиска — данные и история аренд остаются."""
+
+    def post(self, request, pk):
+        customer = get_object_or_404(Customer, pk=pk)
+        if customer.is_archived:
+            messages.info(request, _('Клиент уже в архиве.'))
+        elif not customer.can_archive:
+            messages.error(
+                request,
+                _('Нельзя архивировать «%(name)s»: есть активные аренды. '
+                  'Сначала закройте все аренды клиента.')
+                % {'name': customer.full_name},
+            )
+        else:
+            customer.archived_at = timezone.now()
+            customer.save(update_fields=['archived_at'])
+            messages.success(
+                request,
+                _('Клиент «%(name)s» отправлен в архив.')
+                % {'name': customer.full_name},
+            )
+        return redirect('customer_detail', pk=customer.pk)
+
+
+class CustomerUnarchiveView(StaffOrAdminRequiredMixin, View):
+    """Вернуть клиента из архива."""
+
+    def post(self, request, pk):
+        customer = get_object_or_404(Customer, pk=pk)
+        if customer.is_archived:
+            customer.archived_at = None
+            customer.save(update_fields=['archived_at'])
+            messages.success(
+                request,
+                _('Клиент «%(name)s» возвращён из архива.')
+                % {'name': customer.full_name},
+            )
+        return redirect('customer_detail', pk=customer.pk)
+
+
 class CustomerDetailView(StaffOrAdminRequiredMixin, DetailView):
     model = Customer
     template_name = 'config/customers/detail.html'
@@ -899,12 +974,17 @@ class CustomerDetailView(StaffOrAdminRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['rentals'] = (
+        qs = (
             self.object.rentals
             .select_related('created_by')
             .prefetch_related('items__product')
             .order_by('-created_at')
         )
+        # Аннотируем теми же суммами, что и список аренд: items_count,
+        # paid_total, deposit_total, outstanding_total — чтобы показать
+        # финансовые детали и остаток «на руках» прямо в карточке клиента.
+        ctx['rentals'] = _annotate_rental_qs(qs)
+        ctx['now'] = timezone.now()
         return ctx
 
 
@@ -1702,6 +1782,7 @@ class CustomerSearchView(View):
                           {'customers': [], 'q': q, 'too_short': True})
         customers = (
             Customer.objects
+            .filter(archived_at__isnull=True)  # архивных не предлагаем в аренду
             .filter(
                 Q(full_name__icontains=q)
                 | Q(phone__icontains=q)
@@ -2031,7 +2112,8 @@ class RentalItemAddView(AdminRequiredMixin, View):
 
 
 class RentalItemEditView(AdminRequiredMixin, View):
-    """Изменить заказанное количество позиции (не меньше уже выданного)."""
+    """Изменить позицию аренды: количество (не меньше уже выданного) и цену
+    за сутки (снимок этой аренды, не влияет на справочник товара)."""
 
     def _get_objs(self, pk, item_pk):
         rental = get_object_or_404(Rental, pk=pk)
@@ -2063,12 +2145,36 @@ class RentalItemEditView(AdminRequiredMixin, View):
                 _('Нельзя заказать меньше уже выданного (%(n)d).')
                 % {'n': issued}
             )
+
+        # Цена — снимок именно этой аренды, правит только админ. Обрабатываем
+        # только если поле пришло (модалка его всегда шлёт); посты без него
+        # оставляют цену как есть. Терпим пробелы-разделители и запятую-дробь.
+        new_price = None
+        if 'price_per_day' in request.POST:
+            price_raw = (request.POST.get('price_per_day') or '').strip()
+            price_norm = (price_raw.replace(' ', '')
+                          .replace('\xa0', '').replace(',', '.'))
+            try:
+                parsed = Decimal(price_norm)
+            except (InvalidOperation, TypeError, ValueError):
+                parsed = None
+            if parsed is None:
+                errors.append(_('Цена за сутки указана неверно.'))
+            elif parsed < 0:
+                errors.append(_('Цена за сутки не может быть отрицательной.'))
+            else:
+                new_price = parsed.quantize(Decimal('0.01'))
+
         if errors:
             return render(request, 'config/rentals/_item_edit_modal.html', {
                 'rental': rental, 'item': item, 'errors': errors,
             })
         item.qty = qty
-        item.save(update_fields=['qty'])
+        update_fields = ['qty']
+        if new_price is not None:
+            item.price_per_day = new_price
+            update_fields.append('price_per_day')
+        item.save(update_fields=update_fields)
         messages.success(request, _('Позиция обновлена.'))
         return _oob_response(request, _reload_rental(rental.pk))
 
