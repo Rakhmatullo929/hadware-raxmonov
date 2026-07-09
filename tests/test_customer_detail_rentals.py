@@ -68,3 +68,9 @@ def test_customer_detail_no_rentals(client_staff, customer):
     resp = client_staff.get(reverse('customer_detail', args=[customer.pk]))
     assert resp.status_code == 200
     assert 'Аренд пока нет' in resp.content.decode()
+
+
+def test_customer_detail_includes_accordion_js(client_staff, customer,
+                                                rental_for_customer):
+    resp = client_staff.get(reverse('customer_detail', args=[customer.pk]))
+    assert 'js/customer-rentals.js' in resp.content.decode()
