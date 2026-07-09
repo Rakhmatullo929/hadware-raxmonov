@@ -1173,6 +1173,24 @@ class RentalDetailView(StaffOrAdminRequiredMixin, DetailView):
         return ctx
 
 
+@role_required('staff', 'admin')
+def rental_card(request, pk):
+    """HTML-фрагмент полной карточки аренды для встраивания в аккордеон
+    карточки клиента. Тот же контент, что на странице аренды (_card.html),
+    но без base.html — грузится HTMX-запросом при раскрытии строки."""
+    rental = get_object_or_404(
+        Rental.objects
+        .select_related('customer', 'created_by', 'closed_by')
+        .prefetch_related(
+            'items__product',
+            'items__movements__created_by',
+            'payments',
+        ),
+        pk=pk,
+    )
+    return render(request, 'config/rentals/_card.html', _rental_card_context(rental))
+
+
 def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
                           amount_inputs=None):
     """Контекст для модалки возврата.
