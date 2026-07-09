@@ -88,70 +88,14 @@
 
 <h2 class="h5 mt-4 mb-2">{% trans "История аренд" %}</h2>
 {% if rentals %}
-<div class="table-responsive">
-    <table class="table table-sm table-hover align-middle">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>{% trans "Создана" %}</th>
-                <th>{% trans "Срок возврата" %}</th>
-                <th>{% trans "Статус" %}</th>
-                <th class="text-end">{% trans "Позиций" %}</th>
-                <th class="text-end">{% trans "На руках" %}</th>
-                <th class="text-end">{% trans "Оплачено / Залог" %}</th>
-                <th>{% trans "Оформил" %}</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for r in rentals %}
-                <tr>
-                    <td>
-                        <a href="{% url 'rental_detail' r.pk %}"
-                           class="fw-semibold text-decoration-none{% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %} text-danger{% endif %}">
-                            #{{ r.id }}
-                        </a>
-                        {% if r.items.all %}
-                            <div class="small text-muted text-truncate" style="max-width: 22rem;">
-                                {% for it in r.items.all %}{{ it.product.name }} ×{{ it.qty }}{% if not forloop.last %} · {% endif %}{% endfor %}
-                            </div>
-                        {% endif %}
-                    </td>
-                    <td class="text-nowrap">{{ r.created_at|date:"d.m.Y H:i" }}</td>
-                    <td class="text-nowrap {% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}text-danger fw-semibold{% endif %}">{{ r.due_date|date:"d.m.Y H:i" }}</td>
-                    <td>
-                        {% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}
-                            <span class="badge bg-danger">{% trans "Просрочена" %}</span>
-                        {% elif r.status == 'active' %}
-                            <span class="badge bg-primary">{% trans "Активна" %}</span>
-                        {% else %}
-                            <span class="badge bg-secondary">{% trans "Закрыта" %}</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">{{ r.items_count }}</td>
-                    <td class="text-end">
-                        {% if r.outstanding_total > 0 %}
-                            <span class="badge bg-warning text-dark">{{ r.outstanding_total }}</span>
-                        {% else %}
-                            <span class="text-muted">0</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end font-monospace small">
-                        {{ r.paid_total }}
-                        <span class="text-muted">/ {{ r.deposit_total }}</span>
-                    </td>
-                    <td>{{ r.created_by.username }}</td>
-                    <td class="text-end">
-                        <a href="{% url 'rental_detail' r.pk %}"
-                           class="btn btn-sm btn-outline-primary text-nowrap">
-                            {% trans "Открыть" %}<i class="bi bi-chevron-right ms-1"></i>
-                        </a>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+    <div id="customer-rentals" class="rental-acc">
+        {% for r in rentals %}
+            <div class="rental-acc-item card mb-2">
+                {% include 'config/customers/_rental_history_row.html' %}
+                <div id="rbody-{{ r.id }}" class="rental-acc-body"></div>
+            </div>
+        {% endfor %}
+    </div>
 {% else %}
     <p class="text-muted">{% trans "Аренд пока нет." %}</p>
 {% endif %}
