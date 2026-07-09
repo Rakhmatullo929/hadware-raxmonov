@@ -87,7 +87,23 @@ docker compose -f docker-compose.prod.yml exec web python manage.py createsuperu
 Day-to-day you never SSH in. The flow:
 
 1. Merge feature work into `main` (CI runs pytest against Postgres).
-2. Open a PR `main` → `production` and merge it (or push `main` to `production`).
+2. **Deploy = fast-forward `production` to `main`:**
+
+   ```bash
+   git push origin main:production
+   ```
+
+   This advances `production` to the exact commit of `main` and triggers the
+   deploy. `production` must always be a pure fast-forward mirror of `main`.
+
+   > ⚠️ Do **not** deploy by opening a PR `main` → `production` and merging it:
+   > every such merge adds a merge commit that lives only on `production`, so the
+   > branches drift apart, GitHub keeps offering a "Compare & pull request", and
+   > `main…production` shows a growing "N ahead". Fast-forward keeps them
+   > byte-for-byte identical (`git rev-list --left-right --count origin/main...origin/production` → `0  0`).
+   >
+   > If they ever diverge again, re-sync with:
+   > `git branch -f production origin/main && git push origin production --force-with-lease`.
 3. The **Deploy** GitHub Action SSHes to the server and runs `deploy/deploy.sh`,
    which rebuilds and restarts the stack. Migrations run automatically in the
    `web` entrypoint.
