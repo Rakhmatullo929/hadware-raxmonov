@@ -196,22 +196,9 @@ class RentalCreateForm(BootstrapFormMixin, forms.ModelForm):
             return timezone.now()
         return dt
 
-    def clean(self):
-        cleaned = super().clean()
-        created = cleaned.get('created_at')
-        due = cleaned.get('due_date')
-        if created and due and due <= created:
-            self.add_error(
-                'due_date',
-                _('Срок возврата должен быть позже даты выдачи.'),
-            )
-        elif due is not None and due <= timezone.now():
-            # При создании новой аренды дата возврата должна быть в будущем.
-            self.add_error(
-                'due_date',
-                _('Срок возврата должен быть позже текущего времени.'),
-            )
-        return cleaned
+    # Намеренно не ограничиваем соотношение дат выдачи/возврата: по просьбе
+    # пользователя оператор может указать любой срок возврата (в т.ч. в прошлом
+    # или раньше даты выдачи) — например, при заведении задним числом.
 
     def clean_customer(self):
         c = self.cleaned_data.get('customer')
@@ -241,16 +228,8 @@ class RentalEditForm(BootstrapFormMixin, forms.ModelForm):
             'note': forms.Textarea(attrs={'rows': 3}),
         }
 
-    def clean(self):
-        cleaned = super().clean()
-        created = cleaned.get('created_at')
-        due = cleaned.get('due_date')
-        if created and due and due <= created:
-            self.add_error(
-                'due_date',
-                _('Срок возврата должен быть позже даты выдачи.'),
-            )
-        return cleaned
+    # Дата возврата не обязана быть позже даты выдачи — админ ставит любой срок
+    # (согласовано с поведением формы создания аренды).
 
 
 class PaymentForm(BootstrapFormMixin, forms.ModelForm):
