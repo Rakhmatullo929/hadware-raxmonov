@@ -67,3 +67,39 @@ def test_admin_can_override_created_at(client_admin, customer, product):
     rental = Rental.objects.get(customer=customer)
     saved = timezone.localtime(rental.created_at).strftime('%Y-%m-%dT%H:%M')
     assert saved == custom_str
+
+
+# ---------- срок возврата: любая дата разрешена ----------
+
+def test_due_date_before_issue_is_allowed(client_admin, customer, product):
+    """Срок возврата может быть раньше даты выдачи и в прошлом — без ошибки
+    «Срок возврата должен быть позже даты выдачи»."""
+    created = timezone.localtime()
+    created_str = created.strftime('%Y-%m-%dT%H:%M')
+    # срок возврата на 2 дня РАНЬШЕ выдачи (и, значит, в прошлом)
+    due_str = (created - timedelta(days=2)).strftime('%Y-%m-%dT%H:%M')
+
+    r = client_admin.post('/rentals/new/', data={
+        'customer': str(customer.pk),
+        'created_at': created_str,
+        'due_date': due_str,
+        'item_product': [str(product.pk)],
+        'item_qty': ['5'],
+    })
+    assert r.status_code == 302, r.content[:300]
+
+    rental = Rental.objects.get(customer=customer)
+    saved_due = timezone.localtime(rental.due_date).strftime('%Y-%m-%dT%H:%M')
+    assert saved_due == due_str
+
+
+def test_edit_form_allows_due_before_created(db):
+    """Форма правки аренды тоже принимает срок возврата раньше выдачи."""
+    from config.forms import RentalEditForm
+    created = timezone.localtime()
+    form = RentalEditForm(data={
+        'created_at': created.strftime('%Y-%m-%dT%H:%M'),
+        'due_date': (created - timedelta(days=1)).strftime('%Y-%m-%dT%H:%M'),
+        'note': '',
+    })
+    assert form.is_valid(), form.errors
