@@ -85,6 +85,7 @@ urlpatterns = [
     path('rentals/', views.RentalListView.as_view(), name='rental_list'),
     path('rentals/new/', views.RentalCreateView.as_view(), name='rental_create'),
     path('rentals/<int:pk>/', views.RentalDetailView.as_view(), name='rental_detail'),
+    path('rentals/<int:pk>/card/', views.rental_card, name='rental_card'),
     path('rentals/<int:pk>/return/', views.RentalReturnView.as_view(), name='rental_return'),
     path(
         'rentals/<int:pk>/return-receipt/',

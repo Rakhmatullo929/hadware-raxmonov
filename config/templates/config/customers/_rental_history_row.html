@@ -1,0 +1,50 @@
+{% load i18n %}
+<div id="crow-{{ r.id }}"
+     class="rental-acc-header card-body py-2 d-flex align-items-center gap-3"
+     role="button" tabindex="0"
+     aria-expanded="false" aria-controls="rbody-{{ r.id }}"
+     data-rental-id="{{ r.id }}"
+     data-card-url="{% url 'rental_card' r.id %}">
+    <i class="bi bi-chevron-right acc-chevron flex-shrink-0"></i>
+
+    <div class="flex-grow-1 min-w-0">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="fw-semibold{% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %} text-danger{% endif %}">#{{ r.id }}</span>
+            {% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}
+                <span class="badge bg-danger">{% trans "Просрочена" %}</span>
+            {% elif r.status == 'active' %}
+                <span class="badge bg-primary">{% trans "Активна" %}</span>
+            {% else %}
+                <span class="badge bg-secondary">{% trans "Закрыта" %}</span>
+            {% endif %}
+            {% if r.outstanding_total > 0 %}
+                <span class="badge bg-warning text-dark" title="{% trans 'На руках' %}">
+                    {% trans "на руках" %}: {{ r.outstanding_total }}
+                </span>
+            {% endif %}
+        </div>
+        {% if r.items.all %}
+            <div class="small text-muted text-truncate">
+                {% for it in r.items.all %}{{ it.product.name }} ×{{ it.qty }}{% if not forloop.last %} · {% endif %}{% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="text-nowrap small text-muted d-none d-md-block">
+        <div>{% trans "Создана" %}: {{ r.created_at|date:"d.m.Y H:i" }}</div>
+        <div class="{% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}text-danger fw-semibold{% endif %}">
+            {% trans "Срок" %}: {{ r.due_date|date:"d.m.Y H:i" }}
+        </div>
+    </div>
+
+    <div class="text-nowrap small text-end d-none d-sm-block">
+        <div class="font-monospace">{{ r.paid_total }} <span class="text-muted">/ {{ r.deposit_total }}</span></div>
+        <div class="text-muted">{{ r.created_by.username }}</div>
+    </div>
+
+    <a href="{% url 'rental_detail' r.id %}"
+       class="btn btn-sm btn-outline-primary text-nowrap flex-shrink-0"
+       onclick="event.stopPropagation()">
+        {% trans "Открыть" %}<i class="bi bi-box-arrow-up-right ms-1"></i>
+    </a>
+</div>

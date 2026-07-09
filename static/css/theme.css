@@ -1027,3 +1027,11 @@ h1.h3, h2.h5 { color: var(--m-text-primary); }
 .stat-card,
 .table-card,
 .card-body > .park-list { contain: layout paint; }
+
+/* Аккордеон истории аренд в карточке клиента */
+.rental-acc-header { cursor: pointer; }
+.rental-acc-header .acc-chevron { transition: transform .15s ease; }
+.rental-acc-header[aria-expanded="true"] .acc-chevron { transform: rotate(90deg); }
+.rental-acc-header[aria-expanded="true"] { background-color: var(--bs-tertiary-bg); }
+.rental-acc-body:not(:empty) { padding: 1rem; border-top: 1px solid var(--bs-border-color); }
+.min-w-0 { min-width: 0; }

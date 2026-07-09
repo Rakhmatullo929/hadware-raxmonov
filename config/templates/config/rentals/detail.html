@@ -4,26 +4,5 @@
 {% block title %}{% blocktrans with rid=rental.id %}Аренда #{{ rid }}{% endblocktrans %} — {% trans "Учёт аренды" %}{% endblock %}
 
 {% block content %}
-<div id="rental-summary">
-    {% include 'config/rentals/_summary.html' %}
-</div>
-
-<div id="rental-items">
-    {% include 'config/rentals/_items_table.html' %}
-</div>
-
-<div class="row g-4">
-    <div class="col-lg-6">
-        <div id="rental-timeline">
-            {% include 'config/rentals/_timeline.html' %}
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div id="rental-payments">
-            {% include 'config/rentals/_payments.html' %}
-        </div>
-    </div>
-</div>
-
-<div id="modal-slot"></div>
+{% include 'config/rentals/_card.html' %}
 {% endblock %}
