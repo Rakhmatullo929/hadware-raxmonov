@@ -291,8 +291,6 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
         .filter(rental_item__rental=rental, kind=Movement.Kind.RETURN)
         .aggregate(q=Sum('qty'))['q'] or 0
     )
-    fine_coef = getattr(settings, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5'))
-
     pdf = _make_contract_pdf(fpdf_module, font_regular, font_bold, layout)
     pdf.add_page()
     w = pdf.epw
@@ -398,12 +396,10 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
                 _('Қайтарилди: %(q)s дона · %(s)s сўм')
                 % {'q': returned_qty, 's': _money(returned_amount)}
             )
-        bullets += [
-            _('Кечиктирилганлик жаримаси коэффициенти: %(c)s — ҳар бир '
-              'кечиктирилган бирлик учун кунлик нархдан.') % {'c': fine_coef},
+        bullets.append(
             _('Опалубка ёки товар қайтарилаётганда тоза ҳолатда '
-              'топширилиши шарт.'),
-        ]
+              'топширилиши шарт.')
+        )
         for b in bullets:
             pdf.multi_cell(0, layout['line_h'], '•  ' + b,
                            new_x='LMARGIN', new_y='NEXT')

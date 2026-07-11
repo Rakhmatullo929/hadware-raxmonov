@@ -126,13 +126,13 @@
 </div>
 
 <div class="row g-3 mb-2">
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-body py-2">
             <div class="small text-muted">{% trans "Создана" %}</div>
             <div>{{ rental.created_at|date:"d.m.Y H:i" }}</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-body py-2 {% if rental.status == 'active' and rental.due_date < now %}bg-danger-subtle{% endif %}">
             <div class="small text-muted">{% trans "Срок возврата" %}</div>
             <div>
@@ -143,16 +143,10 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="card card-body py-2">
             <div class="small text-muted">{% trans "База (qty × дни × цена)" %}</div>
             <div>{{ summary.base }}</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card card-body py-2 {% if summary.fine > 0 %}bg-warning-subtle{% endif %}">
-            <div class="small text-muted">{% blocktrans with coef=summary.coef %}Штраф (k = {{ coef }}){% endblocktrans %}</div>
-            <div>{{ summary.fine }}</div>
         </div>
     </div>
 </div>
@@ -172,7 +166,7 @@
     </div>
     <div class="col-md-6">
         <div class="card card-body py-2 {% if summary.total_due > 0 %}border-warning{% else %}border-success{% endif %}">
-            <div class="small text-muted">{% trans "К доплате (база + штраф − залог − платежи)" %}</div>
+            <div class="small text-muted">{% trans "К доплате (база − залог − платежи)" %}</div>
             <div class="h5 mb-0 {% if summary.total_due > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">
                 {{ summary.total_due }}
             </div>

@@ -151,31 +151,26 @@ def overdue_fine_coef() -> Decimal:
 
 
 def compute_rental_billing(rental, as_of=None) -> dict:
-    """Return a dict with base / fine / paid / deposit / total."""
+    """Return a dict with base / paid / deposit / total.
+
+    Штраф за просрочку не начисляется: единственная плата — база
+    (qty × дни × цена), которая продолжает капать, пока товар на руках.
+    ``fine`` возвращается всегда нулевым (ключ сохранён для совместимости).
+    """
     if as_of is None:
         as_of = timezone.now()
     today = as_of.date()
-    coef = overdue_fine_coef()
 
     base = Decimal('0.00')
-    fine = Decimal('0.00')
-    # due_date теперь DateTimeField — берём дневную часть для счёта дней
-    # просрочки. Один день начинает капать со следующих суток после due_date.
+    fine = Decimal('0.00')  # штраф отменён — всегда 0
+    # due_date — DateTimeField; дневную часть используем только для индикатора
+    # просрочки «+N дн.» в интерфейсе, на сумму это больше не влияет.
     overdue_days = (today - rental.due_date.date()).days
     if overdue_days < 0:
         overdue_days = 0
 
-    is_closed = rental.status == Rental.Status.CLOSED
     for item in rental.items.all():
         base += compute_item_base(item, as_of=as_of)
-        outstanding = item.outstanding_qty
-        if not is_closed and overdue_days > 0 and outstanding > 0:
-            fine += (
-                Decimal(outstanding)
-                * item.price_per_day
-                * coef
-                * Decimal(overdue_days)
-            )
 
     payments = list(rental.payments.all())
     # ADVANCE — это предоплата, фактически зачитывается в счёт аренды,
@@ -196,16 +191,15 @@ def compute_rental_billing(rental, as_of=None) -> dict:
     )
     deposit_held = deposit - refunded
 
-    total_due = base + fine - deposit_held - paid
+    total_due = base - deposit_held - paid
 
     return {
         'base': base.quantize(Decimal('0.01')),
-        'fine': fine.quantize(Decimal('0.01')),
+        'fine': fine.quantize(Decimal('0.01')),  # всегда 0.00 (штраф отменён)
         'overdue_days': overdue_days,
         'paid': paid.quantize(Decimal('0.01')),
         'deposit': deposit.quantize(Decimal('0.01')),
         'refunded': refunded.quantize(Decimal('0.01')),
         'deposit_held': deposit_held.quantize(Decimal('0.01')),
         'total_due': total_due.quantize(Decimal('0.01')),
-        'coef': coef,
     }
