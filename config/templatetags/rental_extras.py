@@ -42,3 +42,16 @@ def dict_lookup(d, key):
         return d.get(key, '')
     except AttributeError:
         return d[key] if key in d else ''
+
+
+@register.simple_tag
+def elided_page_range(page_obj, on_each_side=1, on_ends=1):
+    """Окно номеров страниц с многоточием вокруг текущей.
+
+    Обёртка над ``Paginator.get_elided_page_range`` — её нельзя вызвать из
+    шаблона с аргументом (текущей страницей). Для 6 страниц вернёт 1…6 без
+    сокращений; для многих — напр. ``1 … 9 10 11 … 20``. Многоточие — это
+    ``page_obj.paginator.ELLIPSIS`` (для сравнения в шаблоне)."""
+    return page_obj.paginator.get_elided_page_range(
+        page_obj.number, on_each_side=on_each_side, on_ends=on_ends,
+    )
