@@ -1,0 +1,117 @@
+{% load i18n %}
+{% comment %}
+  Внутренности формы создания аренды (без тега <form> и кнопок submit).
+  Используется и полной страницей (create.html), и модалкой на карточке
+  клиента (_create_rental_modal.html).
+
+  Контекст:
+    form          — RentalCreateForm
+    item_rows     — строки позиций для рендера
+    item_errors   — список ошибок по позициям
+    fixed_customer — если задан, клиент показан только для чтения (модалка);
+    picked_customer — иначе выбранный клиент с возможностью «сменить»;
+    ни то, ни другое — поиск клиента.
+{% endcomment %}
+{% csrf_token %}
+
+{% if item_errors %}
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            {% for e in item_errors %}<li>{{ e }}</li>{% endfor %}
+        </ul>
+    </div>
+{% endif %}
+
+<h2 class="h6 text-muted mt-2">{% trans "1. Шапка" %}</h2>
+<div class="card card-body mb-4">
+    <div class="row g-3">
+        <div class="col-md-12">
+            {% if fixed_customer %}
+                <label class="form-label">{% trans "Клиент" %}</label>
+                <div class="form-control bg-light d-flex align-items-center">
+                    {% if fixed_customer.code %}
+                        <span class="customer-code me-2">№ {{ fixed_customer.code }}</span>
+                    {% endif %}
+                    <strong>{{ fixed_customer.full_name }}</strong>
+                    {% if fixed_customer.phone %}
+                        <span class="text-muted ms-2">{{ fixed_customer.phone }}</span>
+                    {% endif %}
+                </div>
+                <input type="hidden" name="customer" value="{{ fixed_customer.pk }}">
+            {% elif picked_customer %}
+                {% include 'config/rentals/_customer_picked.html' %}
+            {% else %}
+                {% include 'config/rentals/_customer_search_input.html' %}
+            {% endif %}
+            {% for err in form.customer.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+            {% endfor %}
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">{{ form.created_at.label }}</label>
+            {{ form.created_at }}
+            {% if form.created_at.help_text %}
+                <div class="form-text">{{ form.created_at.help_text }}</div>
+            {% endif %}
+            {% for err in form.created_at.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+            {% endfor %}
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">{{ form.due_date.label }}</label>
+            {{ form.due_date }}
+            {% for err in form.due_date.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+            {% endfor %}
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">{{ form.initial_deposit.label }}</label>
+            {{ form.initial_deposit }}
+            {% for err in form.initial_deposit.errors %}
+                <div class="invalid-feedback d-block">{{ err }}</div>
+            {% endfor %}
+        </div>
+        <div class="col-12">
+            <label class="form-label">{{ form.note.label }}</label>
+            {{ form.note }}
+        </div>
+    </div>
+</div>
+
+<h2 class="h6 text-muted">{% trans "2. Позиции" %}</h2>
+<div class="card card-body mb-3">
+    <div id="item-rows">
+        {% for row in item_rows %}
+            {% include 'config/rentals/_item_row.html' with row=row %}
+        {% endfor %}
+    </div>
+    <div>
+        <button type="button"
+                class="btn btn-outline-secondary btn-sm"
+                hx-get="{% url 'rental_item_row_new' %}"
+                hx-target="#item-rows"
+                hx-swap="beforeend">
+            {% trans "+ Позиция" %}
+        </button>
+    </div>
+</div>
+
+<div class="card card-body mb-3 bg-body-tertiary">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-4">
+            <div class="small text-muted">{% trans "Период аренды" %}</div>
+            <div><span id="total-days" class="h5 mb-0">0</span>
+                <span class="text-muted">{% trans "дн." %}</span></div>
+        </div>
+        <div class="col-md-4">
+            <div class="small text-muted">{% trans "Σ за позиции" %}</div>
+            <div><span id="items-total" class="h5 mb-0 text-body">0.00</span>
+                <span class="text-muted">{% trans "сум" %}</span></div>
+        </div>
+        <div class="col-md-4">
+            <div class="small text-muted">{% trans "Σ к оплате (Σ × дни)" %}</div>
+            <div><span id="grand-total" class="h4 mb-0 text-primary">0.00</span>
+                <span class="text-muted">{% trans "сум" %}</span></div>
+        </div>
+    </div>
+</div>
