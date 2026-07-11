@@ -368,6 +368,11 @@ class RentalItem(models.Model):
         return parse_included_kit(self.product.included_kit, self.qty)
 
     @property
+    def line_daily_cost(self) -> Decimal:
+        """Сумма позиции за сутки: цена за сутки × количество (без учёта дней)."""
+        return self.price_per_day * self.qty
+
+    @property
     def issued_qty(self) -> int:
         return (
             self.movements
