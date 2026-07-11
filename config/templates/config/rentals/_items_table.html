@@ -16,6 +16,7 @@
                 <th>{% trans "Товар" %}</th>
                 <th class="text-end">{% trans "Кол-во" %}</th>
                 <th class="text-end">{% trans "Цена/сут." %}</th>
+                <th class="text-end">{% trans "Σ/сут. (цена × кол-во)" %}</th>
                 <th class="text-end">{% trans "Выдано" %}</th>
                 <th class="text-end">{% trans "Возвращено" %}</th>
                 <th class="text-end">{% trans "Не возвращено" %}</th>
@@ -49,6 +50,7 @@
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
                     <td class="text-end">{{ it.price_per_day }}</td>
+                    <td class="text-end fw-semibold">{{ it.line_daily_cost }}</td>
                     <td class="text-end">{{ it.issued_qty }}</td>
                     <td class="text-end">{{ it.returned_qty }}</td>
                     <td class="text-end">

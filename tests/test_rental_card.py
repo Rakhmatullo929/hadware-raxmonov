@@ -62,3 +62,19 @@ def test_rental_card_allows_admin(client_admin, rental):
     r, _ = rental
     resp = client_admin.get(reverse('rental_card', args=[r.pk]))
     assert resp.status_code == 200
+
+
+def test_line_daily_cost_property(rental):
+    """Сумма позиции за сутки = цена/сут × кол-во."""
+    _, item = rental          # price 100.00 × qty 7
+    assert item.line_daily_cost == Decimal('700.00')
+
+
+def test_items_table_shows_line_daily_cost_column(client_staff, rental):
+    r, item = rental
+    resp = client_staff.get(reverse('rental_card', args=[r.pk]))
+    body = resp.content.decode()
+    # Новый столбец «Σ/сут.» с суммой строки (цена × кол-во).
+    assert 'Σ/сут.' in body
+    assert item.line_daily_cost == Decimal('700.00')
+    assert '700,00' in body        # 100.00 × 7 → '700,00' (ru-локаль)
