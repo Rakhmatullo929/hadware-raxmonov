@@ -152,12 +152,12 @@ def test_two_issues_one_return_consumes_oldest_first(actors):
     assert compute_item_unit_days(item, as_of=as_of) == 4 * 10 + 1 * 8 + 5 * 8
 
 
-def test_rental_billing_includes_overdue_fine_and_subtracts_payments(actors):
-    """End-to-end totals: base + fine - deposit_held - paid."""
-    today = timezone.localdate()
+def test_rental_billing_no_fine_base_minus_payments(actors):
+    """Штраф отменён: даже с просрочкой начисляется только база.
+    total = база − залог − платежи (без штрафа)."""
     rental = Rental.objects.create(
         customer=actors['customer'],
-        due_date=timezone.now() - timedelta(days=3),  # 3 days overdue
+        due_date=timezone.now() - timedelta(days=3),  # 3 дня просрочки
         created_by=actors['user'],
     )
     item = RentalItem.objects.create(
@@ -173,15 +173,37 @@ def test_rental_billing_includes_overdue_fine_and_subtracts_payments(actors):
                            kind=Payment.Kind.DEPOSIT)
 
     summary = compute_rental_billing(rental)
-    # 2 units * (~10 days) = 20 unit-days × 100 = 2000 base
-    # fine: 2 outstanding × 100 × 1.5 × 3 = 900
-    # deposit held: 500
-    # total: 2000 + 900 - 500 - 0 = 2400
+    # 2 units * ~10 days = 20 unit-days × 100 = 2000 база
+    # штраф больше не начисляется → 0
+    # total: 2000 − 500 (залог) − 0 = 1500
     assert summary['base'] == Decimal('2000.00')
-    assert summary['fine'] == Decimal('900.00')
+    assert summary['fine'] == Decimal('0.00')
     assert summary['deposit_held'] == Decimal('500.00')
     assert summary['paid'] == Decimal('0.00')
-    assert summary['total_due'] == Decimal('2400.00')
+    assert summary['total_due'] == Decimal('1500.00')
+
+
+def test_overdue_outstanding_total_equals_base(actors):
+    """Как на карточке аренды: просрочено, товар на руках, платежей нет →
+    к доплате = база (qty × дни × цена), никакого штрафа."""
+    rental = Rental.objects.create(
+        customer=actors['customer'],
+        due_date=timezone.now() - timedelta(days=5),   # просрочено на 5 дней
+        created_by=actors['user'],
+    )
+    item = RentalItem.objects.create(
+        rental=rental, product=actors['product'], qty=4,
+        price_per_day=Decimal('40000.00'),
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=4,
+        date=timezone.now() - timedelta(days=2), created_by=actors['user'],
+    )
+    summary = compute_rental_billing(rental)
+    # база = 4 шт × 2 дня × 40000 = 320000; штраф 0; к доплате = база
+    assert summary['base'] == Decimal('320000.00')
+    assert summary['fine'] == Decimal('0.00')
+    assert summary['total_due'] == summary['base']
 
 
 def test_item_base_uses_stored_return_amount(actors):

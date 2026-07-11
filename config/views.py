@@ -1527,7 +1527,6 @@ def rental_contract(request, pk):
         'total_deposit_due': total_deposit_due,
         'returned_qty': returned_qty,
         'returned_amount': returned_amount,
-        'fine_coef': getattr(_s, 'RENTAL_OVERDUE_FINE_COEF', Decimal('1.5')),
         'back_url': reverse('rental_detail', args=[rental.pk]),
         'size': size,
     })
