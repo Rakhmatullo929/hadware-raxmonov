@@ -74,3 +74,40 @@ def test_customer_detail_includes_accordion_js(client_staff, customer,
                                                 rental_for_customer):
     resp = client_staff.get(reverse('customer_detail', args=[customer.pk]))
     assert 'js/customer-rentals.js' in resp.content.decode()
+
+
+def test_rental_history_line_is_bounded(client_staff, customer, category,
+                                        staff_user):
+    """Список товаров в строке аренды ограничен 6 позициями + «ещё K» —
+    вёрстка не ломается даже на сотнях позиций (баг с overflow)."""
+    from config.models import Product
+    r = Rental.objects.create(
+        customer=customer,
+        due_date=timezone.now() + timedelta(days=5),
+        created_by=staff_user,
+    )
+    for i in range(9):                      # 9 разных товаров, по 1 позиции
+        p = Product.objects.create(
+            name=f'УникТовар{i:02d}', category=category, unit='шт',
+            daily_price=Decimal('10.00'),
+        )
+        item = RentalItem.objects.create(
+            rental=r, product=p, qty=1, price_per_day=p.daily_price,
+        )
+        Movement.objects.create(
+            rental_item=item, kind=Movement.Kind.ISSUE, qty=1,
+            created_by=staff_user,
+        )
+
+    body = client_staff.get(
+        reverse('customer_detail', args=[customer.pk])
+    ).content.decode()
+    assert 'ещё 3' in body                  # 9 − 6 = 3 в остатке
+    assert 'УникТовар00' in body            # первый показан
+    assert 'УникТовар08' not in body        # 9-й (за пределом 6) не рендерится
+    # Комментарий шаблона не должен просачиваться в вывод (был баг: многострочный
+    # {# #} не является комментарием в Django и рендерился как текст).
+    assert 'CSS-обрезки' not in body
+    assert 'Показываем не более' not in body
+    assert '{#' not in body and '{%' not in body
+

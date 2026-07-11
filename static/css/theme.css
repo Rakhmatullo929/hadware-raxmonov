@@ -1029,7 +1029,10 @@ h1.h3, h2.h5 { color: var(--m-text-primary); }
 .card-body > .park-list { contain: layout paint; }
 
 /* Аккордеон истории аренд в карточке клиента */
-.rental-acc-header { cursor: pointer; }
+/* overflow:hidden — предохранитель: длинный контент строки (список товаров)
+   не может вылезти за карточку и сломать макет, даже если flex-обрезка
+   почему-то не сработала. */
+.rental-acc-header { cursor: pointer; overflow: hidden; }
 .rental-acc-header .acc-chevron { transition: transform .15s ease; }
 .rental-acc-header[aria-expanded="true"] .acc-chevron { transform: rotate(90deg); }
 .rental-acc-header[aria-expanded="true"] { background-color: var(--bs-tertiary-bg); }
