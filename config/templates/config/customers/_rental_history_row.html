@@ -23,11 +23,18 @@
                 </span>
             {% endif %}
         </div>
-        {% if r.items.all %}
+        {% with items_total=r.items.all|length %}
+        {% if items_total %}
+            {% comment %}
+              Показываем не более 6 позиций + счётчик остатка: строка ограничена
+              на рендере (HTML), поэтому вёрстка не ломается даже на сотнях
+              позиций и не зависит от CSS-обрезки.
+            {% endcomment %}
             <div class="small text-muted text-truncate">
-                {% for it in r.items.all %}{{ it.product.name }} ×{{ it.qty }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                {% for it in r.items.all|slice:":6" %}{{ it.product.name }} ×{{ it.qty }}{% if not forloop.last %} · {% endif %}{% endfor %}{% if items_total > 6 %} · <span class="fw-semibold">ещё {{ items_total|add:"-6" }}</span>{% endif %}
             </div>
         {% endif %}
+        {% endwith %}
     </div>
 
     <div class="text-nowrap small text-muted d-none d-md-block">
