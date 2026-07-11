@@ -1625,6 +1625,12 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
     template_name = 'config/rentals/create.html'
 
     def get(self, request):
+        customer = self._modal_customer(request)
+        if customer is not None:
+            ctx = self._initial_context(request)
+            ctx['customer'] = customer
+            return render(request,
+                          'config/rentals/_create_rental_modal.html', ctx)
         return render(request, self.template_name, self._initial_context(request))
 
     def post(self, request):
@@ -1632,6 +1638,8 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
         rows = self._parse_item_rows(request.POST)
         item_errors = self._validate_items(rows)
         ok = form.is_valid() and not item_errors
+        # Модальный режим (карточка клиента): ?customer=<pk> + htmx.
+        modal_customer = self._modal_customer(request)
 
         if ok:
             try:
@@ -1648,17 +1656,37 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
                         'qty': sum(r['qty'] for r in rows),
                     },
                 )
-                return HttpResponseRedirect(
-                    reverse('rental_detail', args=[rental.pk])
-                )
+                url = reverse('rental_detail', args=[rental.pk])
+                if modal_customer is not None:
+                    # htmx-модалка: полный редирект браузера на страницу аренды.
+                    resp = HttpResponse(status=204)
+                    resp['HX-Redirect'] = url
+                    return resp
+                return HttpResponseRedirect(url)
 
         ctx = self._initial_context(request)
         ctx['form'] = form
         ctx['item_rows'] = self._rows_for_template(rows)
         ctx['item_errors'] = item_errors
+        if modal_customer is not None:
+            # Ошибки валидации — перерисовываем модалку на месте.
+            ctx['customer'] = modal_customer
+            return render(request,
+                          'config/rentals/_create_rental_modal.html', ctx)
         if form.cleaned_data.get('customer'):
             ctx['picked_customer'] = form.cleaned_data['customer']
         return render(request, self.template_name, ctx)
+
+    def _modal_customer(self, request):
+        """Клиент для модального режима создания аренды с карточки клиента:
+        ?customer=<pk> и htmx-запрос. Архивных не обслуживаем (их не выбрать
+        и в обычном поиске)."""
+        pk = request.GET.get('customer', '')
+        if getattr(request, 'htmx', False) and pk.isdigit():
+            return Customer.objects.filter(
+                pk=int(pk), archived_at__isnull=True,
+            ).first()
+        return None
 
     def _initial_context(self, request):
         return {

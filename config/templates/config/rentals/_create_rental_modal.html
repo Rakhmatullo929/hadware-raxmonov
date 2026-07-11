@@ -1,0 +1,38 @@
+{% load i18n %}
+{% comment %}
+  Модалка создания аренды для конкретного клиента (карточка клиента).
+  Клиент зафиксирован (fixed_customer) — форма та же, что на полной странице,
+  через общий партиал _rental_form.html. Инлайн-модалка (без Bootstrap JS),
+  живёт в #create-modal-slot; закрытие — очистка слота.
+{% endcomment %}
+<div class="modal show d-block" tabindex="-1"
+     style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <form class="modal-content"
+              hx-post="{% url 'rental_create' %}?customer={{ customer.pk }}"
+              hx-target="#create-modal-slot"
+              hx-swap="innerHTML">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-lg me-1"></i>{% trans "Новая аренда" %}
+                    <span class="text-muted">· {{ customer.full_name }}</span>
+                </h5>
+                <button type="button" class="btn-close"
+                        aria-label="{% trans 'Закрыть' %}"
+                        onclick="document.getElementById('create-modal-slot').innerHTML=''"></button>
+            </div>
+            <div class="modal-body">
+                {% include 'config/rentals/_rental_form.html' with fixed_customer=customer %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link"
+                        onclick="document.getElementById('create-modal-slot').innerHTML=''">
+                    {% trans "Отмена" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check2 me-1"></i>{% trans "Создать аренду" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
