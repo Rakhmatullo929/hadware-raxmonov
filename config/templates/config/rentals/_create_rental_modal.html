@@ -7,7 +7,8 @@
 {% endcomment %}
 <div class="modal show d-block" tabindex="-1"
      style="background-color: rgba(0,0,0,0.5);">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"
+         style="--bs-modal-width: 1500px;">
         <form class="modal-content"
               hx-post="{% url 'rental_create' %}?customer={{ customer.pk }}"
               hx-target="#create-modal-slot"
