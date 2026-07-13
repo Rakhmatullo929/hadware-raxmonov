@@ -62,7 +62,9 @@
             var subtotal = daily * Math.max(days, 1);
             itemsSum += daily;
             perPeriodSum += subtotal;
-            if (subEl) subEl.textContent = fmt.format(subtotal);
+            // Подытог в строке — стоимость за СУТКИ (цена * qty), без умножения
+            // на срок аренды. Итог за весь период считается в grand-total.
+            if (subEl) subEl.textContent = fmt.format(daily);
         });
         if (itemsTotalEl) itemsTotalEl.textContent = fmt.format(itemsSum);
         if (grandTotalEl) grandTotalEl.textContent = fmt.format(perPeriodSum);
