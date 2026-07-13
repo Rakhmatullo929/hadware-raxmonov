@@ -2250,6 +2250,48 @@ class RentalItemEditView(AdminRequiredMixin, View):
         return _oob_response(request, _reload_rental(rental.pk))
 
 
+class RentalMovementEditView(AdminRequiredMixin, View):
+    """Правка времени (Movement.date) у движения ВОЗВРАТА. Только admin.
+
+    Сумму не трогает; работает и на закрытой аренде («в любое время»).
+    Движение обязано быть возвратом этой аренды — иначе 404.
+    """
+
+    def _get_objs(self, pk, movement_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        movement = get_object_or_404(
+            Movement.objects.select_related('rental_item__product'),
+            pk=movement_pk, rental_item__rental=rental,
+            kind=Movement.Kind.RETURN,
+        )
+        return rental, movement
+
+    def _render_modal(self, request, rental, movement, date_value, errors):
+        return render(request, 'config/rentals/_movement_edit_modal.html', {
+            'rental': rental, 'movement': movement,
+            'date_value': date_value, 'errors': errors,
+        })
+
+    def get(self, request, pk, movement_pk):
+        rental, movement = self._get_objs(pk, movement_pk)
+        date_value = timezone.localtime(movement.date).strftime('%Y-%m-%dT%H:%M')
+        return self._render_modal(request, rental, movement, date_value, [])
+
+    def post(self, request, pk, movement_pk):
+        rental, movement = self._get_objs(pk, movement_pk)
+        raw = (request.POST.get('date') or '').strip()
+        new_dt = _parse_local_dt(raw)
+        if new_dt is None:
+            return self._render_modal(
+                request, rental, movement, raw,
+                [_('Укажите корректные дату и время.')],
+            )
+        movement.date = new_dt
+        movement.save(update_fields=['date'])
+        messages.success(request, _('Время возврата обновлено.'))
+        return _oob_response(request, _reload_rental(rental.pk))
+
+
 class RentalItemRemoveView(AdminRequiredMixin, View):
     """Удалить позицию. Разрешено только если по ней ничего не выдано."""
 

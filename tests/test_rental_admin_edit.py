@@ -232,3 +232,89 @@ def test_item_add_reopens_closed_rental(client_admin, rental, product):
     rental.refresh_from_db()
     assert rental.status == Rental.Status.ACTIVE
     assert rental.closed_at is None
+
+
+# ---------- return-movement time edit ----------
+
+def test_movement_time_edit_changes_date_keeps_amount(
+    client_admin, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    new_local = timezone.localtime(timezone.now() - timedelta(days=3)).replace(
+        second=0, microsecond=0,
+    )
+    resp = client_admin.post(
+        f'/rentals/{r.pk}/movement/{m1.pk}/edit/',
+        {'date': new_local.strftime('%Y-%m-%dT%H:%M')},
+        HTTP_HX_REQUEST='true',
+    )
+    assert resp.status_code == 200
+    m1.refresh_from_db()
+    assert timezone.localtime(m1.date).strftime('%Y-%m-%dT%H:%M') == \
+        new_local.strftime('%Y-%m-%dT%H:%M')
+    assert m1.amount == Decimal('400.00')  # сумма не тронута
+
+
+def test_movement_time_edit_modal_prefills_current_time(
+    client_admin, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    resp = client_admin.get(f'/rentals/{r.pk}/movement/{m1.pk}/edit/')
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert 'name="date"' in body
+    assert timezone.localtime(m1.date).strftime('%Y-%m-%dT%H:%M') in body
+
+
+def test_movement_time_edit_works_on_closed_rental(
+    client_admin, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    r.status = Rental.Status.CLOSED
+    r.closed_at = timezone.now()
+    r.save(update_fields=['status', 'closed_at'])
+    new_local = timezone.localtime(timezone.now() - timedelta(days=1)).replace(
+        second=0, microsecond=0,
+    )
+    resp = client_admin.post(
+        f'/rentals/{r.pk}/movement/{m1.pk}/edit/',
+        {'date': new_local.strftime('%Y-%m-%dT%H:%M')},
+        HTTP_HX_REQUEST='true',
+    )
+    assert resp.status_code == 200
+    m1.refresh_from_db()
+    assert timezone.localtime(m1.date).strftime('%Y-%m-%dT%H:%M') == \
+        new_local.strftime('%Y-%m-%dT%H:%M')
+
+
+def test_movement_time_edit_rejects_invalid_date(
+    client_admin, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    original = m1.date
+    resp = client_admin.post(
+        f'/rentals/{r.pk}/movement/{m1.pk}/edit/',
+        {'date': 'garbage'},
+        HTTP_HX_REQUEST='true',
+    )
+    assert resp.status_code == 200
+    assert 'корректные дату и время' in resp.content.decode()
+    m1.refresh_from_db()
+    assert m1.date == original
+
+
+def test_movement_time_edit_forbidden_for_staff(
+    client_staff, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    resp = client_staff.get(f'/rentals/{r.pk}/movement/{m1.pk}/edit/')
+    assert resp.status_code in (302, 403)
+
+
+def test_movement_time_edit_rejects_issue_movement(
+    client_admin, rental_with_returns,
+):
+    r, item, m1, m2 = rental_with_returns
+    issue = Movement.objects.get(rental_item=item, kind=Movement.Kind.ISSUE)
+    resp = client_admin.get(f'/rentals/{r.pk}/movement/{issue.pk}/edit/')
+    assert resp.status_code == 404
