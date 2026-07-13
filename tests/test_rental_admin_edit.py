@@ -318,3 +318,28 @@ def test_movement_time_edit_rejects_issue_movement(
     issue = Movement.objects.get(rental_item=item, kind=Movement.Kind.ISSUE)
     resp = client_admin.get(f'/rentals/{r.pk}/movement/{issue.pk}/edit/')
     assert resp.status_code == 404
+
+
+# ---------- timeline edit affordance ----------
+
+def test_timeline_shows_edit_pencil_for_admin(client_admin, rental_with_returns):
+    r, item, m1, m2 = rental_with_returns
+    resp = client_admin.get(f'/rentals/{r.pk}/')
+    assert resp.status_code == 200
+    assert f'/rentals/{r.pk}/movement/{m1.pk}/edit/' in resp.content.decode()
+
+
+def test_timeline_hides_edit_pencil_for_staff(client_staff, rental_with_returns):
+    r, item, m1, m2 = rental_with_returns
+    resp = client_staff.get(f'/rentals/{r.pk}/')
+    assert resp.status_code == 200
+    assert f'/rentals/{r.pk}/movement/{m1.pk}/edit/' not in resp.content.decode()
+
+
+def test_timeline_no_edit_pencil_on_issue_row(client_admin, rental_with_returns):
+    r, item, m1, m2 = rental_with_returns
+    issue = Movement.objects.get(rental_item=item, kind=Movement.Kind.ISSUE)
+    resp = client_admin.get(f'/rentals/{r.pk}/')
+    assert resp.status_code == 200
+    assert f'/rentals/{r.pk}/movement/{issue.pk}/edit/' \
+        not in resp.content.decode()

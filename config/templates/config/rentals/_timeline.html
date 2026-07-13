@@ -21,6 +21,15 @@
                 </div>
                 <span class="text-muted small text-nowrap ms-2">
                     {{ m.date|date:"d.m.Y H:i" }} · {{ m.created_by.username }}
+                    {% if is_admin and m.kind != 'issue' %}
+                        <button type="button"
+                                class="btn btn-sm btn-link p-0 ms-1 align-baseline"
+                                title="{% trans 'Изменить время' %}"
+                                hx-get="{% url 'rental_movement_edit' rental.pk m.pk %}"
+                                hx-target="#modal-slot" hx-swap="innerHTML">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    {% endif %}
                 </span>
             </li>
         {% endfor %}
