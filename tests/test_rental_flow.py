@@ -230,3 +230,55 @@ def test_contract_print_page_renders(client_admin, admin_user, customer, product
 def test_404_template_used_for_unknown_rental(client_admin):
     r = client_admin.get('/rentals/99999/')
     assert r.status_code == 404
+
+
+# ---------- return time selection at intake ----------
+
+def test_return_modal_shows_return_at_field(client_admin, customer, product):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=5)
+    r = client_admin.get(f'/rentals/{rental.pk}/return/')
+    assert r.status_code == 200
+    assert 'name="return_at"' in r.content.decode()
+
+
+def test_return_at_saved_and_drives_blank_amount(client_admin, customer, product):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=10)
+    # возврат датируем на 5 дней позже выдачи → авто-аренда за 5 дней, не за 1
+    return_at = timezone.localtime(timezone.now() + timedelta(days=5)).replace(
+        second=0, microsecond=0,
+    )
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '4',
+        f'amount_{item.pk}': '',           # пусто → авторасчёт
+        'return_at': return_at.strftime('%Y-%m-%dT%H:%M'),
+    }, HTTP_HX_REQUEST='true')
+    assert r.status_code == 200
+    ret = Movement.objects.get(rental_item=item, kind=Movement.Kind.RETURN)
+    # время сохранено ровно как отдали (сверяем в локальном поясе)
+    assert timezone.localtime(ret.date).strftime('%Y-%m-%dT%H:%M') == \
+        return_at.strftime('%Y-%m-%dT%H:%M')
+    # авто-сумма за 5-дневный интервал строго больше, чем «тот же день» (4×1×100=400)
+    assert ret.amount > Decimal('400.00')
+
+
+def test_return_without_return_at_defaults_to_now(client_admin, customer, product):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=5)
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '2',
+    }, HTTP_HX_REQUEST='true')
+    assert r.status_code == 200
+    ret = Movement.objects.get(rental_item=item, kind=Movement.Kind.RETURN)
+    assert abs((timezone.now() - ret.date).total_seconds()) < 60
+
+
+def test_return_rejects_invalid_return_at(client_admin, customer, product):
+    rental, item = _make_rental_with_issue(client_admin, customer, product, qty=5)
+    r = client_admin.post(f'/rentals/{rental.pk}/return/', data={
+        f'qty_{item.pk}': '2',
+        'return_at': 'not-a-date',
+    }, HTTP_HX_REQUEST='true')
+    assert r.status_code == 200
+    assert 'корректные дату и время' in r.content.decode()
+    assert not Movement.objects.filter(
+        rental_item=item, kind=Movement.Kind.RETURN,
+    ).exists()

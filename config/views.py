@@ -1191,8 +1191,23 @@ def rental_card(request, pk):
     return render(request, 'config/rentals/_card.html', _rental_card_context(rental))
 
 
+def _parse_local_dt(raw):
+    """'2026-07-14T03:22' (datetime-local) → aware-datetime в текущем поясе.
+
+    Пусто или неразбираемо → None (вызывающий решает: дефолт «сейчас» или ошибка).
+    """
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    try:
+        naive = datetime.strptime(raw, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        return None
+    return timezone.make_aware(naive, timezone.get_current_timezone())
+
+
 def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
-                          amount_inputs=None):
+                          amount_inputs=None, return_at_value=None):
     """Контекст для модалки возврата.
 
     Для каждой позиции считаем ``days_avg`` — округлённые «дни на единицу»
@@ -1220,6 +1235,8 @@ def _return_modal_context(rental, outstanding_items, *, inputs, errors, note,
         'note': note,
         'period_from': rental.created_at,
         'period_to': timezone.now(),
+        'return_at_value': return_at_value or timezone.localtime(
+            timezone.now()).strftime('%Y-%m-%dT%H:%M'),
     }
 
 
@@ -1312,6 +1329,12 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
         amount_inputs = {}
         plan = []  # list of (item, qty, amount|None)
         errors = []
+        return_at_raw = (request.POST.get('return_at') or '').strip()
+        return_at = _parse_local_dt(return_at_raw)
+        if return_at is None:
+            if return_at_raw:
+                errors.append(_('Укажите корректные дату и время возврата.'))
+            return_at = timezone.now()
         amount_parser = MoneyDecimalField(
             max_digits=12, decimal_places=2, required=False,
         )
@@ -1376,18 +1399,21 @@ class RentalReturnView(StaffOrAdminRequiredMixin, View):
                           _return_modal_context(rental, outstanding_items,
                                                 inputs=inputs, errors=errors,
                                                 note=note,
-                                                amount_inputs=amount_inputs))
+                                                amount_inputs=amount_inputs,
+                                                return_at_value=return_at_raw))
 
         created_ids = []
         with transaction.atomic():
             for it, qty, amount in plan:
                 if amount is None:
-                    amount = billing.compute_return_amount_for_qty(it, qty)
+                    amount = billing.compute_return_amount_for_qty(
+                        it, qty, as_of=return_at)
                 mv = Movement.objects.create(
                     rental_item=it,
                     kind=Movement.Kind.RETURN,
                     qty=qty,
                     amount=amount,
+                    date=return_at,
                     note=note,
                     created_by=request.user,
                 )
