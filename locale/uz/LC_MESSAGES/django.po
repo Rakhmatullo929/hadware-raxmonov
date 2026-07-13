@@ -1451,6 +1451,9 @@ msgstr "Tovar turi"
 msgid "За день"
 msgstr "Kuniga"
 
+msgid "Дней"
+msgstr "Kun"
+
 msgid "Стоимость"
 msgstr "Narxi"
 

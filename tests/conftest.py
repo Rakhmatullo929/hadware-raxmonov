@@ -111,6 +111,33 @@ def rental_with_kit_return(db, customer, category, staff_user):
 
 
 @pytest.fixture
+def rental_with_multiday_return(db, customer, product, staff_user):
+    """Аренда: выдано 16 шт 6 дней назад, полный возврат сейчас, авто-сумма.
+
+    unit_days = 16 × 6 = 96, сумма = 96 × 100 = 9600. На чеке это должно
+    читаться как «16 шт × 100/день × 6 дн = 9600», а не как разовое начисление.
+    """
+    now = timezone.now()
+    r = Rental.objects.create(
+        customer=customer,
+        due_date=now + timedelta(days=1),
+        created_by=staff_user,
+    )
+    item = RentalItem.objects.create(
+        rental=r, product=product, qty=16, price_per_day=product.daily_price,
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=16,
+        date=now - timedelta(days=6), created_by=staff_user,
+    )
+    m = Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=16,
+        amount=Decimal('9600.00'), date=now, created_by=staff_user,
+    )
+    return r, item, m
+
+
+@pytest.fixture
 def rental_with_returns(db, customer, product, staff_user):
     """Аренда: выдано 10, два возврата (4 и 3) с явными суммами 400 и 300."""
     r = Rental.objects.create(

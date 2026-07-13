@@ -13,6 +13,32 @@ def test_build_return_receipt_pdf_valid(rental_with_returns):
     assert len(pdf) > 500
 
 
+def test_pdf_shows_days_column(rental_with_multiday_return):
+    """PDF-чек печатает колонку «Дней» и её значение (6) для аренды на 6 дней."""
+    r, item, m = rental_with_multiday_return
+    ctx = build_return_receipt_context(r, [m.id])
+
+    from config.return_receipt_pdf import load_fpdf
+    fpdf_module = load_fpdf()
+    captured = []
+    orig_cell = fpdf_module.FPDF.cell
+
+    def rec_cell(self, *a, **k):
+        if len(a) > 2 and isinstance(a[2], str):
+            captured.append(a[2])
+        return orig_cell(self, *a, **k)
+
+    fpdf_module.FPDF.cell = rec_cell
+    try:
+        build_return_receipt_pdf(ctx)
+    finally:
+        fpdf_module.FPDF.cell = orig_cell
+
+    blob = ' '.join(captured)
+    assert 'Дней' in blob   # заголовок колонки
+    assert '6' in blob      # число дней в строке
+
+
 def test_pdf_endpoint_attachment(client_staff, rental_with_returns):
     r, item, m1, m2 = rental_with_returns
     url = reverse('rental_return_receipt_pdf', args=[r.pk]) + f'?m={m1.id},{m2.id}'

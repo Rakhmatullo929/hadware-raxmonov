@@ -29,6 +29,28 @@ def test_build_context_totals(rental_with_returns, product):
     assert ctx['receipt_dt'] is not None
 
 
+def test_build_context_exposes_days(rental_with_multiday_return):
+    """Строка чека несёт число дней аренды (unit_days / qty), чтобы
+    Кол-во × За день × Дней = Стоимость сходилось на глазах у клиента."""
+    r, item, m = rental_with_multiday_return
+    ctx = build_return_receipt_context(r, [m.id])
+    row = ctx['rows'][0]
+    assert row['qty'] == 16
+    assert row['days'] == 6
+    assert row['price_per_day'] == Decimal('100.00')
+    assert row['amount'] == Decimal('9600.00')
+    # Разбивка сходится: 16 × 100 × 6 == 9600.
+    assert row['qty'] * row['price_per_day'] * row['days'] == row['amount']
+
+
+def test_receipt_html_shows_days_column(client_staff, rental_with_multiday_return):
+    r, item, m = rental_with_multiday_return
+    url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
+    body = client_staff.get(url).content.decode()
+    assert 'Дней' in body      # заголовок новой колонки
+    assert '9600.00' in body   # стоимость с учётом дней
+
+
 def test_build_context_ignores_foreign_movements(
     rental_with_returns, customer, product, staff_user,
 ):

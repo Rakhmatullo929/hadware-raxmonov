@@ -41,6 +41,7 @@
             <th>{% trans "Наименование" %}</th>
             <th class="text-end">{% trans "Кол-во" %}</th>
             <th class="text-end">{% trans "За день" %}</th>
+            <th class="text-end">{% trans "Дней" %}</th>
             <th class="text-end">{% trans "Стоимость" %}</th>
         </tr>
     </thead>
@@ -60,6 +61,7 @@
             </td>
             <td class="text-end">{{ row.qty }} {{ row.unit }}</td>
             <td class="text-end font-monospace">{{ row.price_per_day|unlocalize }}</td>
+            <td class="text-end">{{ row.days|unlocalize }}</td>
             <td class="text-end font-monospace">{{ row.amount|unlocalize }}</td>
         </tr>
         {% endfor %}
@@ -68,6 +70,7 @@
         <tr class="table-light fw-bold">
             <td colspan="3" class="text-end">{% trans "Итого" %}</td>
             <td class="text-end">{{ total_qty }}</td>
+            <td></td>
             <td></td>
             <td class="text-end font-monospace">{{ total_amount|unlocalize }}</td>
         </tr>

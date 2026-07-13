@@ -70,11 +70,12 @@ def build_return_receipt_pdf(ctx) -> bytes:
 
     # ---- Таблица позиций ----
     headers = [
-        ('№', 0.08, 'C'),
-        (_('Тип'), 0.22, 'L'),
-        (_('Наименование'), 0.34, 'L'),
+        ('№', 0.06, 'C'),
+        (_('Тип'), 0.20, 'L'),
+        (_('Наименование'), 0.30, 'L'),
         (_('Кол-во'), 0.12, 'R'),
-        (_('За день'), 0.12, 'R'),
+        (_('За день'), 0.11, 'R'),
+        (_('Дней'), 0.09, 'R'),
         (_('Стоимость'), 0.12, 'R'),
     ]
     pdf.set_font('Body', 'B', 7)
@@ -86,11 +87,12 @@ def build_return_receipt_pdf(ctx) -> bytes:
     pdf.set_font('Body', size=7)
     for idx, row in enumerate(rows, start=1):
         cells = [
-            (str(idx), 0.08, 'C'),
-            (str(row['category']), 0.22, 'L'),
-            (row['name'], 0.34, 'L'),
+            (str(idx), 0.06, 'C'),
+            (str(row['category']), 0.20, 'L'),
+            (row['name'], 0.30, 'L'),
             (f"{row['qty']} {row['unit']}", 0.12, 'R'),
-            (money(row['price_per_day']), 0.12, 'R'),
+            (money(row['price_per_day']), 0.11, 'R'),
+            (str(row['days']), 0.09, 'R'),
             (money(row['amount']), 0.12, 'R'),
         ]
         if pdf.will_page_break(_ROW_H):
@@ -113,9 +115,10 @@ def build_return_receipt_pdf(ctx) -> bytes:
 
     # ---- Итог ----
     pdf.set_font('Body', 'B', 7)
-    pdf.cell(w * 0.64, _ROW_H, _('Итого'), border=1, align='R')
+    pdf.cell(w * 0.56, _ROW_H, _('Итого'), border=1, align='R')
     pdf.cell(w * 0.12, _ROW_H, str(ctx['total_qty']), border=1, align='R')
-    pdf.cell(w * 0.12, _ROW_H, '', border=1)
+    pdf.cell(w * 0.11, _ROW_H, '', border=1)
+    pdf.cell(w * 0.09, _ROW_H, '', border=1)
     pdf.cell(w * 0.12, _ROW_H, money(ctx['total_amount']), border=1, align='R')
     pdf.ln(_ROW_H + 2)
 

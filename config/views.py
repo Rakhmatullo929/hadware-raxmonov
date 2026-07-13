@@ -1233,6 +1233,21 @@ def _parse_movement_ids(raw):
     return ids
 
 
+def _receipt_days(unit_days, qty):
+    """Число дней аренды для строки чека: ``unit_days / qty``.
+
+    Обычно партию выдают одной датой, поэтому дни у всех единиц одинаковы и
+    деление точное (целое). Если единицы партии выданы в разные даты (FIFO по
+    нескольким чанкам), дни на единицу различаются — показываем среднее с одним
+    знаком, чтобы Кол-во × За день × Дней всё равно сходилось с суммой.
+    """
+    if not qty:
+        return 0
+    if unit_days % qty == 0:
+        return unit_days // qty
+    return round(unit_days / qty, 1)
+
+
 def build_return_receipt_context(rental, movement_ids):
     """Контекст чека возврата по партии движений (см. ?m=...).
 
@@ -1242,6 +1257,7 @@ def build_return_receipt_context(rental, movement_ids):
     receipt_dt — момент самого раннего движения партии.
     """
     charges = billing.return_charge_map(rental)
+    unit_days_map = billing.return_unit_days_map(rental)
     movements = (
         Movement.objects
         .filter(
@@ -1265,6 +1281,7 @@ def build_return_receipt_context(rental, movement_ids):
             'qty': m.qty,
             'unit': it.product.unit,
             'price_per_day': it.price_per_day,
+            'days': _receipt_days(unit_days_map.get(m.id, 0), m.qty),
             'amount': amount,
             'date': m.date,
             # Допы комплекта, домноженные на кол-во в этой партии возврата:

@@ -145,6 +145,20 @@ def return_charge_map(rental, as_of=None) -> dict:
     return result
 
 
+def return_unit_days_map(rental) -> dict:
+    """``{movement_id: unit_days}`` по каждому движению ВОЗВРАТА аренды.
+
+    ``unit_days`` — сумма (кол-во × дни, FIFO) для партии возврата; делённая на
+    ``qty`` даёт число дней аренды для показа в чеке (Кол-во × За день × Дней).
+    """
+    result = {}
+    for item in rental.items.all():
+        return_rows, _ = _replay_item(item)
+        for m, unit_days in return_rows:
+            result[m.id] = unit_days
+    return result
+
+
 def overdue_fine_coef() -> Decimal:
     raw = getattr(settings, 'RENTAL_OVERDUE_FINE_COEF', DEFAULT_OVERDUE_FINE_COEF)
     return raw if isinstance(raw, Decimal) else Decimal(str(raw))
