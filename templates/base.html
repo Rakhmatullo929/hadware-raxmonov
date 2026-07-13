@@ -1,10 +1,25 @@
 {% load static i18n %}
 {% get_current_language as LANGUAGE_CODE %}
 <!doctype html>
-<html lang="{{ LANGUAGE_CODE }}">
+<html lang="{{ LANGUAGE_CODE }}" data-bs-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    {% comment %}
+      Тема применяется ДО отрисовки body — без мигания (FOUC).
+      Пустой localStorage → тёмная тема по умолчанию.
+    {% endcomment %}
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('rt-theme');
+                if (t !== 'light' && t !== 'dark') t = 'dark';
+                document.documentElement.setAttribute('data-bs-theme', t);
+            } catch (e) { /* приватный режим — остаётся дефолт из атрибута */ }
+        })();
+    </script>
+
     <title>{% block title %}{% trans "Учёт аренды" %}{% endblock %}</title>
 
     <link
@@ -104,6 +119,20 @@
     </nav>
 
     <div class="sidebar-footer">
+        {# ---------- THEME SWITCHER ---------- #}
+        <div class="theme-switcher" role="group" aria-label="{% trans 'Тема оформления' %}">
+            <button type="button" class="theme-btn" data-theme-value="light"
+                    aria-pressed="false"
+                    title="{% trans 'Светлая тема' %}" aria-label="{% trans 'Светлая тема' %}">
+                <i class="bi bi-sun-fill"></i>
+            </button>
+            <button type="button" class="theme-btn" data-theme-value="dark"
+                    aria-pressed="false"
+                    title="{% trans 'Тёмная тема' %}" aria-label="{% trans 'Тёмная тема' %}">
+                <i class="bi bi-moon-stars-fill"></i>
+            </button>
+        </div>
+
         {# ---------- LANGUAGE SWITCHER ---------- #}
         <div class="lang-switcher">
             {% for item in language_switch_urls %}
@@ -161,6 +190,16 @@
 </header>
 {% endif %}
 
+{% if not user.is_authenticated %}
+    {# На экране входа нет сайдбара — даём плавающий переключатель темы #}
+    <button type="button" class="theme-fab" data-theme-toggle
+            data-label-light="{% trans 'Светлая тема' %}"
+            data-label-dark="{% trans 'Тёмная тема' %}"
+            title="{% trans 'Сменить тему' %}" aria-label="{% trans 'Сменить тему' %}">
+        <i class="bi bi-sun-fill"></i>
+    </button>
+{% endif %}
+
 <main class="app-main {% if not user.is_authenticated %}app-main-auth{% endif %}">
     <div class="app-container">
         {% if messages %}
@@ -189,6 +228,7 @@
     src="https://unpkg.com/htmx.org@1.9.12"
     integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2"
     crossorigin="anonymous"></script>
+<script src="{% static 'js/theme-toggle.js' %}"></script>
 <script src="{% static 'js/money-input.js' %}"></script>
 <script src="{% static 'js/return-amount.js' %}"></script>
 <script src="{% static 'js/return-receipt.js' %}"></script>
