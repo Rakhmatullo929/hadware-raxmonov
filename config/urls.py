@@ -131,6 +131,10 @@ urlpatterns = [
         views.RentalItemRemoveView.as_view(), name='rental_item_remove',
     ),
     path(
+        'rentals/<int:pk>/movement/<int:movement_pk>/edit/',
+        views.RentalMovementEditView.as_view(), name='rental_movement_edit',
+    ),
+    path(
         'rentals/_/modal-close/',
         views.RentalModalCloseView.as_view(),
         name='rental_modal_close',
