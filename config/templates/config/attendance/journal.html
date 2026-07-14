@@ -4,13 +4,24 @@
 {% block title %}{% trans "Посещаемость" %} — {% trans "Учёт аренды" %}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h3 mb-0">{% trans "Посещаемость рабочих" %}</h1>
-    {% if is_admin %}
-        <a href="{% url 'worker_list' %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-people me-1"></i>{% trans "Список рабочих" %}
-        </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        {% if rows %}
+            <form method="post" action="{% url 'attendance_mark_all' %}?date={{ date_iso }}" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-sm"
+                        title="{% trans 'Все неотмеченные станут присутствующими; ваши отметки не меняются' %}">
+                    <i class="bi bi-check-all me-1"></i>{% trans "Отметить всех присутствующими" %}
+                </button>
+            </form>
+        {% endif %}
+        {% if is_admin %}
+            <a href="{% url 'worker_list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-people me-1"></i>{% trans "Список рабочих" %}
+            </a>
+        {% endif %}
+    </div>
 </div>
 
 <form method="get" class="card card-body bg-body-tertiary mb-3">

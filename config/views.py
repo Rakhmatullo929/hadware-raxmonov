@@ -2510,6 +2510,45 @@ def attendance_journal(request):
 
 
 @role_required('staff', 'admin')
+def attendance_mark_all(request):
+    """POST: отметить всех активных рабочих присутствующими на выбранный день.
+
+    Заполняет только НЕотмеченных — существующие отметки (и «+», и «−»)
+    не трогаются. Так безопасно: если сначала отметили отсутствующих,
+    кнопка их не перезапишет. Дата — из ?date=YYYY-MM-DD (как у toggle).
+    """
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    date = _parse_attendance_date(request)
+    workers = list(Worker.objects.filter(is_active=True))
+    already = set(
+        Attendance.objects
+        .filter(date=date, worker__in=workers)
+        .values_list('worker_id', flat=True)
+    )
+    to_create = [
+        Attendance(
+            worker=w, date=date, is_present=True,
+            marked_by=request.user, marked_at=timezone.now(),
+        )
+        for w in workers if w.pk not in already
+    ]
+    if to_create:
+        # ignore_conflicts — предохранитель от гонки (двойной клик /
+        # два админа): уникальный (worker, date) не даст дублей и 500.
+        Attendance.objects.bulk_create(to_create, ignore_conflicts=True)
+        messages.success(
+            request,
+            _('Отмечено присутствующими: %(n)d') % {'n': len(to_create)},
+        )
+    else:
+        messages.info(request, _('Все рабочие уже отмечены на этот день.'))
+
+    return redirect(f"{reverse('attendance_journal')}?date={date.isoformat()}")
+
+
+@role_required('staff', 'admin')
 def attendance_toggle(request, worker_id):
     """htmx POST: переключить отметку рабочего на дату ?date=YYYY-MM-DD.
 

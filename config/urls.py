@@ -35,6 +35,11 @@ urlpatterns = [
     # Посещаемость рабочих
     path('attendance/', views.attendance_journal, name='attendance_journal'),
     path(
+        'attendance/mark-all/',
+        views.attendance_mark_all,
+        name='attendance_mark_all',
+    ),
+    path(
         'attendance/<int:worker_id>/toggle/',
         views.attendance_toggle,
         name='attendance_toggle',

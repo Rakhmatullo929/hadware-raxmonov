@@ -141,6 +141,69 @@ def test_toggle_records_marker(client_admin, worker):
     assert a.marked_by.username == 'bob'
 
 
+# ---------- «Отметить всех присутствующими» ----------
+
+def test_mark_all_marks_unmarked_present(client_staff, worker):
+    other = Worker.objects.create(full_name='Второй')
+    today = timezone.localdate()
+    url = reverse('attendance_mark_all') + f'?date={today.isoformat()}'
+    r = client_staff.post(url)
+    assert r.status_code == 302
+    for w in (worker, other):
+        assert Attendance.objects.get(worker=w, date=today).is_present is True
+
+
+def test_mark_all_preserves_existing_marks(client_staff, worker, admin_user):
+    other = Worker.objects.create(full_name='Второй')
+    today = timezone.localdate()
+    # Уже отмечен отсутствующим — кнопка НЕ должна перезаписать в «+».
+    Attendance.objects.create(worker=worker, date=today, is_present=False,
+                              marked_by=admin_user)
+    url = reverse('attendance_mark_all') + f'?date={today.isoformat()}'
+    client_staff.post(url)
+    assert Attendance.objects.get(worker=worker, date=today).is_present is False
+    assert Attendance.objects.get(worker=other, date=today).is_present is True
+
+
+def test_mark_all_skips_archived(client_staff, worker, archived_worker):
+    today = timezone.localdate()
+    url = reverse('attendance_mark_all') + f'?date={today.isoformat()}'
+    client_staff.post(url)
+    assert Attendance.objects.filter(worker=worker, date=today).exists()
+    assert not Attendance.objects.filter(
+        worker=archived_worker, date=today).exists()
+
+
+def test_mark_all_uses_date_param(client_staff, worker):
+    past = timezone.localdate() - timedelta(days=5)
+    url = reverse('attendance_mark_all') + f'?date={past.isoformat()}'
+    r = client_staff.post(url)
+    assert r.status_code == 302
+    assert past.isoformat() in r['Location']
+    assert Attendance.objects.get(worker=worker, date=past).is_present is True
+
+
+def test_mark_all_idempotent(client_staff, worker):
+    today = timezone.localdate()
+    url = reverse('attendance_mark_all') + f'?date={today.isoformat()}'
+    client_staff.post(url)
+    client_staff.post(url)  # повторный клик — без дублей
+    assert Attendance.objects.filter(worker=worker, date=today).count() == 1
+
+
+def test_mark_all_requires_post(client_staff, worker):
+    r = client_staff.get(reverse('attendance_mark_all'))
+    assert r.status_code in (405, 302)
+
+
+def test_mark_all_records_marker(client_admin, worker):
+    url = reverse('attendance_mark_all') + f'?date={timezone.localdate().isoformat()}'
+    client_admin.post(url)
+    a = Attendance.objects.get(worker=worker, date=timezone.localdate())
+    assert a.marked_by is not None
+    assert a.marked_by.username == 'bob'
+
+
 # ---------- workers CRUD permissions ----------
 
 def test_worker_list_visible_to_staff(client_staff, worker):
