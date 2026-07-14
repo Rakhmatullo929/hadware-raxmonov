@@ -6,6 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import (
     Count,
@@ -1040,11 +1041,14 @@ def _annotate_rental_qs(qs):
     )
 
 
-class RentalListView(StaffOrAdminRequiredMixin, ListView):
-    model = Rental
+class RentalListView(StaffOrAdminRequiredMixin, View):
+    """Список аренд, сгруппированный по клиенту.
+
+    Клиент — заголовок группы с итогами, под ним его аренды. Пагинация — по
+    клиентам (аренды одного клиента не разрываются между страницами)."""
+
     template_name = 'config/rentals/list.html'
-    context_object_name = 'rentals'
-    paginate_by = 25
+    paginate_by = 20  # клиентов на страницу
 
     SORT_FIELDS = {
         'due_date': 'due_date',
@@ -1053,15 +1057,15 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
         '-created_at': '-created_at',
     }
 
-    def get_queryset(self):
+    def _filtered_rentals(self, request):
+        """Отфильтрованный по GET-параметрам и отсортированный queryset аренд."""
         qs = (
             Rental.objects
             .select_related('customer', 'created_by')
         )
         qs = _annotate_rental_qs(qs)
 
-        today = timezone.localdate()
-        status = self.request.GET.get('status', '').strip()
+        status = request.GET.get('status', '').strip()
         if status == Rental.Status.CLOSED:
             qs = qs.filter(status=Rental.Status.CLOSED)
         elif status == 'overdue':
@@ -1075,8 +1079,8 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
                 Q(due_date__gte=timezone.now()) | Q(outstanding_total=0)
             )
 
-        date_from = self.request.GET.get('date_from', '').strip()
-        date_to = self.request.GET.get('date_to', '').strip()
+        date_from = request.GET.get('date_from', '').strip()
+        date_to = request.GET.get('date_to', '').strip()
         for raw, lookup in ((date_from, 'created_at__date__gte'),
                             (date_to, 'created_at__date__lte')):
             if raw:
@@ -1089,7 +1093,7 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
         # Текстовый поиск по клиенту: ФИО, телефон или код (как в форме
         # создания аренды — CustomerSearchView). Работает независимо от
         # фильтра по ID ниже, поэтому оба можно комбинировать.
-        query = self.request.GET.get('q', '').strip()
+        query = request.GET.get('q', '').strip()
         if query:
             qs = qs.filter(
                 Q(customer__full_name__icontains=query)
@@ -1097,31 +1101,94 @@ class RentalListView(StaffOrAdminRequiredMixin, ListView):
                 | Q(customer__code__icontains=query)
             )
 
-        customer_id = self.request.GET.get('customer', '').strip()
+        customer_id = request.GET.get('customer', '').strip()
         if customer_id.isdigit():
             qs = qs.filter(customer_id=int(customer_id))
 
-        sort = self.request.GET.get('sort', 'due_date')
+        sort = request.GET.get('sort', 'due_date')
         sort_field = self.SORT_FIELDS.get(sort, 'due_date')
         return qs.order_by(sort_field, '-created_at')
 
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['today'] = timezone.localdate()
-        ctx['now'] = timezone.now()
-        ctx['filters'] = {
-            'status': self.request.GET.get('status', ''),
-            'date_from': self.request.GET.get('date_from', ''),
-            'date_to': self.request.GET.get('date_to', ''),
-            'q': self.request.GET.get('q', ''),
-            'customer': self.request.GET.get('customer', ''),
-            'sort': self.request.GET.get('sort', 'due_date'),
+    @staticmethod
+    def _is_overdue(r, now):
+        return (r.status == Rental.Status.ACTIVE
+                and r.due_date < now and r.outstanding_total > 0)
+
+    def get(self, request, *args, **kwargs):
+        now = timezone.now()
+        rqs = self._filtered_rentals(request)
+
+        # Порядок клиентов = порядок их первого появления в наборе аренд,
+        # отсортированном по срочности. Так первый (ближайший срок / просрочка)
+        # задаёт позицию клиента. Без GROUP BY — не конфликтует с
+        # подзапросами-аннотациями _annotate_rental_qs.
+        seen = set()
+        customer_ids = []
+        for cid in rqs.values_list('customer_id', flat=True):
+            if cid not in seen:
+                seen.add(cid)
+                customer_ids.append(cid)
+
+        paginator = Paginator(customer_ids, self.paginate_by)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        page_ids = list(page_obj.object_list)
+
+        # Аренды клиентов текущей страницы, сгруппированные в Python.
+        by_cust = {}
+        for r in rqs.filter(customer_id__in=page_ids):
+            by_cust.setdefault(r.customer_id, []).append(r)
+
+        def rank(r):
+            # Внутри группы: просроченные → активные → закрытые.
+            if self._is_overdue(r, now):
+                return 0
+            if r.status == Rental.Status.ACTIVE:
+                return 1
+            return 2
+
+        groups = []
+        for cid in page_ids:
+            rs = by_cust.get(cid)
+            if not rs:
+                continue
+            rs.sort(key=lambda r: (rank(r), r.due_date))
+            overdue_count = sum(1 for r in rs if self._is_overdue(r, now))
+            groups.append({
+                'customer': rs[0].customer,
+                'rentals': rs,
+                'count': len(rs),
+                'on_hand': sum(r.outstanding_total for r in rs),
+                'overdue_count': overdue_count,
+                'has_overdue': overdue_count > 0,
+            })
+
+        filters = {
+            'status': request.GET.get('status', ''),
+            'date_from': request.GET.get('date_from', ''),
+            'date_to': request.GET.get('date_to', ''),
+            'q': request.GET.get('q', ''),
+            'customer': request.GET.get('customer', ''),
+            'sort': request.GET.get('sort', 'due_date'),
         }
-        if ctx['filters']['customer'].isdigit():
+        ctx = {
+            'groups': groups,
+            # Плоский список аренд текущей страницы (в порядке групп) — для
+            # обратной совместимости и тестов; шаблон рендерит через `groups`.
+            'rentals': [r for g in groups for r in g['rentals']],
+            'page_obj': page_obj,
+            'paginator': paginator,
+            'is_paginated': page_obj.has_other_pages(),
+            'now': now,
+            'today': timezone.localdate(),
+            'filters': filters,
+            'customer_total': len(customer_ids),
+            'rental_total': rqs.count(),
+        }
+        if filters['customer'].isdigit():
             ctx['filter_customer_obj'] = Customer.objects.filter(
-                pk=int(ctx['filters']['customer'])
+                pk=int(filters['customer'])
             ).first()
-        return ctx
+        return render(request, self.template_name, ctx)
 
 
 def _rental_card_context(rental):

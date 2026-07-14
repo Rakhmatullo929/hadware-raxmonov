@@ -1218,3 +1218,34 @@ h1.h3, h2.h5 { color: var(--m-text-primary); }
 /* Тинты строк журнала посещаемости — плотнее на тёмном фоне */
 :root[data-bs-theme="dark"] .att-row-present td { background-color: rgba(34, 197, 94, 0.12); }
 :root[data-bs-theme="dark"] .att-row-absent td  { background-color: rgba(255, 86, 48, 0.12); }
+
+/* ===================================================================
+   Rentals list — grouped by customer
+   =================================================================== */
+.rentals-grouped tbody.rental-group { border: 0; }
+.rentals-grouped .group-head { cursor: pointer; }
+.rentals-grouped .group-head > td {
+    background: var(--m-grey-100);
+    border-top: 1px solid var(--m-grey-300);
+    padding: .6rem 1rem;
+}
+.rentals-grouped tbody.rental-group:first-of-type .group-head > td { border-top: 0; }
+.rentals-grouped .group-head:hover > td { background: var(--m-grey-200); }
+.rentals-grouped .group-head:focus-visible { outline: none; }
+.rentals-grouped .group-head:focus-visible > td { box-shadow: inset 0 0 0 2px var(--m-primary); }
+.group-chevron {
+    color: var(--m-text-secondary);
+    font-size: .85rem;
+    transition: transform .15s ease;
+    width: 1rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+.rental-group.collapsed .group-chevron { transform: rotate(-90deg); }
+.rental-group.collapsed .group-sub { display: none; }
+.group-name { color: var(--m-text-primary); }
+.group-name:hover { color: var(--m-primary-dark); }
+.group-meta .badge { font-weight: 700; }
+/* Подстроки-аренды: отступ, чтобы визуально принадлежали группе */
+.rentals-grouped .group-sub > td:first-child { padding-left: 2.25rem; }
+.rentals-grouped .group-sub.overdue-row > td:first-child { padding-left: 2.25rem !important; }

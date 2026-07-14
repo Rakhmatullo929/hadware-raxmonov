@@ -69,9 +69,24 @@
     </div>
 </form>
 
-{% if rentals %}
+{% if groups %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-muted small">
+        {% blocktrans count n=customer_total %}{{ n }} клиент{% plural %}{{ n }} клиентов{% endblocktrans %}
+        · {% blocktrans count m=rental_total %}{{ m }} аренда{% plural %}{{ m }} аренд{% endblocktrans %}
+    </div>
+    <div class="btn-group btn-group-sm d-none d-sm-flex" role="group">
+        <button type="button" class="btn btn-outline-secondary" id="rg-collapse-all">
+            <i class="bi bi-chevron-up me-1"></i>{% trans "Свернуть все" %}
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="rg-expand-all">
+            <i class="bi bi-chevron-down me-1"></i>{% trans "Развернуть все" %}
+        </button>
+    </div>
+</div>
+
 <div class="table-card">
-    <table class="table table-hover align-middle mb-0">
+    <table class="table table-hover align-middle mb-0 rentals-grouped">
         <thead>
             <tr>
                 <th>№</th>
@@ -83,27 +98,51 @@
                 <th>{% trans "Статус" %}</th>
             </tr>
         </thead>
-        <tbody>
-            {% for r in rentals %}
+        {% for g in groups %}
+        {# Свёрнуто по умолчанию; если клиент на странице один — разворачиваем сразу. #}
+        <tbody class="rental-group{% if groups|length > 1 %} collapsed{% endif %}">
+            <tr class="group-head" tabindex="0" role="button"
+                aria-expanded="{% if groups|length > 1 %}false{% else %}true{% endif %}"
+                title="{% trans 'Свернуть / развернуть' %}">
+                <td colspan="7">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <i class="bi bi-chevron-down group-chevron"></i>
+                        <span class="avatar-circle {% if g.has_overdue %}avatar-danger{% else %}avatar-primary{% endif %}">
+                            {{ g.customer.full_name|initial }}
+                        </span>
+                        <a href="{% url 'customer_detail' g.customer.pk %}"
+                           class="fw-semibold text-decoration-none group-name"
+                           onclick="event.stopPropagation();">
+                            {{ g.customer.full_name }}
+                        </a>
+                        {% if g.customer.code %}
+                            <span class="customer-code">{{ g.customer.code }}</span>
+                        {% endif %}
+                        <span class="ms-auto d-flex align-items-center gap-2 flex-wrap group-meta">
+                            <span class="badge bg-secondary">
+                                {% blocktrans count n=g.count %}{{ n }} аренда{% plural %}{{ n }} аренд{% endblocktrans %}
+                            </span>
+                            <span class="badge bg-primary">
+                                {% blocktrans count n=g.on_hand %}{{ n }} шт на руках{% plural %}{{ n }} шт на руках{% endblocktrans %}
+                            </span>
+                            {% if g.has_overdue %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-exclamation-circle me-1"></i>
+                                    {% blocktrans count n=g.overdue_count %}{{ n }} просрочка{% plural %}{{ n }} просрочек{% endblocktrans %}
+                                </span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </td>
+            </tr>
+            {% for r in g.rentals %}
                 {% if r.status == 'active' and r.due_date < now and r.outstanding_total > 0 %}
-                    <tr class="overdue-row">
+                    <tr class="group-sub overdue-row">
                         <td>
                             <a href="{% url 'rental_detail' r.pk %}"
-                               class="fw-semibold text-danger text-decoration-none">
-                                #{{ r.id }}
-                            </a>
+                               class="fw-semibold text-danger text-decoration-none">#{{ r.id }}</a>
                         </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="avatar-circle avatar-danger">
-                                    {{ r.customer.full_name|initial }}
-                                </span>
-                                <a href="{% url 'customer_detail' r.customer.pk %}"
-                                   class="fw-semibold text-decoration-none">
-                                    {{ r.customer.full_name }}
-                                </a>
-                            </div>
-                        </td>
+                        <td class="group-spacer"></td>
                         <td class="text-muted text-nowrap" title="{{ r.created_at|date:'d.m.Y H:i' }}">{{ r.created_at|date:"d.m.Y H:i" }}</td>
                         <td class="text-danger fw-semibold text-nowrap" title="{{ r.due_date|date:'d.m.Y H:i' }}">{{ r.due_date|date:"d.m.Y H:i" }}</td>
                         <td class="text-end">{{ r.items_count }}</td>
@@ -119,24 +158,12 @@
                         </td>
                     </tr>
                 {% else %}
-                    <tr>
+                    <tr class="group-sub">
                         <td>
                             <a href="{% url 'rental_detail' r.pk %}"
-                               class="fw-semibold text-decoration-none">
-                                #{{ r.id }}
-                            </a>
+                               class="fw-semibold text-decoration-none">#{{ r.id }}</a>
                         </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="avatar-circle">
-                                    {{ r.customer.full_name|initial }}
-                                </span>
-                                <a href="{% url 'customer_detail' r.customer.pk %}"
-                                   class="text-decoration-none">
-                                    {{ r.customer.full_name }}
-                                </a>
-                            </div>
-                        </td>
+                        <td class="group-spacer"></td>
                         <td class="text-muted text-nowrap" title="{{ r.created_at|date:'d.m.Y H:i' }}">{{ r.created_at|date:"d.m.Y H:i" }}</td>
                         <td class="text-nowrap" title="{{ r.due_date|date:'d.m.Y H:i' }}">{{ r.due_date|date:"d.m.Y H:i" }}</td>
                         <td class="text-end">{{ r.items_count }}</td>
@@ -161,6 +188,7 @@
                 {% endif %}
             {% endfor %}
         </tbody>
+        {% endfor %}
     </table>
 </div>
 {% else %}
@@ -171,4 +199,34 @@
 {% endif %}
 
 {% include 'config/_pagination.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    function toggle(head) {
+        var group = head.closest('.rental-group');
+        if (!group) return;
+        var collapsed = group.classList.toggle('collapsed');
+        head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    document.querySelectorAll('.rentals-grouped .group-head').forEach(function (head) {
+        head.addEventListener('click', function () { toggle(head); });
+        head.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(head); }
+        });
+    });
+    function setAll(collapsed) {
+        document.querySelectorAll('.rentals-grouped .rental-group').forEach(function (group) {
+            group.classList.toggle('collapsed', collapsed);
+            var head = group.querySelector('.group-head');
+            if (head) head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
+    }
+    var ca = document.getElementById('rg-collapse-all');
+    var ea = document.getElementById('rg-expand-all');
+    if (ca) ca.addEventListener('click', function () { setAll(true); });
+    if (ea) ea.addEventListener('click', function () { setAll(false); });
+})();
+</script>
 {% endblock %}
