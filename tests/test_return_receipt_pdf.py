@@ -79,8 +79,8 @@ def test_pdf_endpoint_font_missing_redirects(
     assert reverse('rental_detail', args=[r.pk]) in resp['Location']
 
 
-def test_pdf_renders_kit_totals(rental_with_kit_return):
-    """PDF-чек выводит домноженные допы комплекта («Зажим 36» и т.д.).
+def test_pdf_omits_kit_totals(rental_with_kit_return):
+    """PDF-чек больше НЕ выводит допы комплекта — строка убрана для компактности.
 
     Текст PDF не извлечь без доп. зависимостей, поэтому перехватываем строки,
     которые билдер отправляет в cell/multi_cell.
@@ -115,6 +115,6 @@ def test_pdf_renders_kit_totals(rental_with_kit_return):
         fpdf_module.FPDF.multi_cell = orig_multi
 
     blob = ' '.join(captured)
-    assert 'Зажим 36' in blob
-    assert 'Фиксатор 36' in blob
-    assert 'Штир/шайба 36' in blob
+    assert 'Зажим' not in blob
+    assert 'Фиксатор' not in blob
+    assert 'Штир/шайба' not in blob
