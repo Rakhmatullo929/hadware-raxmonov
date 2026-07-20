@@ -52,12 +52,6 @@
             <td>{{ row.category }}</td>
             <td>
                 {{ row.name }}
-                {% if row.kit %}
-                <div class="small text-muted">
-                    {% trans "Доп." %}:
-                    {% for k in row.kit %}{{ k.name }} {{ k.qty }}{% if not forloop.last %} · {% endif %}{% endfor %}
-                </div>
-                {% endif %}
             </td>
             <td class="text-end">{{ row.qty }} {{ row.unit }}</td>
             <td class="text-end font-monospace">{{ row.price_per_day|unlocalize }}</td>
