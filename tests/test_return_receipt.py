@@ -192,20 +192,22 @@ def test_build_context_kit_empty_for_plain_product(rental_with_returns):
     assert ctx['rows'][0]['kit'] == []
 
 
-def test_receipt_html_shows_kit_totals(client_staff, rental_with_kit_return):
+def test_receipt_html_omits_kit_line(client_staff, rental_with_kit_return):
+    """Строка «Доп.» с составом комплекта убрана из чека — позиции компактнее."""
     r, item, m = rental_with_kit_return
     url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
     body = client_staff.get(url).content.decode()
-    assert 'Зажим' in body
-    assert '36' in body
+    assert 'Корейская опалубка' in body   # сама позиция на месте
+    assert 'Зажим' not in body            # состав комплекта не выводится
 
 
-def test_receipt_html_kit_label_translated_uz(client_staff, rental_with_kit_return):
+def test_receipt_html_omits_kit_label_uz(client_staff, rental_with_kit_return):
+    """И в UZ-локали строки «Доп.» больше нет."""
     from django.utils import translation
 
     r, item, m = rental_with_kit_return
     with translation.override('uz'):
         url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
         body = client_staff.get(url).content.decode()
-    assert "Qo'shimcha" in body   # «Доп.» по-узбекски
-    assert 'Зажим 36' in body
+    assert "Qo'shimcha" not in body   # узбекский ярлык «Доп.» тоже убран
+    assert 'Зажим' not in body
