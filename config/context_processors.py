@@ -66,6 +66,8 @@ def navigation(request):
         section = 'salary'
     elif name.startswith('product_suspicion'):
         section = 'suspicions'
+    elif name.startswith('audit'):
+        section = 'audit'
 
     from .decorators import user_is_admin
 

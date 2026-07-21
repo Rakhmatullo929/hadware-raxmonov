@@ -66,6 +66,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
     'django_htmx.middleware.HtmxMiddleware',
+
+    # После AuthenticationMiddleware — нужен request.user для журнала аудита.
+    'config.middleware.AuditContextMiddleware',
 ]
 
 ROOT_URLCONF = 'rental_track.urls'
