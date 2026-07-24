@@ -19,6 +19,7 @@
                 <th class="text-end">{% trans "Σ/сут. (цена × кол-во)" %}</th>
                 <th class="text-end">{% trans "Выдано" %}</th>
                 <th class="text-end">{% trans "Возвращено" %}</th>
+                <th class="text-end">{% trans "Сумма возврата" %}</th>
                 <th class="text-end">{% trans "Не возвращено" %}</th>
                 {% if is_admin %}<th class="text-end"></th>{% endif %}
             </tr>
@@ -53,6 +54,7 @@
                     <td class="text-end fw-semibold">{{ it.line_daily_cost }}</td>
                     <td class="text-end">{{ it.issued_qty }}</td>
                     <td class="text-end">{{ it.returned_qty }}</td>
+                    <td class="text-end fw-semibold">{{ it.line_base }}</td>
                     <td class="text-end">
                         {% if it.outstanding_qty > 0 %}
                             <strong class="text-danger">{{ it.outstanding_qty }}</strong>

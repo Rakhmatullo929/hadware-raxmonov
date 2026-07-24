@@ -97,3 +97,19 @@ def test_line_base_attached_and_sums_to_summary(rental_with_returns):
 
     assert sum(it.line_base for it in ctx['items']) == ctx['summary']['base']
     assert ctx['items'][0].line_base == Decimal('1000.00')
+
+
+def test_items_table_shows_return_sum_column(client_staff, rental_with_multiday_return):
+    """Колонка «Сумма возврата» показывает полную аренду строки.
+
+    rental_with_multiday_return: 16 шт × 100/день × 6 дн = 9600 (полный возврат,
+    сохранённая сумма). Значение 9600 отличается от Σ/сут.=1600, поэтому тест
+    однозначный.
+    """
+    r, item, _m = rental_with_multiday_return
+    resp = client_staff.get(reverse('rental_card', args=[r.pk]))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert 'Сумма возврата' in body          # заголовок колонки
+    assert '9600,00' in body                  # полная аренда строки (ru-локаль)
+    assert item.line_daily_cost == Decimal('1600.00')  # ≠ Σ/сут., значение не совпадает случайно
