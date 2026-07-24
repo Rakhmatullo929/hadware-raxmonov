@@ -723,3 +723,56 @@ class MonthlySalaryBase(models.Model):
     def __str__(self):
         return (f'{self.worker.full_name} · {self.year}-{self.month:02d} '
                 f'· {self.amount}')
+
+
+class AuditLog(models.Model):
+    """Журнал действий: кто, когда, откуда и что изменил.
+
+    Пишется автоматически из сигналов ``post_save`` / ``post_delete`` для
+    всех бизнес-моделей приложения (см. ``config.signals``). Пользователь и
+    IP-адрес берутся из запроса через ``AuditContextMiddleware`` — сигналы
+    сами по себе request не видят.
+    """
+
+    class Action(models.TextChoices):
+        CREATE = 'create', _('Создание')
+        UPDATE = 'update', _('Изменение')
+        DELETE = 'delete', _('Удаление')
+
+    created_at = models.DateTimeField(
+        _('Когда'), default=timezone.now, editable=False, db_index=True,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='audit_logs',
+        verbose_name=_('Пользователь'),
+        null=True, blank=True,
+    )
+    # Снимок имени — чтобы запись осталась читаемой, даже если пользователя
+    # потом удалят (тогда ``user`` станет NULL).
+    username = models.CharField(_('Логин'), max_length=150, blank=True)
+    ip_address = models.GenericIPAddressField(
+        _('IP-адрес'), null=True, blank=True,
+    )
+    action = models.CharField(
+        _('Действие'), max_length=10, choices=Action.choices, db_index=True,
+    )
+    model_name = models.CharField(_('Объект'), max_length=100, db_index=True)
+    object_id = models.CharField(_('ID объекта'), max_length=64, blank=True)
+    object_repr = models.CharField(_('Описание'), max_length=255, blank=True)
+    # {attname: [старое, новое]} для изменений; пусто для создания/удаления.
+    changes = models.JSONField(_('Изменения'), default=dict, blank=True)
+
+    class Meta:
+        verbose_name = _('Запись журнала')
+        verbose_name_plural = _('Журнал действий')
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['model_name', 'object_id']),
+        ]
+
+    def __str__(self):
+        who = self.username or '—'
+        return f'{self.created_at:%Y-%m-%d %H:%M} · {who} · {self.get_action_display()} · {self.model_name}'

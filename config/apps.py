@@ -69,3 +69,6 @@ class ConfigAppConfig(AppConfig):
     def ready(self):
         post_migrate.connect(ensure_default_groups, sender=self)
         connection_created.connect(_register_unicode_sqlite_functions)
+
+        from . import signals
+        signals.register()
