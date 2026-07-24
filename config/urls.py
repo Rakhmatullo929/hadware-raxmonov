@@ -32,6 +32,9 @@ urlpatterns = [
     # Подозрения: позиции, превышающие норму проката товара
     path('suspicions/', views.product_suspicions, name='product_suspicions'),
 
+    # Журнал действий (аудит) — только для админов
+    path('audit/', views.audit_log, name='audit_log'),
+
     # Посещаемость рабочих
     path('attendance/', views.attendance_journal, name='attendance_journal'),
     path(

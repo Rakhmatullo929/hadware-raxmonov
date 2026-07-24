@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -52,6 +53,7 @@ from .forms import (
 )
 from .models import (
     Attendance,
+    AuditLog,
     Category,
     Customer,
     MonthlySalaryBase,
@@ -3064,4 +3066,62 @@ def salary_worker_detail(request, worker_id):
         'grand_penalties': grand_penalties,
         'grand_present': grand_present,
         'grand_working': grand_working,
+    })
+
+
+# ---------- журнал действий (аудит) ----------
+
+User = get_user_model()
+
+
+@role_required('admin')
+def audit_log(request):
+    """Таблица всех действий: кто, когда, откуда (IP) и что изменил.
+
+    Только для админов. Фильтры: действие, пользователь, поиск по объекту.
+    Пагинация — по 50 записей.
+    """
+    logs = AuditLog.objects.select_related('user')
+
+    action = (request.GET.get('action') or '').strip()
+    if action in AuditLog.Action.values:
+        logs = logs.filter(action=action)
+
+    user_id = (request.GET.get('user') or '').strip()
+    if user_id.isdigit():
+        logs = logs.filter(user_id=int(user_id))
+
+    query = (request.GET.get('q') or '').strip()
+    if query:
+        logs = logs.filter(
+            Q(model_name__icontains=query)
+            | Q(object_repr__icontains=query)
+            | Q(username__icontains=query)
+            | Q(ip_address__icontains=query)
+        )
+
+    paginator = Paginator(logs, 50)
+    page = paginator.get_page(request.GET.get('page'))
+
+    # Список пользователей, засветившихся в журнале, — для выпадающего фильтра.
+    user_ids = (
+        AuditLog.objects.exclude(user__isnull=True)
+        .values_list('user_id', flat=True).distinct()
+    )
+    users = User.objects.filter(pk__in=user_ids).order_by('username')
+
+    # querystring без параметра page — чтобы ссылки пагинации сохраняли фильтры.
+    params = request.GET.copy()
+    params.pop('page', None)
+    base_qs = params.urlencode()
+
+    return render(request, 'config/audit/log.html', {
+        'page_obj': page,
+        'action': action,
+        'user_id': user_id,
+        'query': query,
+        'users': users,
+        'actions': AuditLog.Action.choices,
+        'base_qs': base_qs,
+        'total': paginator.count,
     })

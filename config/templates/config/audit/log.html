@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Журнал действий" %} — {% trans "Учёт аренды" %}{% endblock %}
+{% block page_title %}{% trans "Журнал действий" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="h3 mb-0">{% trans "Журнал действий" %}</h1>
+    <span class="text-muted small">
+        {% blocktrans count n=total %}{{ n }} запись{% plural %}{{ n }} записей{% endblocktrans %}
+    </span>
+</div>
+
+<form method="get" class="card card-body bg-body-tertiary mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Действие" %}</label>
+            <select name="action" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">{% trans "Все" %}</option>
+                {% for value, label in actions %}
+                    <option value="{{ value }}" {% if value == action %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small text-muted mb-1">{% trans "Пользователь" %}</label>
+            <select name="user" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">{% trans "Все" %}</option>
+                {% for u in users %}
+                    <option value="{{ u.pk }}" {% if u.pk|stringformat:'s' == user_id %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small text-muted mb-1">{% trans "Поиск" %}</label>
+            <input type="search" name="q" value="{{ query }}" class="form-control form-control-sm"
+                   placeholder="{% trans 'объект, описание, IP…' %}">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-search me-1"></i>{% trans "Найти" %}
+            </button>
+            <a href="{% url 'audit_log' %}" class="btn btn-outline-secondary btn-sm">
+                {% trans "Сброс" %}
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="white-space:nowrap;">{% trans "Когда" %}</th>
+                    <th>{% trans "Пользователь" %}</th>
+                    <th>{% trans "IP-адрес" %}</th>
+                    <th>{% trans "Действие" %}</th>
+                    <th>{% trans "Объект" %}</th>
+                    <th>{% trans "Изменения" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in page_obj %}
+                    <tr>
+                        <td class="text-nowrap small">{{ log.created_at|date:'d.m.Y H:i:s' }}</td>
+                        <td>{{ log.username|default:'—' }}</td>
+                        <td class="text-nowrap"><code>{{ log.ip_address|default:'—' }}</code></td>
+                        <td>
+                            {% if log.action == 'create' %}
+                                <span class="badge bg-success">{{ log.get_action_display }}</span>
+                            {% elif log.action == 'update' %}
+                                <span class="badge bg-warning text-dark">{{ log.get_action_display }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ log.get_action_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="fw-semibold">{{ log.model_name }}</span>
+                            {% if log.object_repr %}
+                                <span class="text-muted small d-block">{{ log.object_repr }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if log.changes %}
+                                {% for field, pair in log.changes.items %}
+                                    <div>
+                                        <span class="text-muted">{{ field }}:</span>
+                                        <span class="text-danger">{{ pair.0|default:'∅' }}</span>
+                                        <i class="bi bi-arrow-right mx-1"></i>
+                                        <span class="text-success">{{ pair.1|default:'∅' }}</span>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            {% trans "Записей пока нет." %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mt-3" aria-label="{% trans 'Страницы журнала' %}">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    {% blocktrans with cur=page_obj.number total=page_obj.paginator.num_pages %}{{ cur }} из {{ total }}{% endblocktrans %}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.next_page_number }}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}
