@@ -1193,9 +1193,13 @@ class RentalListView(StaffOrAdminRequiredMixin, View):
 
 def _rental_card_context(rental):
     """Shared context for the detail page and OOB refreshes after a return."""
+    now = timezone.now()
     items = list(rental.items.select_related('product').all())
     movements = []
     for it in items:
+        # Полная аренда по строке (возвращённое + набег по остатку до `now`) —
+        # построчная расшифровка базы аренды; вешаем на объект для шаблона.
+        it.line_base = billing.compute_item_base(it, as_of=now).quantize(Decimal('0.01'))
         movements.extend(list(it.movements.select_related('created_by').all()))
     movements.sort(key=lambda m: m.date, reverse=True)
     # Сумма начисления по каждому возврату (сохранённая либо авто-расчёт) —
@@ -1204,7 +1208,7 @@ def _rental_card_context(rental):
     for m in movements:
         m.charge = charges.get(m.id)
     payments = list(rental.payments.all())
-    summary = billing.compute_rental_billing(rental)
+    summary = billing.compute_rental_billing(rental, as_of=now)
     has_outstanding = any(it.outstanding_qty > 0 for it in items)
     return {
         'rental': rental,
@@ -1214,7 +1218,7 @@ def _rental_card_context(rental):
         'summary': summary,
         'has_outstanding': has_outstanding,
         'today': timezone.localdate(),
-        'now': timezone.now(),
+        'now': now,
     }
 
 

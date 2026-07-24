@@ -7,7 +7,9 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
+from config import billing
 from config.models import Movement, Payment, Rental, RentalItem
+from config.views import _rental_card_context
 
 
 @pytest.fixture
@@ -78,3 +80,20 @@ def test_items_table_shows_line_daily_cost_column(client_staff, rental):
     assert 'Σ/сут.' in body
     assert item.line_daily_cost == Decimal('700.00')
     assert '700,00' in body        # 100.00 × 7 → '700,00' (ru-локаль)
+
+
+def test_line_base_attached_and_sums_to_summary(rental_with_returns):
+    """Каждая позиция получает line_base = свою базу аренды, и сумма по
+    позициям сходится с базой в итоге (line_base — построчная расшифровка base).
+
+    rental_with_returns: выдано 10, возвраты 4 (400) и 3 (300), 3 ещё на руках
+    (issue сегодня → 1 день × 100 = 300) ⇒ база строки = 400+300+300 = 1000.
+    """
+    r, _item, _m1, _m2 = rental_with_returns
+    ctx = _rental_card_context(r)
+
+    for it in ctx['items']:
+        assert it.line_base == billing.compute_item_base(it).quantize(Decimal('0.01'))
+
+    assert sum(it.line_base for it in ctx['items']) == ctx['summary']['base']
+    assert ctx['items'][0].line_base == Decimal('1000.00')
