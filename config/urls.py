@@ -135,6 +135,14 @@ urlpatterns = [
         views.RentalItemEditView.as_view(), name='rental_item_edit',
     ),
     path(
+        'rentals/<int:pk>/item/<int:item_pk>/price/',
+        views.RentalItemPriceEditView.as_view(), name='rental_item_price_edit',
+    ),
+    path(
+        'rentals/<int:pk>/item/<int:item_pk>/price/cell/',
+        views.RentalItemPriceCellView.as_view(), name='rental_item_price_cell',
+    ),
+    path(
         'rentals/<int:pk>/item/<int:item_pk>/remove/',
         views.RentalItemRemoveView.as_view(), name='rental_item_remove',
     ),

@@ -62,3 +62,82 @@ def test_staff_cannot_edit_item_price(client_staff, rental_with_returns):
     assert resp.status_code == 403
     item.refresh_from_db()
     assert item.price_per_day == old
+
+
+def test_parse_price_per_day_helper():
+    from config.views import _parse_price_per_day
+
+    assert _parse_price_per_day('250')[0] == Decimal('250.00')
+    assert _parse_price_per_day('1 234,50')[0] == Decimal('1234.50')
+    assert _parse_price_per_day('2\xa0000,00')[0] == Decimal('2000.00')
+
+    val, err = _parse_price_per_day('abc')
+    assert val is None and err
+
+    val, err = _parse_price_per_day('-5')
+    assert val is None and err
+
+
+def _inline_url(rental, item):
+    return reverse('rental_item_price_edit', args=[rental.pk, item.pk])
+
+
+def _cell_url(rental, item):
+    return reverse('rental_item_price_cell', args=[rental.pk, item.pk])
+
+
+def test_inline_get_returns_input_with_current_price(client_admin, rental_with_returns):
+    r, item, *_ = rental_with_returns          # price 100.00
+    resp = client_admin.get(_inline_url(r, item))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert 'name="price_per_day"' in body
+    assert 'value="100.00"' in body            # текущая цена без локали
+    assert _cell_url(r, item) in body          # ✗ ведёт на возврат ячейки
+
+
+def test_inline_post_updates_price_and_reloads_card(client_admin, rental_with_returns):
+    r, item, *_ = rental_with_returns          # qty 10
+    resp = client_admin.post(_inline_url(r, item), {'price_per_day': '250'})
+    assert resp.status_code == 200
+    item.refresh_from_db()
+    assert item.price_per_day == Decimal('250.00')
+    assert resp['HX-Reswap'] == 'none'          # главный swap подавлен, только OOB
+    assert '2500,00' in resp.content.decode()   # новая Σ/сут. = 250 × 10 (ru)
+
+
+def test_inline_post_invalid_keeps_price(client_admin, rental_with_returns):
+    r, item, *_ = rental_with_returns
+    old = item.price_per_day
+    resp = client_admin.post(_inline_url(r, item), {'price_per_day': '-5'})
+    assert resp.status_code == 200
+    assert 'is-invalid' in resp.content.decode()
+    item.refresh_from_db()
+    assert item.price_per_day == old
+
+
+def test_inline_cancel_returns_plain_cell(client_admin, rental_with_returns):
+    r, item, *_ = rental_with_returns
+    resp = client_admin.get(_cell_url(r, item))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert 'name="price_per_day"' not in body   # отображение, не форма
+    assert '100,00' in body                       # цена как текст (ru)
+
+
+def test_inline_forbidden_for_staff(client_staff, rental_with_returns):
+    r, item, *_ = rental_with_returns
+    assert client_staff.get(_inline_url(r, item)).status_code == 403
+    assert client_staff.post(_inline_url(r, item),
+                             {'price_per_day': '5'}).status_code == 403
+    assert client_staff.get(_cell_url(r, item)).status_code == 403
+
+
+def test_price_cell_clickable_for_admin_not_staff(client_admin, client_staff,
+                                                  rental_with_returns):
+    r, item, *_ = rental_with_returns
+    edit_url = reverse('rental_item_price_edit', args=[r.pk, item.pk])
+    admin_body = client_admin.get(reverse('rental_card', args=[r.pk])).content.decode()
+    staff_body = client_staff.get(reverse('rental_card', args=[r.pk])).content.decode()
+    assert edit_url in admin_body       # у админа ячейка кликабельна
+    assert edit_url not in staff_body   # у оператора — обычный текст

@@ -2239,6 +2239,22 @@ class RentalPaymentDeleteView(AdminRequiredMixin, View):
         return _oob_response(request, _reload_rental(rental.pk))
 
 
+def _parse_price_per_day(raw):
+    """Разобрать цену за сутки из строки формы.
+
+    Разбор — общий ``parse_money`` (ru-ввод: пробелы/nbsp, запятая-дробь,
+    округление до копеек). Добавляем проверку знака и текст ошибки, чтобы
+    правила совпадали в модалке и в инлайн-правке ячейки.
+    Возвращает (Decimal | None, error | None): при ошибке (None, текст).
+    """
+    parsed = parse_money(raw)
+    if parsed is None:
+        return None, _('Цена за сутки указана неверно.')
+    if parsed < 0:
+        return None, _('Цена за сутки не может быть отрицательной.')
+    return parsed, None
+
+
 class RentalItemAddView(AdminRequiredMixin, View):
     """Добавить новую позицию к существующей аренде (с выдачей со склада)."""
 
@@ -2352,13 +2368,9 @@ class RentalItemEditView(AdminRequiredMixin, View):
         # оставляют цену как есть. Терпим пробелы-разделители и запятую-дробь.
         new_price = None
         if 'price_per_day' in request.POST:
-            parsed = parse_money(request.POST.get('price_per_day'))
-            if parsed is None:
-                errors.append(_('Цена за сутки указана неверно.'))
-            elif parsed < 0:
-                errors.append(_('Цена за сутки не может быть отрицательной.'))
-            else:
-                new_price = parsed
+            new_price, price_err = _parse_price_per_day(request.POST.get('price_per_day'))
+            if price_err:
+                errors.append(price_err)
 
         if errors:
             return render(request, 'config/rentals/_item_edit_modal.html', {
@@ -2372,6 +2384,62 @@ class RentalItemEditView(AdminRequiredMixin, View):
         item.save(update_fields=update_fields)
         messages.success(request, _('Позиция обновлена.'))
         return _oob_response(request, _reload_rental(rental.pk))
+
+
+class RentalItemPriceEditView(AdminRequiredMixin, View):
+    """Инлайн-правка цены за сутки прямо в ячейке таблицы позиций.
+
+    GET  → форма (поле + ✓/✗) в ячейку.
+    POST → сохранить цену и перезагрузить карточку (OOB), либо форма с ошибкой.
+    Количество не трогаем — для него остаётся модалка (rental_item_edit).
+    """
+
+    def _get_objs(self, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        return rental, item
+
+    def get(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        return render(request, 'config/rentals/_price_cell_edit.html', {
+            'rental': rental, 'item': item,
+            'value': f'{item.price_per_day:.2f}', 'error': '',
+        })
+
+    def post(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        raw = request.POST.get('price_per_day')
+        new_price, error = _parse_price_per_day(raw)
+        if error:
+            return render(request, 'config/rentals/_price_cell_edit.html', {
+                'rental': rental, 'item': item,
+                'value': (raw or ''), 'error': error,
+            })
+        item.price_per_day = new_price
+        item.save(update_fields=['price_per_day'])
+        messages.success(request, _('Цена обновлена.'))
+        # Ячейка внутри OOB-региона #rental-items: главный swap не нужен,
+        # карточку целиком обновляют OOB-блоки из _oob_refresh.html.
+        response = _oob_response(request, _reload_rental(rental.pk))
+        response['HX-Reswap'] = 'none'
+        return response
+
+
+class RentalItemPriceCellView(AdminRequiredMixin, View):
+    """Вернуть обычную ячейку цены (для кнопки ✗ — отмена без сохранения)."""
+
+    def get(self, request, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        return render(request, 'config/rentals/_price_cell.html', {
+            'rental': rental, 'item': item,
+        })
 
 
 class RentalMovementEditView(AdminRequiredMixin, View):

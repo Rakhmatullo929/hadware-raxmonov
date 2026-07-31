@@ -1,0 +1,11 @@
+{% load i18n %}
+{% if is_admin %}
+    <span role="button" style="cursor: pointer;"
+          title="{% trans 'Изменить цену' %}"
+          hx-get="{% url 'rental_item_price_edit' rental.pk item.pk %}"
+          hx-target="#price-cell-{{ item.pk }}" hx-swap="innerHTML">
+        {{ item.price_per_day }}
+    </span>
+{% else %}
+    {{ item.price_per_day }}
+{% endif %}

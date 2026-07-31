@@ -1,0 +1,26 @@
+{% load i18n %}
+<form class="d-inline-flex align-items-center gap-1 justify-content-end"
+      hx-post="{% url 'rental_item_price_edit' rental.pk item.pk %}"
+      hx-target="#price-cell-{{ item.pk }}" hx-swap="innerHTML">
+    {% csrf_token %}
+    <input type="number" name="price_per_day" min="0" step="0.01"
+           id="price-input-{{ item.pk }}" value="{{ value }}"
+           class="form-control form-control-sm text-end{% if error %} is-invalid{% endif %}"
+           style="max-width: 8rem;"
+           {% if error %}title="{{ error }}"{% endif %}>
+    <button type="submit" class="btn btn-sm btn-success"
+            title="{% trans 'Сохранить' %}"><i class="bi bi-check-lg"></i></button>
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            title="{% trans 'Отмена' %}"
+            hx-get="{% url 'rental_item_price_cell' rental.pk item.pk %}"
+            hx-target="#price-cell-{{ item.pk }}" hx-swap="innerHTML">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</form>
+{% if error %}<div class="text-danger small mt-1">{{ error }}</div>{% endif %}
+<script>
+  (function () {
+    var i = document.getElementById('price-input-{{ item.pk }}');
+    if (i) { i.focus(); i.select(); }
+  })();
+</script>
