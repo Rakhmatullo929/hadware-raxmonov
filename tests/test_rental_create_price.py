@@ -42,6 +42,9 @@ def _payload(customer, product, price=None, qty='5'):
 def test_price_field_visible_for_admin(client_admin):
     body = client_admin.get(_url()).content.decode()
     assert 'name="item_price"' in body
+    # Контракт с JS: money-input.js цепляется по .money-input,
+    # rental-create.js читает цену по .item-price.
+    assert 'money-input item-price' in body
 
 
 def test_price_field_hidden_for_staff(client_staff):
@@ -157,3 +160,30 @@ def test_prices_are_not_mixed_between_rows(client_admin, customer, product,
     }
     assert prices[product.pk] == Decimal('11.00')
     assert prices[other.pk] == Decimal('22.00')
+
+
+# ---------- регресс-стражи по исходнику JS ----------
+#
+# Браузерного раннера в репозитории нет (см. requirements.txt), поэтому
+# поведение rental-create.js проверяется вручную, а здесь стоят дешёвые
+# стражи против случайного удаления ключевых кусков.
+
+def _rental_create_js():
+    from pathlib import Path
+    return (Path(__file__).resolve().parent.parent
+            / 'static' / 'js' / 'rental-create.js').read_text(encoding='utf-8')
+
+
+def test_js_reads_price_from_row_input():
+    """Подытоги должны считаться от введённой цены, а не только от data-price."""
+    js = _rental_create_js()
+    assert 'input.item-price' in js
+
+
+def test_js_autofills_price_and_respects_manual_edit():
+    """Автоподстановка цены есть, и ручная правка её замораживает."""
+    js = _rental_create_js()
+    assert 'syncPrices' in js
+    assert 'markPriceTouched' in js
+    # Синтетическое событие из syncPrices не должно считаться ручной правкой.
+    assert 'isTrusted' in js

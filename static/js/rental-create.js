@@ -14,6 +14,15 @@
         minimumFractionDigits: 2, maximumFractionDigits: 2,
     });
 
+    // В поле цены лежит отформатированное значение вида «40 000.50»
+    // (money-input.js), поэтому перед разбором снимаем пробелы и приводим
+    // запятую к точке — той же нормализацией, что делает бэкенд.
+    function parseMoney(raw) {
+        var s = String(raw == null ? '' : raw).replace(/\s/g, '').replace(',', '.');
+        var n = parseFloat(s);
+        return isNaN(n) ? 0 : n;
+    }
+
     function readDt(name) {
         var el = document.querySelector('[name="' + name + '"]');
         if (!el || !el.value) return null;
@@ -43,15 +52,21 @@
         var itemsSum = 0;     // Σ цена * qty (за сутки)
         var perPeriodSum = 0; // Σ * days
         document.querySelectorAll('.item-row').forEach(function (row) {
-            // Цена хранится в data-price на скрытом input[name=item_product]
-            // (продуктовый пикер). Запасной путь — старый select.
+            // Цена справочника хранится в data-price на скрытом
+            // input[name=item_product] (продуктовый пикер). Запасной путь —
+            // старый select.
             var pidInp = row.querySelector('input[name="item_product"]');
             var sel = row.querySelector('select.item-product');
             var qtyInp = row.querySelector('input.item-qty');
             var subEl = row.querySelector('.row-subtotal');
             if (!qtyInp) return;
+            // Приоритет — цена, введённая админом в строке. Пустое поле
+            // (или его отсутствие у оператора) означает «цена из справочника».
+            var priceInp = row.querySelector('input.item-price');
             var price = 0;
-            if (pidInp && pidInp.dataset.price) {
+            if (priceInp && priceInp.value.trim() !== '') {
+                price = parseMoney(priceInp.value);
+            } else if (pidInp && pidInp.dataset.price) {
                 price = parseFloat(pidInp.dataset.price) || 0;
             } else if (sel) {
                 var opt = sel.options[sel.selectedIndex];
@@ -98,6 +113,26 @@
         recalc();
     }
 
+    // Подставить цену товара в поле «Цена/сут.», пока админ не правил его сам.
+    // «Тронутость» храним на самом input (data-touched), чтобы состояние не
+    // протекало между экземплярами формы — так же, как для срока возврата.
+    function syncPrices() {
+        document.querySelectorAll('.item-row').forEach(function (row) {
+            var priceInp = row.querySelector('input.item-price');
+            var pidInp = row.querySelector('input[name="item_product"]');
+            if (!priceInp || !pidInp) return;          // оператор: поля нет
+            if (priceInp.dataset.touched === '1') return;
+            if (!pidInp.value) return;                 // товар не выбран
+            var price = pidInp.dataset.price || '';
+            if (!price) return;
+            if (parseMoney(priceInp.value) === parseFloat(price)) return;
+            priceInp.value = price;
+            // money-input.js форматирует значение по событию input; заодно
+            // отрабатывает наш пересчёт подытогов.
+            priceInp.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+    }
+
     // Ручной ввод/правка срока замораживает авто-подстановку (снимаем авто-флаг).
     function markDueTouched(el) {
         if (el && el.name === 'due_date') {
@@ -106,24 +141,38 @@
         }
     }
 
+    // Ручная правка цены замораживает автоподстановку для этой строки.
+    // isTrusted отсекает наше же синтетическое событие из syncPrices().
+    function markPriceTouched(e) {
+        var el = e.target;
+        if (!el || !el.classList || !el.classList.contains('item-price')) return;
+        if (!e.isTrusted) return;
+        el.dataset.touched = '1';
+    }
+
     document.addEventListener('input', function (e) {
         markDueTouched(e.target);
+        markPriceTouched(e);
         if (e.target && e.target.name === 'created_at') syncDueDate();
         recalc();
     });
     document.addEventListener('change', function (e) {
         markDueTouched(e.target);
+        markPriceTouched(e);
         recalc();
     });
 
-    // htmx подменил строку/пикер/вставил модалку — пересчитать и подстроить срок.
+    // htmx подменил строку/пикер/вставил модалку — пересчитать, подстроить
+    // срок возврата и подставить цены выбранных товаров.
     document.body.addEventListener('htmx:afterSettle', function () {
         syncDueDate();
+        syncPrices();
         recalc();
     });
 
     document.addEventListener('DOMContentLoaded', function () {
         syncDueDate();
+        syncPrices();
         recalc();
     });
 })();
