@@ -1691,7 +1691,8 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
     def _initial_context(self, request):
         return {
             'form': RentalCreateForm(),
-            'item_rows': [{'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''}],
+            'item_rows': [{'row_id': uuid.uuid4().hex[:8], 'product': None,
+                           'qty': '', 'price': ''}],
             'item_errors': [],
             'picked_customer': None,
             'today_iso': timezone.localdate().isoformat(),
@@ -1811,9 +1812,11 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
                 'row_id': row_id,
                 'product': product,
                 'qty': r.get('qty', ''),
+                'price': r.get('price_raw', ''),
             })
         if not out:
-            out = [{'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''}]
+            out = [{'row_id': uuid.uuid4().hex[:8], 'product': None,
+                    'qty': '', 'price': ''}]
         return out
 
 
@@ -1969,7 +1972,8 @@ class ItemProductClearView(View):
 class ItemRowNewView(View):
     def get(self, request):
         return render(request, 'config/rentals/_item_row.html', {
-            'row': {'row_id': uuid.uuid4().hex[:8], 'product': None, 'qty': ''},
+            'row': {'row_id': uuid.uuid4().hex[:8], 'product': None,
+                    'qty': '', 'price': ''},
         })
 
 

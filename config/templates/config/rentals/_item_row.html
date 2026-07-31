@@ -1,6 +1,6 @@
 {% load i18n %}
 <div class="row g-2 align-items-end mb-2 item-row" id="row-{{ row.row_id }}">
-    <div class="col-md-5">
+    <div class="col-md-4">
         <label class="form-label small text-muted mb-1">{% trans "Товар" %}</label>
         {% if row.product %}
             {% include 'config/rentals/_item_product_picked.html' with product=row.product row_id=row.row_id %}
@@ -13,7 +13,21 @@
         <input type="number" name="item_qty" min="1" class="form-control item-qty"
                value="{{ row.qty }}" placeholder="0">
     </div>
-    <div class="col-md-4">
+    {% if is_admin %}
+        {% comment %}
+          Цена — снимок именно этой аренды; справочник товара не меняется.
+          Пусто = взять цену из справочника. Поле только для админа: у staff
+          его нет в разметке, и сервер игнорирует item_price из его POST.
+        {% endcomment %}
+        <div class="col-md-2">
+            <label class="form-label small text-muted mb-1">{% trans "Цена/сут." %}</label>
+            <input type="text" name="item_price" inputmode="decimal"
+                   autocomplete="off" placeholder="0"
+                   class="form-control money-input item-price"
+                   value="{{ row.price }}">
+        </div>
+    {% endif %}
+    <div class="{% if is_admin %}col-md-3{% else %}col-md-4{% endif %}">
         <div class="small mt-1">
             {% trans "Подытог:" %}
             <strong class="row-subtotal text-primary">0.00</strong>
