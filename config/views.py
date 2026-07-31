@@ -1635,7 +1635,9 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
 
     def post(self, request):
         form = RentalCreateForm(request.POST)
-        rows = self._parse_item_rows(request.POST)
+        rows = self._parse_item_rows(
+            request.POST, can_set_price=user_is_admin(request.user),
+        )
         item_errors = self._validate_items(rows)
         ok = form.is_valid() and not item_errors
         # Модальный режим (карточка клиента): ?customer=<pk> + htmx.
@@ -1699,22 +1701,33 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
             'products': Product.objects.filter(is_active=True).order_by('name'),
         }
 
-    def _parse_item_rows(self, post):
+    def _parse_item_rows(self, post, *, can_set_price=False):
         product_ids = post.getlist('item_product')
         qtys = post.getlist('item_qty')
+        # Цену принимаем только от админа: у оператора поля в форме нет, и
+        # подделанный POST не должен на неё влиять.
+        #
+        # Читаем по индексу строки, а НЕ через zip: у оператора список пустой,
+        # и zip обнулил бы все строки разом. Скрытый item_product рендерится
+        # даже пустым (см. _item_product_search.html), поэтому индексы строк
+        # совпадают во всех трёх списках.
+        prices = post.getlist('item_price') if can_set_price else []
         rows = []
-        for pid_raw, qty_raw in zip(product_ids, qtys):
+        for i, (pid_raw, qty_raw) in enumerate(zip(product_ids, qtys)):
             pid_raw = (pid_raw or '').strip()
             qty_raw = (qty_raw or '').strip()
+            price_raw = (prices[i] if i < len(prices) else '').strip()
             if not pid_raw and not qty_raw:
                 continue
             try:
                 pid = int(pid_raw)
                 qty = int(qty_raw)
             except (TypeError, ValueError):
-                rows.append({'product_id': pid_raw, 'qty': qty_raw, 'invalid': True})
+                rows.append({'product_id': pid_raw, 'qty': qty_raw,
+                             'price_raw': price_raw, 'invalid': True})
                 continue
-            rows.append({'product_id': pid, 'qty': qty, 'invalid': False})
+            rows.append({'product_id': pid, 'qty': qty,
+                         'price_raw': price_raw, 'invalid': False})
         return rows
 
     def _validate_items(self, rows):
@@ -1728,6 +1741,24 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
                     _('Строка %(i)d: некорректные значения.') % {'i': i}
                 )
                 continue
+            # Цена — снимок этой аренды. Пусто = взять из справочника.
+            # Проверяем до проверок количества/товара: ошибки независимы и
+            # оператор должен увидеть их все сразу.
+            price_raw = (r.get('price_raw') or '').strip()
+            if price_raw:
+                price = parse_money(price_raw)
+                if price is None:
+                    errors.append(
+                        _('Строка %(i)d: цена за сутки указана неверно.')
+                        % {'i': i}
+                    )
+                elif price < 0:
+                    errors.append(
+                        _('Строка %(i)d: цена за сутки не может быть '
+                          'отрицательной.') % {'i': i}
+                    )
+                else:
+                    r['price'] = price
             if r['qty'] <= 0:
                 errors.append(
                     _('Строка %(i)d: количество должно быть больше нуля.')
@@ -1778,11 +1809,15 @@ class RentalCreateView(StaffOrAdminRequiredMixin, View):
                         'qty': r['qty'],
                     }
                 )
+            # Цена, заданная админом в форме, иначе — из справочника.
+            price = r.get('price')
+            if price is None:
+                price = product.daily_price
             item = RentalItem.objects.create(
                 rental=rental,
                 product=product,
                 qty=r['qty'],
-                price_per_day=product.daily_price,
+                price_per_day=price,
             )
             Movement.objects.create(
                 rental_item=item,

@@ -58,3 +58,102 @@ def test_new_row_fragment_has_price_field_for_admin(client_admin):
 def test_new_row_fragment_has_no_price_field_for_staff(client_staff):
     body = client_staff.get(reverse('rental_item_row_new')).content.decode()
     assert 'name="item_price"' not in body
+
+
+# ---------- применение цены ----------
+
+def test_admin_sets_custom_price(client_admin, customer, product):
+    resp = client_admin.post(_url(), data=_payload(customer, product, '250.50'))
+    assert resp.status_code == 302, resp.content[:400]
+    item = RentalItem.objects.get(rental__customer=customer)
+    assert item.price_per_day == Decimal('250.50')
+
+
+def test_custom_price_does_not_touch_catalog(client_admin, customer, product):
+    """Цена аренды — снимок: справочник товара остаётся прежним."""
+    client_admin.post(_url(), data=_payload(customer, product, '250.50'))
+    product.refresh_from_db()
+    assert product.daily_price == Decimal('100.00')
+
+
+def test_empty_price_falls_back_to_catalog(client_admin, customer, product):
+    resp = client_admin.post(_url(), data=_payload(customer, product, ''))
+    assert resp.status_code == 302, resp.content[:400]
+    item = RentalItem.objects.get(rental__customer=customer)
+    assert item.price_per_day == product.daily_price
+
+
+def test_price_accepts_ru_grouping_and_comma(client_admin, customer, product):
+    resp = client_admin.post(_url(),
+                             data=_payload(customer, product, '1 234,50'))
+    assert resp.status_code == 302, resp.content[:400]
+    item = RentalItem.objects.get(rental__customer=customer)
+    assert item.price_per_day == Decimal('1234.50')
+
+
+def test_zero_price_allowed(client_admin, customer, product):
+    """Ноль — валидная цена: бесплатная выдача."""
+    resp = client_admin.post(_url(), data=_payload(customer, product, '0'))
+    assert resp.status_code == 302, resp.content[:400]
+    item = RentalItem.objects.get(rental__customer=customer)
+    assert item.price_per_day == Decimal('0.00')
+
+
+# ---------- ошибки ----------
+
+def test_invalid_price_blocks_creation(client_admin, customer, product):
+    resp = client_admin.post(_url(), data=_payload(customer, product, 'abc'))
+    assert resp.status_code == 200
+    assert 'цена за сутки указана неверно' in resp.content.decode().lower()
+    assert not Rental.objects.filter(customer=customer).exists()
+
+
+def test_negative_price_blocks_creation(client_admin, customer, product):
+    resp = client_admin.post(_url(), data=_payload(customer, product, '-5'))
+    assert resp.status_code == 200
+    assert 'отрицательной' in resp.content.decode().lower()
+    assert not Rental.objects.filter(customer=customer).exists()
+
+
+def test_entered_price_survives_validation_error(client_admin, customer, product):
+    """Ошибка в количестве не должна стирать уже введённую цену."""
+    resp = client_admin.post(
+        _url(), data=_payload(customer, product, '777.00', qty='0'))
+    assert resp.status_code == 200
+    assert 'value="777.00"' in resp.content.decode()
+    assert not Rental.objects.filter(customer=customer).exists()
+
+
+# ---------- права ----------
+
+def test_staff_price_is_ignored(client_staff, customer, product):
+    """Подделанный POST от staff не должен менять цену."""
+    resp = client_staff.post(_url(), data=_payload(customer, product, '1.00'))
+    assert resp.status_code == 302, resp.content[:400]
+    item = RentalItem.objects.get(rental__customer=customer)
+    assert item.price_per_day == product.daily_price
+
+
+# ---------- несколько строк ----------
+
+def test_prices_are_not_mixed_between_rows(client_admin, customer, product,
+                                           category):
+    other = Product.objects.create(
+        name='Второй товар', category=category, unit='шт',
+        stock_total=100, daily_price=Decimal('300.00'),
+    )
+    resp = client_admin.post(_url(), data={
+        'customer': str(customer.pk),
+        'created_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+        'due_date': (timezone.localdate() + timedelta(days=5)).isoformat(),
+        'item_product': [str(product.pk), str(other.pk)],
+        'item_qty': ['2', '3'],
+        'item_price': ['11.00', '22.00'],
+    })
+    assert resp.status_code == 302, resp.content[:400]
+    prices = {
+        it.product_id: it.price_per_day
+        for it in RentalItem.objects.filter(rental__customer=customer)
+    }
+    assert prices[product.pk] == Decimal('11.00')
+    assert prices[other.pk] == Decimal('22.00')
