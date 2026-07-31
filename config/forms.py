@@ -1,5 +1,5 @@
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.utils import timezone
@@ -35,6 +35,34 @@ def _strip_money_spaces(raw):
         # чтобы Decimal-парсер принял значение и на пути без JS.
         return re.sub(r'\s+', '', s).replace(',', '.')
     return s
+
+
+def parse_money(raw):
+    """Разобрать денежную строку в ``Decimal`` с округлением до копеек.
+
+    Терпит ru-ввод: пробелы-разделители тысяч (обычный, неразрывный, тонкий)
+    и запятую как разделитель дроби — нормализация ровно та же, что у
+    ``MoneyDecimalField``. Возвращает ``None``, если значение пустое или не
+    разбирается в конечное число (в том числе для 'nan'/'Infinity', которые
+    ``Decimal`` принял бы молча).
+
+    Знак не проверяется: решение, допустима ли отрицательная сумма, остаётся
+    за вызывающим кодом.
+    """
+    if raw is None:
+        return None
+    s = _strip_money_spaces(str(raw).strip())
+    if not s:
+        return None
+    try:
+        value = Decimal(s)
+        # 'nan'/'Infinity' — валидный ввод для Decimal, но не для суммы.
+        # Тихий NaN ещё и переживает quantize, поэтому отсекаем явно.
+        if not value.is_finite():
+            return None
+        return value.quantize(Decimal('0.01'))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
 
 
 class MoneyDecimalField(forms.DecimalField):
