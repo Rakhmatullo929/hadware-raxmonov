@@ -2199,6 +2199,23 @@ class RentalPaymentDeleteView(AdminRequiredMixin, View):
         return _oob_response(request, _reload_rental(rental.pk))
 
 
+def _parse_price_per_day(raw):
+    """Разобрать цену за сутки из строки формы.
+
+    Терпит пробелы-разделители, неразрывный пробел и запятую-дробь.
+    Возвращает (Decimal | None, error | None): при ошибке (None, текст).
+    """
+    price_norm = (str(raw or '').strip()
+                  .replace(' ', '').replace('\xa0', '').replace(',', '.'))
+    try:
+        parsed = Decimal(price_norm)
+    except (InvalidOperation, TypeError, ValueError):
+        return None, _('Цена за сутки указана неверно.')
+    if parsed < 0:
+        return None, _('Цена за сутки не может быть отрицательной.')
+    return parsed.quantize(Decimal('0.01')), None
+
+
 class RentalItemAddView(AdminRequiredMixin, View):
     """Добавить новую позицию к существующей аренде (с выдачей со склада)."""
 
@@ -2312,19 +2329,9 @@ class RentalItemEditView(AdminRequiredMixin, View):
         # оставляют цену как есть. Терпим пробелы-разделители и запятую-дробь.
         new_price = None
         if 'price_per_day' in request.POST:
-            price_raw = (request.POST.get('price_per_day') or '').strip()
-            price_norm = (price_raw.replace(' ', '')
-                          .replace('\xa0', '').replace(',', '.'))
-            try:
-                parsed = Decimal(price_norm)
-            except (InvalidOperation, TypeError, ValueError):
-                parsed = None
-            if parsed is None:
-                errors.append(_('Цена за сутки указана неверно.'))
-            elif parsed < 0:
-                errors.append(_('Цена за сутки не может быть отрицательной.'))
-            else:
-                new_price = parsed.quantize(Decimal('0.01'))
+            new_price, price_err = _parse_price_per_day(request.POST.get('price_per_day'))
+            if price_err:
+                errors.append(price_err)
 
         if errors:
             return render(request, 'config/rentals/_item_edit_modal.html', {

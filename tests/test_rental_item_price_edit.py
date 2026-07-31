@@ -62,3 +62,17 @@ def test_staff_cannot_edit_item_price(client_staff, rental_with_returns):
     assert resp.status_code == 403
     item.refresh_from_db()
     assert item.price_per_day == old
+
+
+def test_parse_price_per_day_helper():
+    from config.views import _parse_price_per_day
+
+    assert _parse_price_per_day('250')[0] == Decimal('250.00')
+    assert _parse_price_per_day('1 234,50')[0] == Decimal('1234.50')
+    assert _parse_price_per_day('2\xa0000,00')[0] == Decimal('2000.00')
+
+    val, err = _parse_price_per_day('abc')
+    assert val is None and err
+
+    val, err = _parse_price_per_day('-5')
+    assert val is None and err
