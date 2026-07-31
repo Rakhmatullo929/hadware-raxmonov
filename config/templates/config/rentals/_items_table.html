@@ -50,7 +50,7 @@
                         {% endif %}
                     </td>
                     <td class="text-end">{{ it.qty }}</td>
-                    <td class="text-end">{{ it.price_per_day }}</td>
+                    <td class="text-end" id="price-cell-{{ it.pk }}">{% include 'config/rentals/_price_cell.html' with item=it rental=rental %}</td>
                     <td class="text-end fw-semibold">{{ it.line_daily_cost }}</td>
                     <td class="text-end">{{ it.issued_qty }}</td>
                     <td class="text-end">{{ it.returned_qty }}</td>

@@ -131,3 +131,13 @@ def test_inline_forbidden_for_staff(client_staff, rental_with_returns):
     assert client_staff.post(_inline_url(r, item),
                              {'price_per_day': '5'}).status_code == 403
     assert client_staff.get(_cell_url(r, item)).status_code == 403
+
+
+def test_price_cell_clickable_for_admin_not_staff(client_admin, client_staff,
+                                                  rental_with_returns):
+    r, item, *_ = rental_with_returns
+    edit_url = reverse('rental_item_price_edit', args=[r.pk, item.pk])
+    admin_body = client_admin.get(reverse('rental_card', args=[r.pk])).content.decode()
+    staff_body = client_staff.get(reverse('rental_card', args=[r.pk])).content.decode()
+    assert edit_url in admin_body       # у админа ячейка кликабельна
+    assert edit_url not in staff_body   # у оператора — обычный текст
