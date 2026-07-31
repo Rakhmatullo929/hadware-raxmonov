@@ -2,7 +2,7 @@ import json
 import re
 import uuid
 from datetime import date, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -42,6 +42,7 @@ from .forms import (
     CategoryForm,
     CustomerForm,
     MoneyDecimalField,
+    parse_money,
     PaymentForm,
     ProductForm,
     RentalCreateForm,
@@ -2196,19 +2197,13 @@ class RentalItemEditView(AdminRequiredMixin, View):
         # оставляют цену как есть. Терпим пробелы-разделители и запятую-дробь.
         new_price = None
         if 'price_per_day' in request.POST:
-            price_raw = (request.POST.get('price_per_day') or '').strip()
-            price_norm = (price_raw.replace(' ', '')
-                          .replace('\xa0', '').replace(',', '.'))
-            try:
-                parsed = Decimal(price_norm)
-            except (InvalidOperation, TypeError, ValueError):
-                parsed = None
+            parsed = parse_money(request.POST.get('price_per_day'))
             if parsed is None:
                 errors.append(_('Цена за сутки указана неверно.'))
             elif parsed < 0:
                 errors.append(_('Цена за сутки не может быть отрицательной.'))
             else:
-                new_price = parsed.quantize(Decimal('0.01'))
+                new_price = parsed
 
         if errors:
             return render(request, 'config/rentals/_item_edit_modal.html', {

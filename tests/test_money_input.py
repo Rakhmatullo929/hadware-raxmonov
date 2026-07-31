@@ -9,7 +9,9 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from config.forms import MoneyDecimalField, PaymentForm, _strip_money_spaces
+from config.forms import (
+    MoneyDecimalField, PaymentForm, _strip_money_spaces, parse_money,
+)
 from config.models import Payment
 
 
@@ -187,3 +189,42 @@ def test_create_form_renders_money_input_widget(client_admin):
     assert 'name="initial_deposit"' in body
     # type="text" + inputmode для мобильных.
     assert 'inputmode="decimal"' in body
+
+
+# ---------- parse_money ----------
+
+def test_parse_money_plain_decimal():
+    assert parse_money('250.50') == Decimal('250.50')
+
+
+def test_parse_money_ru_grouping_and_comma():
+    assert parse_money('1 234,50') == Decimal('1234.50')
+
+
+def test_parse_money_nbsp_grouping():
+    assert parse_money('40\xa0000') == Decimal('40000.00')
+
+
+def test_parse_money_quantizes_to_kopecks():
+    assert parse_money('10.006') == Decimal('10.01')
+
+
+def test_parse_money_keeps_negative_sign():
+    """Знак — не дело парсера; отвергает минус вызывающий код."""
+    assert parse_money('-5') == Decimal('-5.00')
+
+
+def test_parse_money_rejects_garbage():
+    assert parse_money('abc') is None
+
+
+def test_parse_money_rejects_empty():
+    assert parse_money('') is None
+    assert parse_money('   ') is None
+    assert parse_money(None) is None
+
+
+def test_parse_money_rejects_nan_and_infinity():
+    """Decimal сам по себе принимает 'nan'/'Infinity' — их надо отсечь."""
+    assert parse_money('nan') is None
+    assert parse_money('Infinity') is None
