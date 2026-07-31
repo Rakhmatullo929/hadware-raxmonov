@@ -198,14 +198,31 @@ def test_item_edit_qty_below_issued_rejected(client_admin, rental):
     assert 'меньше уже выданного' in r.content.decode()
 
 
-def test_item_remove_blocked_when_issued(client_admin, rental):
+def test_item_remove_works_when_issued_and_frees_stock(client_admin, rental, product):
+    """Удаление позиции с уже выданным товаром: строка и её движения
+    удаляются, товар возвращается на склад (замена товара)."""
     item = rental.items.first()  # issued=5
+    before = product.available_stock  # 100 - 5 = 95
     r = client_admin.post(
         f'/rentals/{rental.pk}/item/{item.pk}/remove/',
         HTTP_HX_REQUEST='true',
     )
     assert r.status_code == 200
-    assert rental.items.filter(pk=item.pk).exists()  # not deleted
+    assert not RentalItem.objects.filter(pk=item.pk).exists()          # deleted
+    assert not Movement.objects.filter(rental_item_id=item.pk).exists()  # movements gone
+    assert product.available_stock == before + 5                       # 5 units back
+
+
+def test_item_edit_qty_zero_deletes_item(client_admin, rental):
+    """Кол-во 0 в модалке = убрать позицию целиком (замена товара)."""
+    item = rental.items.first()  # issued=5
+    r = client_admin.post(
+        f'/rentals/{rental.pk}/item/{item.pk}/edit/',
+        {'qty': '0'}, HTTP_HX_REQUEST='true',
+    )
+    assert r.status_code == 200
+    assert not RentalItem.objects.filter(pk=item.pk).exists()
+    assert not Movement.objects.filter(rental_item_id=item.pk).exists()
 
 
 def test_item_remove_ok_when_no_issue(client_admin, rental, product, admin_user):

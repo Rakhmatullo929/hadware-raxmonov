@@ -2329,8 +2329,9 @@ class RentalItemAddView(AdminRequiredMixin, View):
 
 
 class RentalItemEditView(AdminRequiredMixin, View):
-    """Изменить позицию аренды: количество (не меньше уже выданного) и цену
-    за сутки (снимок этой аренды, не влияет на справочник товара)."""
+    """Изменить позицию аренды: количество (0 — убрать позицию, иначе не меньше
+    уже выданного) и цену за сутки (снимок этой аренды, не влияет на справочник
+    товара)."""
 
     def _get_objs(self, pk, item_pk):
         rental = get_object_or_404(Rental, pk=pk)
@@ -2349,17 +2350,29 @@ class RentalItemEditView(AdminRequiredMixin, View):
     def post(self, request, pk, item_pk):
         rental, item = self._get_objs(pk, item_pk)
         qty_raw = (request.POST.get('qty') or '').strip()
-        errors = []
         try:
             qty = int(qty_raw)
         except (TypeError, ValueError):
             qty = -1
         issued = item.issued_qty
-        if qty <= 0:
-            errors.append(_('Количество должно быть больше нуля.'))
+
+        # Кол-во 0 — убрать позицию целиком (замена товара): её выдачи/возвраты
+        # удаляются, товар возвращается на склад, аренда по строке обнуляется.
+        if qty == 0:
+            name = item.product.name
+            item.delete()
+            messages.success(
+                request, _('Позиция «%(name)s» удалена.') % {'name': name},
+            )
+            return _oob_response(request, _reload_rental(rental.pk))
+
+        errors = []
+        if qty < 0:
+            errors.append(_('Количество не может быть отрицательным.'))
         elif qty < issued:
             errors.append(
-                _('Нельзя заказать меньше уже выданного (%(n)d).')
+                _('Нельзя заказать меньше уже выданного (%(n)d). '
+                  'Чтобы убрать товар (замена), поставьте 0.')
                 % {'n': issued}
             )
 
@@ -2485,7 +2498,8 @@ class RentalMovementEditView(AdminRequiredMixin, View):
 
 
 class RentalItemRemoveView(AdminRequiredMixin, View):
-    """Удалить позицию. Разрешено только если по ней ничего не выдано."""
+    """Удалить позицию (замена товара). Вместе со строкой удаляются её
+    выдачи/возвраты, товар возвращается на склад, аренда по строке обнуляется."""
 
     def post(self, request, pk, item_pk):
         rental = get_object_or_404(Rental, pk=pk)
@@ -2493,14 +2507,6 @@ class RentalItemRemoveView(AdminRequiredMixin, View):
             RentalItem.objects.select_related('product'),
             pk=item_pk, rental=rental,
         )
-        if item.issued_qty > 0:
-            messages.error(
-                request,
-                _('Нельзя удалить «%(name)s»: уже была выдача. '
-                  'Сначала оформите возврат или досрочное закрытие.')
-                % {'name': item.product.name},
-            )
-            return _oob_response(request, _reload_rental(rental.pk))
         name = item.product.name
         item.delete()
         messages.success(

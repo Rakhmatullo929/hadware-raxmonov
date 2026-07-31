@@ -73,7 +73,7 @@
                             <button type="button" class="btn btn-sm btn-link text-danger p-0"
                                     title="{% trans 'Удалить позицию' %}"
                                     hx-post="{% url 'rental_item_remove' rental.pk it.pk %}"
-                                    hx-confirm="{% trans 'Удалить эту позицию?' %}"
+                                    hx-confirm="{% trans 'Убрать позицию? Выданный товар вернётся на склад, аренда по строке обнулится.' %}"
                                     hx-target="#modal-slot" hx-swap="innerHTML">
                                 <i class="bi bi-trash"></i>
                             </button>
