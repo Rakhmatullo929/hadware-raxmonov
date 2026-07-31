@@ -2347,6 +2347,62 @@ class RentalItemEditView(AdminRequiredMixin, View):
         return _oob_response(request, _reload_rental(rental.pk))
 
 
+class RentalItemPriceEditView(AdminRequiredMixin, View):
+    """Инлайн-правка цены за сутки прямо в ячейке таблицы позиций.
+
+    GET  → форма (поле + ✓/✗) в ячейку.
+    POST → сохранить цену и перезагрузить карточку (OOB), либо форма с ошибкой.
+    Количество не трогаем — для него остаётся модалка (rental_item_edit).
+    """
+
+    def _get_objs(self, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        return rental, item
+
+    def get(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        return render(request, 'config/rentals/_price_cell_edit.html', {
+            'rental': rental, 'item': item,
+            'value': f'{item.price_per_day:.2f}', 'error': '',
+        })
+
+    def post(self, request, pk, item_pk):
+        rental, item = self._get_objs(pk, item_pk)
+        raw = request.POST.get('price_per_day')
+        new_price, error = _parse_price_per_day(raw)
+        if error:
+            return render(request, 'config/rentals/_price_cell_edit.html', {
+                'rental': rental, 'item': item,
+                'value': (raw or ''), 'error': error,
+            })
+        item.price_per_day = new_price
+        item.save(update_fields=['price_per_day'])
+        messages.success(request, _('Цена обновлена.'))
+        # Ячейка внутри OOB-региона #rental-items: главный swap не нужен,
+        # карточку целиком обновляют OOB-блоки из _oob_refresh.html.
+        response = _oob_response(request, _reload_rental(rental.pk))
+        response['HX-Reswap'] = 'none'
+        return response
+
+
+class RentalItemPriceCellView(AdminRequiredMixin, View):
+    """Вернуть обычную ячейку цены (для кнопки ✗ — отмена без сохранения)."""
+
+    def get(self, request, pk, item_pk):
+        rental = get_object_or_404(Rental, pk=pk)
+        item = get_object_or_404(
+            RentalItem.objects.select_related('product'),
+            pk=item_pk, rental=rental,
+        )
+        return render(request, 'config/rentals/_price_cell.html', {
+            'rental': rental, 'item': item,
+        })
+
+
 class RentalMovementEditView(AdminRequiredMixin, View):
     """Правка времени (Movement.date) у движения ВОЗВРАТА. Только admin.
 
