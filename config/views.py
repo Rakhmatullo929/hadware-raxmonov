@@ -2844,14 +2844,12 @@ def _compute_payroll(worker, year, month, present_days=None,
         monthly_base = _resolve_month_base(worker, year, month)
     if present_days is None:
         start, end = _month_bounds(year, month)
-        present_dates = Attendance.objects.filter(
+        # Считаем ВСЕ отмеченные дни, включая выходные: работа в выходной
+        # засчитывается наравне с буднями. Потолок (не выше полного оклада)
+        # ставится ниже через min(present_days, working_days).
+        present_days = Attendance.objects.filter(
             worker=worker, date__gte=start, date__lt=end, is_present=True,
-        ).values_list('date', flat=True)
-        # Считаем только будни — пропорция base = оклад × явка / рабочие дни,
-        # а рабочие дни (_working_days_in_month) это Пн–Пт. Явка в выходные не
-        # должна раздувать базу выше полного оклада (числитель и знаменатель
-        # должны опираться на один и тот же набор дней).
-        present_days = sum(1 for d in present_dates if d.weekday() < 5)
+        ).count()
     if entries is None:
         # select_related('created_by') — модалка начислений рендерит
         # e.created_by.username; иначе был бы N+1 на каждую запись.
@@ -2863,8 +2861,11 @@ def _compute_payroll(worker, year, month, present_days=None,
     # 0.00 как Decimal('0.00') — `or 0` схлопнул бы реальный нулевой снимок в '0'.
     base_full = Decimal(monthly_base)
     if working_days > 0:
+        # Потолок: отработанные сверх нормы дни (в т.ч. выходные) не поднимают
+        # базу выше полного оклада — они лишь компенсируют пропущенные будни.
+        effective_days = min(present_days, working_days)
         base = _quantize_money(
-            base_full * Decimal(present_days) / Decimal(working_days)
+            base_full * Decimal(effective_days) / Decimal(working_days)
         )
     else:
         base = _quantize_money(0)
@@ -2924,17 +2925,17 @@ def salary_index(request):
 
     start, end = _month_bounds(year, month)
 
-    # Явка батчем — считаем только будни (Пн–Пт), согласованно с working_days.
+    # Явка батчем — считаем ВСЕ отмеченные дни, включая выходные (потолок по
+    # полному окладу ставится в _compute_payroll через min с working_days).
     present_rows = (
         Attendance.objects
         .filter(worker__in=workers, date__gte=start, date__lt=end,
                 is_present=True)
-        .values_list('worker_id', 'date')
+        .values_list('worker_id', flat=True)
     )
     present_map = {}
-    for wid, d in present_rows:
-        if d.weekday() < 5:
-            present_map[wid] = present_map.get(wid, 0) + 1
+    for wid in present_rows:
+        present_map[wid] = present_map.get(wid, 0) + 1
 
     # Начисления/удержания батчем. created_by здесь НЕ нужен (таблица
     # показывает только счётчик записей), поэтому без select_related —
@@ -3114,15 +3115,15 @@ def salary_worker_detail(request, worker_id):
     range_start = date(oldest_y, oldest_m, 1)
     range_end = _month_bounds(newest_y, newest_m)[1]
 
-    # Явка по месяцам (только будни — как в _compute_payroll).
+    # Явка по месяцам — все отмеченные дни, включая выходные (как в
+    # _compute_payroll; потолок по окладу ставится там же через min).
     present_map = {}
     for d in (Attendance.objects
               .filter(worker=worker, date__gte=range_start, date__lt=range_end,
                       is_present=True)
               .values_list('date', flat=True)):
-        if d.weekday() < 5:
-            key = (d.year, d.month)
-            present_map[key] = present_map.get(key, 0) + 1
+        key = (d.year, d.month)
+        present_map[key] = present_map.get(key, 0) + 1
 
     # Запрос по нужным (year, month) — строим OR-условие из явного списка.
     month_q = Q(year=months[0][0], month=months[0][1])
