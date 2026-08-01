@@ -76,10 +76,10 @@ def test_compute_payroll_pro_rates_by_attendance(db, worker):
     assert payroll['total'] == Decimal('1500000.00')
 
 
-def test_compute_payroll_ignores_weekend_attendance(db, worker):
-    # Июнь 2026: 22 будних дня. Отмечаем присутствие во все 22 будних дня
-    # ПЛЮС 2 субботы. Выходные не входят в рабочие дни, по которым считается
-    # пропорция, поэтому база не должна превышать полный оклад.
+def test_compute_payroll_weekend_counts_and_caps_at_full_salary(db, worker):
+    # Июнь 2026: 22 будних дня. Отмечаем все 22 будня ПЛЮС 2 субботы.
+    # Выходные теперь засчитываются в present_days, но база не может превысить
+    # полный оклад (потолок min(present_days, working_days)).
     base_date = date(2026, 6, 1)
     all_days = [base_date.replace(day=i) for i in range(1, 31)]
     weekdays = [d for d in all_days if d.weekday() < 5]
@@ -89,9 +89,27 @@ def test_compute_payroll_ignores_weekend_attendance(db, worker):
         for d in weekdays + saturdays
     ])
     payroll = _compute_payroll(worker, 2026, 6)
-    assert payroll['present_days'] == 22          # только будни
+    assert payroll['present_days'] == 24          # будни + выходные
     assert payroll['working_days'] == 22
-    assert payroll['base'] == Decimal('3000000.00')  # ровно полный оклад
+    assert payroll['base'] == Decimal('3000000.00')  # потолок = полный оклад
+    assert payroll['absent_days'] == 0
+
+
+def test_compute_payroll_weekend_compensates_missed_weekday(db, worker):
+    # Пропущено 2 будня, но отработано 2 субботы → 22 отмеченных дня.
+    # Выходные компенсируют пропущенные будни → полный оклад.
+    base_date = date(2026, 6, 1)
+    all_days = [base_date.replace(day=i) for i in range(1, 31)]
+    weekdays = [d for d in all_days if d.weekday() < 5][:-2]   # 20 будней
+    saturdays = [d for d in all_days if d.weekday() == 5][:2]  # 2 субботы
+    Attendance.objects.bulk_create([
+        Attendance(worker=worker, date=d, is_present=True)
+        for d in weekdays + saturdays
+    ])
+    payroll = _compute_payroll(worker, 2026, 6)
+    assert payroll['present_days'] == 22
+    assert payroll['working_days'] == 22
+    assert payroll['base'] == Decimal('3000000.00')  # компенсация до полного
     assert payroll['absent_days'] == 0
 
 
