@@ -1,21 +1,24 @@
-"""Серверная генерация PDF договора аренды через fpdf2.
+"""Серверная генерация PDF аренды через fpdf2.
+
+Печатает подпись клиента и плоскую таблицу позиций (образец — бумажный лист
+клиента): Код клиента · Товар(Наименование/Кол-во/Стоимость/Общая сумма) ·
+Дата(Отправки/Привозки) · Время(Отправки/Привозки).
 
 Чистый Python, без системных зависимостей (в отличие от WeasyPrint).
 Шрифт ищется по списку кандидатов, чтобы работало и на macOS (dev),
 и на Linux (прод). На проде достаточно `apt install fonts-dejavu-core`.
 
-Поддерживаются три формата:
-* ``full``    — A4, полный договор со всеми разделами (по умолчанию).
-* ``half``    — A5, средний: стороны, позиции, ключевые условия.
-* ``quarter`` — A6, краткая выписка «для своих»: №, клиент, позиции, итог.
+Поддерживаются три формата (все — альбомная ориентация, таблица широкая):
+* ``full``    — A4 (по умолчанию).
+* ``half``    — A5.
+* ``quarter`` — A6.
 
 Важно: ``fpdf2`` импортируется лениво внутри :func:`build_contract_pdf`,
-чтобы вызов HTML-печати договора и наличие констант формата работали даже
-тогда, когда библиотека ещё не установлена (она нужна только для PDF).
+чтобы вызов HTML-печати и наличие констант формата работали даже тогда,
+когда библиотека ещё не установлена (она нужна только для PDF).
 """
 from decimal import Decimal
 
-from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -41,16 +44,14 @@ def normalize_size(value):
     return SIZE_FULL
 
 
-# Параметры макета на каждый формат. Подобраны так, чтобы:
-#  - A4 (full)    давал прежний результат;
-#  - A5 (half)    помещался в "среднем" объёме с компактной таблицей;
-#  - A6 (quarter) умещал «корешок» договора на четвертушке листа.
+# Параметры макета на каждый формат. Все — альбомная ориентация, потому что
+# таблица позиций широкая (9 колонок). Отличаются лишь бумагой и кеглем.
 _LAYOUTS = {
     SIZE_FULL: {
         'page_format': 'A4',
-        'orientation': 'P',              # A4 — вертикально
-        'margins': (18, 16, 18),         # left, top, right
-        'auto_break_margin': 18,
+        'orientation': 'L',              # альбом — под широкую таблицу
+        'margins': (12, 12, 12),         # left, top, right
+        'auto_break_margin': 12,
         'font_base': 10,
         'font_small': 9,
         'font_tiny': 8,
@@ -60,18 +61,14 @@ _LAYOUTS = {
         'line_h': 5,
         'header_h': 9,
         'subheader_h': 6,
-        'show_parties': True,
-        'show_terms': True,
-        'show_note': True,
-        'item_columns': 'wide',
     },
     SIZE_HALF: {
         'page_format': 'A5',
-        'orientation': 'L',              # меньше A4 — горизонтально (альбом)
-        'margins': (14, 12, 14),
-        'auto_break_margin': 14,
-        'font_base': 9,
-        'font_small': 8,
+        'orientation': 'L',
+        'margins': (10, 10, 10),
+        'auto_break_margin': 10,
+        'font_base': 8,
+        'font_small': 7.5,
         'font_tiny': 7,
         'font_h1': 13,
         'font_h2': 10,
@@ -79,20 +76,16 @@ _LAYOUTS = {
         'line_h': 4.2,
         'header_h': 7,
         'subheader_h': 5,
-        'show_parties': True,
-        'show_terms': True,
-        'show_note': True,
-        'item_columns': 'wide',
     },
     SIZE_QUARTER: {
         # A6 не всегда есть в PAGE_FORMATS у fpdf2 — задаём в мм явно
         # (портретный кортеж; orientation='L' развернёт в 148×105 альбом).
         'page_format': (105, 148),
-        'orientation': 'L',             # меньше A4 — горизонтально (альбом)
-        'margins': (8, 8, 8),
-        'auto_break_margin': 8,
-        'font_base': 8,
-        'font_small': 7,
+        'orientation': 'L',
+        'margins': (7, 7, 7),
+        'auto_break_margin': 7,
+        'font_base': 7,
+        'font_small': 6.5,
         'font_tiny': 6,
         'font_h1': 11,
         'font_h2': 9,
@@ -100,10 +93,6 @@ _LAYOUTS = {
         'line_h': 3.6,
         'header_h': 6,
         'subheader_h': 4,
-        'show_parties': False,         # только Арендатор кратко
-        'show_terms': False,           # только дата возврата
-        'show_note': False,
-        'item_columns': 'compact',     # без цены/залога — только позиция и кол-во
     },
 }
 
@@ -171,88 +160,119 @@ def _fit_text(pdf, text, cell_w, pad=1.2):
     return (s + ell) if s else ell
 
 
-def _draw_items_table(pdf, layout, items, total_cost):
-    """Таблица позиций: №, Тип, Наименование, Кол-во, Ед., Цена/сут, Стоимость.
+def _fmt_date(dt):
+    """tz-aware datetime → локальная дата ``дд.мм.гггг`` (или «—»)."""
+    if not dt:
+        return '—'
+    return timezone.localtime(dt).strftime('%d.%m.%Y')
 
-    Стоимость позиции = кол-во × цена/сут. Колонки одинаковы для всех форматов
-    (для A6 шрифт мельче, см. layout). Длинные «Тип»/«Наименование» обрезаются
-    по ширине ячейки, чтобы не налезать на соседние колонки."""
+
+def _fmt_time(dt):
+    """tz-aware datetime → локальное время ``чч:мм:сс`` (или «—»)."""
+    if not dt:
+        return '—'
+    return timezone.localtime(dt).strftime('%H:%M:%S')
+
+
+# Доли ширины колонок (в сумме = 1.0). Порядок:
+# Код клиента | Наименование | Кол-во | Стоимость | Общая сумма |
+# Дата-Отправки | Дата-Привозки | Время-Отправки | Время-Привозки
+_FR_CODE = 0.09
+_FR_NAME = 0.22
+_FR_QTY = 0.07
+_FR_PRICE = 0.10
+_FR_SUM = 0.12
+_FR_DOUT = 0.105
+_FR_DIN = 0.105
+_FR_TOUT = 0.095
+_FR_TIN = 0.095
+
+
+def _draw_items_table(pdf, layout, rows, total_qty, grand_total, customer_code):
+    """Плоская таблица позиций с двухрядной «шапкой».
+
+    Шапка: Код клиента │ Товар(Наименование│Кол-во│Стоимость│Общая сумма)
+                       │ Дата(Отправки│Привозки) │ Время(Отправки│Привозки).
+    «Код клиента» повторяется в каждой строке; итог — Σ кол-ва и Σ суммы.
+    Длинные наименования обрезаются по ширине ячейки, чтобы не налезать."""
     w = pdf.epw
-    row_h = layout['row_h']
+    h = layout['row_h']
     base = layout['font_small']
+    hdr = max(base - 1, 6)
+    x_left = pdf.l_margin
 
-    # frac: №, Тури, Номи, Сони, Бирл., Нарх/кун, Қиймат — сумма = 1.00
-    fr_num, fr_type, fr_name = 0.06, 0.18, 0.31
-    fr_qty, fr_unit, fr_price, fr_cost = 0.09, 0.09, 0.135, 0.135
-    headers = [
-        ('№', fr_num, 'C'),
-        (_('Тури'), fr_type, 'L'),
-        (_('Номи'), fr_name, 'L'),
-        (_('Сони'), fr_qty, 'R'),
-        (_('Бирл.'), fr_unit, 'C'),
-        (_('Нарх/кун'), fr_price, 'R'),
-        (_('Қиймат'), fr_cost, 'R'),
+    subheaders = [
+        (_('Наименование'), _FR_NAME),
+        (_('Кол-во'), _FR_QTY),
+        (_('Стоимость'), _FR_PRICE),
+        (_('Общая сумма'), _FR_SUM),
+        (_('Отправки'), _FR_DOUT),
+        (_('Привозки'), _FR_DIN),
+        (_('Отправки'), _FR_TOUT),
+        (_('Привозки'), _FR_TIN),
     ]
 
-    pdf.set_font('Body', 'B', base)
-    pdf.set_fill_color(238, 240, 242)
-    for title, frac, _align in headers:
-        pdf.cell(w * frac, row_h, str(title), border=1, align='C', fill=True)
-    pdf.ln()
+    def draw_header():
+        pdf.set_font('Body', 'B', hdr)
+        pdf.set_fill_color(238, 240, 242)
+        y0 = pdf.get_y()
+        # Верхний ряд: «Код клиента» на всю высоту (2 строки), затем группы.
+        pdf.cell(w * _FR_CODE, h * 2,
+                 _fit_text(pdf, _('Код клиента'), w * _FR_CODE),
+                 border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_NAME + _FR_QTY + _FR_PRICE + _FR_SUM), h,
+                 _('Товар'), border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_DOUT + _FR_DIN), h,
+                 _('Дата'), border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_TOUT + _FR_TIN), h,
+                 _('Время'), border=1, align='C', fill=True)
+        pdf.ln(h)
+        # Нижний ряд под-заголовков — правее колонки «Код клиента».
+        pdf.set_xy(x_left + w * _FR_CODE, y0 + h)
+        for title, frac in subheaders:
+            pdf.cell(w * frac, h,
+                     _fit_text(pdf, str(title), w * frac),
+                     border=1, align='C', fill=True)
+        pdf.ln(h)
+
+    draw_header()
 
     pdf.set_font('Body', size=base)
-    for idx, it in enumerate(items, start=1):
-        line_cost = it.qty * it.price_per_day
-        row = [
-            (str(idx), fr_num, 'C'),
-            (_fit_text(pdf, it.product.category, w * fr_type), fr_type, 'L'),
-            (_fit_text(pdf, it.product.name, w * fr_name), fr_name, 'L'),
-            (str(it.qty), fr_qty, 'R'),
-            (_fit_text(pdf, it.product.unit, w * fr_unit), fr_unit, 'C'),
-            (_money(it.price_per_day), fr_price, 'R'),
-            (_money(line_cost), fr_cost, 'R'),
-        ]
-        if pdf.will_page_break(row_h):
+    for r in rows:
+        if pdf.will_page_break(h):
             pdf.add_page()
-        for text, frac, align in row:
-            pdf.cell(w * frac, row_h, str(text), border=1, align=align)
-        pdf.ln()
-        kit_parts = it.kit_breakdown()
-        if kit_parts:
-            bits = []
-            for c in kit_parts:
-                if c['per_unit'] is not None:
-                    bits.append(
-                        '%s ×%d (%s ×%d)'
-                        % (c['name'], c['per_unit'], _('жами'), c['total'])
-                    )
-                else:
-                    bits.append(c['name'])
-            pdf.set_font('Body', '', max(base - 1, 6))
-            pdf.set_text_color(110, 110, 110)
-            pdf.multi_cell(
-                w, row_h - 1,
-                _('тўпламда') + ': ' + ', '.join(bits),
-                border='LR', align='L',
-            )
-            # multi_cell оставляет курсор справа — возвращаем к левому полю,
-            # иначе последующие multi_cell(0, ...) получат нулевую ширину.
-            pdf.set_x(pdf.l_margin)
-            pdf.set_text_color(0, 0, 0)
+            draw_header()
             pdf.set_font('Body', size=base)
+        cells = [
+            (customer_code, _FR_CODE, 'C'),
+            (_fit_text(pdf, r['name'], w * _FR_NAME), _FR_NAME, 'L'),
+            (str(r['qty']), _FR_QTY, 'R'),
+            (_money(r['price']), _FR_PRICE, 'R'),
+            (_money(r['total']), _FR_SUM, 'R'),
+            (r['issue_date'], _FR_DOUT, 'C'),
+            (r['return_date'], _FR_DIN, 'C'),
+            (r['issue_time'], _FR_TOUT, 'C'),
+            (r['return_time'], _FR_TIN, 'C'),
+        ]
+        for text, frac, align in cells:
+            pdf.cell(w * frac, h, str(text), border=1, align=align)
+        pdf.ln(h)
 
-    # Итог: суммарная стоимость аренды в сутки (Σ кол-во × цена/сут).
+    # Итог: Σ кол-ва и Σ суммы.
     pdf.set_font('Body', 'B', base)
-    pdf.cell(w * 0.865, row_h, _('Жами (кунлик)'), border=1, align='R')
-    pdf.cell(w * 0.135, row_h, _money(total_cost), border=1, align='R')
-    pdf.ln(row_h + 3)
+    pdf.cell(w * (_FR_CODE + _FR_NAME), h, _('Итого'), border=1, align='R')
+    pdf.cell(w * _FR_QTY, h, str(total_qty), border=1, align='R')
+    pdf.cell(w * _FR_PRICE, h, '', border=1)
+    pdf.cell(w * _FR_SUM, h, _money(grand_total), border=1, align='R')
+    pdf.cell(w * (_FR_DOUT + _FR_DIN + _FR_TOUT + _FR_TIN), h, '', border=1)
+    pdf.ln(h + 2)
 
 
 def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
-    """Собрать PDF договора заданного формата.
+    """Собрать PDF аренды: подпись клиента + плоская таблица позиций.
 
-    :param rental: ``Rental`` с подгруженными items/payments/customer.
-    :param size:   ``full`` (A4), ``half`` (A5) или ``quarter`` (A6).
+    :param rental: ``Rental`` с подгруженными items/movements/customer.
+    :param size:   ``full`` (A4), ``half`` (A5) или ``quarter`` (A6), все — альбом.
                    Любое неизвестное значение трактуется как ``full``.
     :returns:      Готовый PDF в ``bytes``.
     :raises ContractFontMissing: если не найден ни один TTF-шрифт.
@@ -260,45 +280,47 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     """
     fpdf_module = load_fpdf()
 
-    from django.db.models import Sum
-
     from . import billing
-    from .models import Movement, Payment
 
     layout = _LAYOUTS[normalize_size(size)]
 
     font_regular, font_bold = resolve_fonts()
 
     items = list(
-        rental.items.select_related('product', 'product__category').all()
+        rental.items
+        .select_related('product')
+        .prefetch_related('movements')
+        .all()
     )
-    total_cost = sum(
-        (it.qty * it.price_per_day for it in items), Decimal('0.00'),
-    )
-    deposit_paid = sum(
-        (p.amount for p in rental.payments.filter(kind=Payment.Kind.DEPOSIT)),
-        Decimal('0.00'),
-    )
-    total_deposit_due = sum(
-        (it.product.deposit_per_unit * it.qty for it in items),
-        Decimal('0.00'),
-    )
-    # «Сколько вернул и на какую сумму»: суммарный возврат по аренде.
-    charges = billing.return_charge_map(rental)
-    returned_amount = sum(charges.values(), Decimal('0.00'))
-    returned_qty = (
-        Movement.objects
-        .filter(rental_item__rental=rental, kind=Movement.Kind.RETURN)
-        .aggregate(q=Sum('qty'))['q'] or 0
-    )
+    rows = []
+    total_qty = 0
+    grand_total = Decimal('0.00')
+    for it in items:
+        # Общая сумма = кол-во × цена × дни (billing: FIFO, ручные правки).
+        total = billing.compute_item_base(it)
+        issue_dt = it.first_issue_at
+        return_dt = it.last_return_at
+        rows.append({
+            'name': it.product.name,
+            'qty': it.qty,
+            'price': it.price_per_day,
+            'total': total,
+            'issue_date': _fmt_date(issue_dt),
+            'issue_time': _fmt_time(issue_dt),
+            'return_date': _fmt_date(return_dt),
+            'return_time': _fmt_time(return_dt),
+        })
+        total_qty += it.qty
+        grand_total += total
+
+    cust = rental.customer
     pdf = _make_contract_pdf(fpdf_module, font_regular, font_bold, layout)
     pdf.add_page()
-    w = pdf.epw
 
     # ---- Заголовок ----
     pdf.set_font('Body', 'B', layout['font_h1'])
     pdf.cell(0, layout['header_h'],
-             _('ИЖАРА ШАРТНОМАСИ № %(n)s') % {'n': rental.pk},
+             _('Аренда № %(n)s') % {'n': rental.pk},
              align='C', new_x='LMARGIN', new_y='NEXT')
     pdf.set_font('Body', size=layout['font_small'])
     pdf.set_text_color(110, 110, 110)
@@ -310,134 +332,22 @@ def build_contract_pdf(rental, size: str = SIZE_FULL) -> bytes:
     pdf.set_text_color(0, 0, 0)
     pdf.ln(layout['line_h'])
 
-    cust = rental.customer
+    # ---- Подпись клиента ----
+    bits = []
+    if cust.code:
+        bits.append('№ ' + cust.code)
+    if cust.full_name:
+        bits.append(cust.full_name)
+    if cust.phone:
+        bits.append(cust.phone)
+    pdf.set_font('Body', 'B', layout['font_small'])
+    pdf.multi_cell(0, layout['line_h'],
+                   _('Клиент: ') + ' · '.join(bits),
+                   new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(1)
 
-    if layout['show_parties']:
-        # ---- Стороны (две колонки) ----
-        col = w / 2 - 2
-        y0 = pdf.get_y()
-        pdf.set_font('Body', 'B', layout['font_base'])
-        pdf.multi_cell(col, layout['line_h'], _('Ижарага берувчи:'),
-                       new_x='RIGHT', new_y='TOP')
-        pdf.set_xy(pdf.l_margin + col + 4, y0)
-        pdf.multi_cell(col, layout['line_h'], _('Ижарага олувчи:'),
-                       new_x='LMARGIN', new_y='NEXT')
-
-        pdf.set_font('Body', size=layout['font_small'])
-        y1 = pdf.get_y()
-        landlord = '\n'.join([
-            _('«Rakhmonov — ижара ҳисоби» МЧЖ'),
-            _('Тел.: +998906364044'),
-        ])
-        pdf.multi_cell(col, layout['line_h'], landlord,
-                       new_x='RIGHT', new_y='TOP')
-        y_left_end = pdf.get_y()
-
-        renter_lines = [cust.full_name]
-        if cust.code:
-            renter_lines.append(_('Ички рақам: № %(c)s') % {'c': cust.code})
-        if cust.passport:
-            renter_lines.append(_('Паспорт: %(p)s') % {'p': cust.passport})
-        if cust.phone:
-            renter_lines.append(_('Тел.: %(t)s') % {'t': cust.phone})
-        pdf.set_xy(pdf.l_margin + col + 4, y1)
-        pdf.multi_cell(col, layout['line_h'], '\n'.join(renter_lines),
-                       new_x='LMARGIN', new_y='NEXT')
-        pdf.set_y(max(y_left_end, pdf.get_y()) + 4)
-    else:
-        # quarter: только клиент, в одну строку.
-        pdf.set_font('Body', 'B', layout['font_base'])
-        pdf.cell(0, layout['line_h'], _('Ижарага олувчи:'),
-                 new_x='LMARGIN', new_y='NEXT')
-        pdf.set_font('Body', size=layout['font_small'])
-        renter_bits = [cust.full_name]
-        if cust.code:
-            renter_bits.append('№ ' + cust.code)
-        if cust.phone:
-            renter_bits.append(cust.phone)
-        pdf.multi_cell(0, layout['line_h'], ' · '.join(renter_bits),
-                       new_x='LMARGIN', new_y='NEXT')
-        pdf.ln(1)
-
-    # ---- Раздел «Предмет договора» ----
-    if layout['item_columns'] == 'compact':
-        # У quarter — без заголовка-номера, чтобы экономить место.
-        pdf.set_font('Body', 'B', layout['font_h2'])
-        pdf.cell(0, layout['header_h'], _('Ускуналар'),
-                 new_x='LMARGIN', new_y='NEXT')
-    else:
-        pdf.set_font('Body', 'B', layout['font_h2'])
-        pdf.cell(0, layout['header_h'], _('1. Шартнома предмети'),
-                 new_x='LMARGIN', new_y='NEXT')
-        pdf.set_font('Body', size=layout['font_small'])
-        pdf.multi_cell(0, layout['line_h'], _(
-            'Ижарага берувчи топширади, Ижарага олувчи эса қуйида '
-            'кўрсатилган ускуналарни вақтинча, ҳақ эвазига фойдаланишга '
-            'қабул қилади:'
-        ), new_x='LMARGIN', new_y='NEXT')
-        pdf.ln(1)
-
-    _draw_items_table(pdf, layout, items, total_cost)
-
-    # ---- Сроки и оплата ----
-    if layout['show_terms']:
-        pdf.set_font('Body', 'B', layout['font_h2'])
-        pdf.cell(0, layout['header_h'], _('2. Муддат ва тўлов'),
-                 new_x='LMARGIN', new_y='NEXT')
-        pdf.set_font('Body', size=layout['font_small'])
-        bullets = [
-            _('Бериш санаси: %(d)s') % {'d': rental.created_at.strftime('%d.%m.%Y %H:%M')},
-            _('Қайтариш муддати: %(d)s') % {'d': rental.due_date.strftime('%d.%m.%Y %H:%M')},
-            _('Беришда олинган гаров: %(s)s сўм') % {'s': _money(deposit_paid)},
-            _('Ҳисобланган гаров (жами): %(s)s сўм') % {'s': _money(total_deposit_due)},
-        ]
-        if returned_qty:
-            bullets.append(
-                _('Қайтарилди: %(q)s дона · %(s)s сўм')
-                % {'q': returned_qty, 's': _money(returned_amount)}
-            )
-        bullets.append(
-            _('Опалубка ёки товар қайтарилаётганда тоза ҳолатда '
-              'топширилиши шарт.')
-        )
-        for b in bullets:
-            pdf.multi_cell(0, layout['line_h'], '•  ' + b,
-                           new_x='LMARGIN', new_y='NEXT')
-        pdf.ln(2)
-    else:
-        # quarter: ужимаем до строк с ключевыми датами, залогом и возвратом.
-        pdf.set_font('Body', size=layout['font_small'])
-        compact = (
-            _('Берилди: %(d1)s · Қайтариш: %(d2)s · Гаров: %(s)s сўм')
-            % {
-                'd1': rental.created_at.strftime('%d.%m.%Y %H:%M'),
-                'd2': rental.due_date.strftime('%d.%m.%Y %H:%M'),
-                's': _money(deposit_paid),
-            }
-        )
-        pdf.multi_cell(0, layout['line_h'], compact,
-                       new_x='LMARGIN', new_y='NEXT')
-        if returned_qty:
-            pdf.multi_cell(
-                0, layout['line_h'],
-                _('Қайтарилди: %(q)s дона · %(s)s сўм')
-                % {'q': returned_qty, 's': _money(returned_amount)},
-                new_x='LMARGIN', new_y='NEXT',
-            )
-        pdf.multi_cell(0, layout['line_h'],
-                       _('Қайтаришда тоза ҳолатда топширилади.'),
-                       new_x='LMARGIN', new_y='NEXT')
-        pdf.ln(1)
-
-    if layout['show_note'] and rental.note:
-        pdf.ln(2)
-        pdf.set_font('Body', 'B', layout['font_h2'])
-        title = _('Қўшимча') if layout['item_columns'] == 'compact' \
-            else _('3. Қўшимча')
-        pdf.cell(0, layout['header_h'], title,
-                 new_x='LMARGIN', new_y='NEXT')
-        pdf.set_font('Body', size=layout['font_small'])
-        pdf.multi_cell(0, layout['line_h'], rental.note,
-                       new_x='LMARGIN', new_y='NEXT')
+    _draw_items_table(
+        pdf, layout, rows, total_qty, grand_total, cust.code or '',
+    )
 
     return bytes(pdf.output())
