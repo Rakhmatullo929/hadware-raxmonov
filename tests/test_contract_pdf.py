@@ -145,6 +145,9 @@ def test_contract_html_shows_new_columns(client_staff, rental):
         assert 'Отправки' in body               # дата/время выдачи
         assert 'Привозки' in body               # дата/время возврата
         assert product.name in body
+        # многострочный {# #} утёк бы в вывод как текст — регресс-страховка
+        assert 'бумажный лист' not in body
+        assert '{#' not in body and '{% comment' not in body
 
 
 def test_contract_html_shows_issue_and_return_dates(
