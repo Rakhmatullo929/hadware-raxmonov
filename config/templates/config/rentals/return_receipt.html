@@ -20,58 +20,16 @@
     <div class="text-muted small">{% trans "Тел.: +998906364044" %}</div>
 </div>
 
-<table class="table table-sm mb-2">
-    <tbody>
-        <tr>
-            <th class="text-muted" style="width:32%">{% trans "Клиент" %}</th>
-            <td>
-                {{ customer.full_name }}
-                {% if customer.code %}<span class="text-muted">· №{{ customer.code }}</span>{% endif %}
-                {% if customer.phone %}<br><span class="text-muted small">{{ customer.phone }}</span>{% endif %}
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div class="mb-2">
+    <strong>{% trans "Клиент:" %}</strong>
+    {% if customer.code %}<span class="customer-code">№ {{ customer.code }}</span>{% endif %}
+    {% if customer.full_name %} · {{ customer.full_name }}{% endif %}
+    {% if customer.phone %} · {{ customer.phone }}{% endif %}
+</div>
 
-<table class="table table-sm align-middle">
-    <thead>
-        <tr>
-            <th>#</th>
-            <th>{% trans "Тип товара" %}</th>
-            <th>{% trans "Наименование" %}</th>
-            <th class="text-end">{% trans "Кол-во" %}</th>
-            <th class="text-end">{% trans "За день" %}</th>
-            <th class="text-end">{% trans "Дней" %}</th>
-            <th class="text-end">{% trans "Стоимость" %}</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in rows %}
-        <tr>
-            <td>{{ forloop.counter }}</td>
-            <td>{{ row.category }}</td>
-            <td>
-                {{ row.name }}
-            </td>
-            <td class="text-end">{{ row.qty }} {{ row.unit }}</td>
-            <td class="text-end font-monospace">{{ row.price_per_day|unlocalize }}</td>
-            <td class="text-end">{{ row.days|unlocalize }}</td>
-            <td class="text-end font-monospace">{{ row.amount|unlocalize }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-    <tfoot>
-        <tr class="table-light fw-bold">
-            <td colspan="3" class="text-end">{% trans "Итого" %}</td>
-            <td class="text-end">{{ total_qty }}</td>
-            <td></td>
-            <td></td>
-            <td class="text-end font-monospace">{{ total_amount|unlocalize }}</td>
-        </tr>
-    </tfoot>
-</table>
+{% include 'config/rentals/_print_items_table.html' %}
 
-<div class="alert alert-light border fw-semibold">
+<div class="alert alert-light border fw-semibold mt-2">
     {% blocktrans with q=total_qty s=total_amount|unlocalize %}Возврат: {{ q }} ед. на сумму {{ s }} сум{% endblocktrans %}
 </div>
 
@@ -84,4 +42,23 @@
     window.addEventListener('load', function () { window.print(); });
 </script>
 {% endif %}
+{% endblock %}
+
+{# Тот же вид, что печать аренды — альбом во всех форматах (по умолчанию A6). #}
+{% block page_size_print %}
+<style>
+    @media print {
+        @page {
+            size: {% if size == 'half' %}A5 landscape{% elif size == 'full' %}A4 landscape{% else %}A6 landscape{% endif %};
+            margin: {% if size == 'full' %}10mm{% elif size == 'half' %}8mm{% else %}6mm{% endif %};
+        }
+    }
+    @media screen {
+        .print-page--full    { max-width: 29.7cm; }
+        .print-page--half    { max-width: 21cm; }
+        .print-page--quarter { max-width: 14.8cm; }
+    }
+    .contract-items th { text-align: center; vertical-align: middle; }
+    .contract-items td { vertical-align: middle; }
+</style>
 {% endblock %}
