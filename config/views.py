@@ -1375,6 +1375,8 @@ def build_return_receipt_context(rental, movement_ids):
             'days': _receipt_days(unit_days_map.get(m.id, 0), m.qty),
             'amount': amount,
             'date': m.date,
+            # Дата/время выдачи позиции — колонка «Отправки» в печати чека.
+            'issue_dt': it.first_issue_at,
             # Допы комплекта, домноженные на кол-во в этой партии возврата:
             # «Зажим ×3» на 12 шт → 36 шт.
             'kit': [
@@ -1617,17 +1619,30 @@ def rental_contract(request, pk):
         .prefetch_related('movements')
         .all()
     )
-    # Общая сумма позиции = кол-во × цена × дни аренды (billing: FIFO по
-    # движениям, с учётом ручных правок суммы при возврате). Даты выдачи/
-    # возврата — из movements (RentalItem.first_issue_at / last_return_at).
+    # print_rows — единый формат строк для общей таблицы печати (см.
+    # _print_items_table.html, тот же вид у чека возврата). Общая сумма =
+    # кол-во × цена × дни (billing: FIFO, ручные правки); даты выдачи/возврата
+    # — из movements (RentalItem.first_issue_at / last_return_at).
+    print_rows = []
+    total_qty = 0
+    grand_total = Decimal('0.00')
     for it in items:
-        it.item_total = billing.compute_item_base(it)
-    total_qty = sum((it.qty for it in items), 0)
-    grand_total = sum((it.item_total for it in items), Decimal('0.00'))
+        total = billing.compute_item_base(it)
+        print_rows.append({
+            'name': it.product.name,
+            'qty': it.qty,
+            'price': it.price_per_day,
+            'total': total,
+            'issue_dt': it.first_issue_at,
+            'return_dt': it.last_return_at,
+        })
+        total_qty += it.qty
+        grand_total += total
     size = normalize_size(request.GET.get('size'))
     return render(request, 'config/rentals/contract.html', {
         'rental': rental,
-        'items': items,
+        'print_rows': print_rows,
+        'customer_code': rental.customer.code,
         'total_qty': total_qty,
         'grand_total': grand_total,
         'back_url': reverse('rental_detail', args=[rental.pk]),
@@ -1653,11 +1668,23 @@ def rental_return_receipt(request, pk):
     if size not in ALLOWED_SIZES:
         size = 'quarter'
     ids_q = ','.join(str(i) for i in ids)
+    # print_rows — тот же формат, что печать аренды (общая таблица позиций).
+    print_rows = [{
+        'name': row['name'],
+        'qty': row['qty'],
+        'price': row['price_per_day'],
+        'total': row['amount'],
+        'issue_dt': row.get('issue_dt'),
+        'return_dt': row.get('date'),
+    } for row in ctx['rows']]
     ctx.update({
         'size': size,
         'autoprint': request.GET.get('autoprint') == '1',
         'pdf_url': reverse('rental_return_receipt_pdf', args=[rental.pk]) + f'?m={ids_q}',
         'back_url': reverse('rental_detail', args=[rental.pk]),
+        'print_rows': print_rows,
+        'customer_code': ctx['customer'].code,
+        'grand_total': ctx['total_amount'],
     })
     return render(request, 'config/rentals/return_receipt.html', ctx)
 

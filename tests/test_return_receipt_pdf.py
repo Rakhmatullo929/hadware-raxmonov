@@ -13,8 +13,9 @@ def test_build_return_receipt_pdf_valid(rental_with_returns):
     assert len(pdf) > 500
 
 
-def test_pdf_shows_days_column(rental_with_multiday_return):
-    """PDF-чек печатает колонку «Дней» и её значение (6) для аренды на 6 дней."""
+def test_pdf_folds_days_into_total(rental_with_multiday_return):
+    """PDF-чек как в аренде: отдельной колонки «Дней» нет — дни зашиты в
+    «Общую сумму» (16 × 100 × 6 = 9600)."""
     r, item, m = rental_with_multiday_return
     ctx = build_return_receipt_context(r, [m.id])
 
@@ -35,8 +36,8 @@ def test_pdf_shows_days_column(rental_with_multiday_return):
         fpdf_module.FPDF.cell = orig_cell
 
     blob = ' '.join(captured)
-    assert 'Дней' in blob   # заголовок колонки
-    assert '6' in blob      # число дней в строке
+    assert '9 600.00' in blob   # сумма с учётом 6 дней (money(): пробел-разделитель)
+    assert 'Дней' not in blob   # отдельной колонки «Дней» больше нет
 
 
 def test_pdf_endpoint_attachment(client_staff, rental_with_returns):

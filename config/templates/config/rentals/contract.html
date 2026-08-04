@@ -18,56 +18,7 @@
     {% if rental.customer.phone %} · {{ rental.customer.phone }}{% endif %}
 </div>
 
-{% comment %}
-Плоская таблица позиций (образец — бумажный лист клиента). Код клиента
-повторяется в каждой строке; двухрядная «шапка» группирует Товар / Дата / Время.
-{% endcomment %}
-<table class="table table-bordered table-sm contract-items">
-    <thead>
-        <tr>
-            <th rowspan="2">{% trans "Код клиента" %}</th>
-            <th colspan="4">{% trans "Товар" %}</th>
-            <th colspan="2">{% trans "Дата" %}</th>
-            <th colspan="2">{% trans "Время" %}</th>
-        </tr>
-        <tr>
-            <th>{% trans "Наименование" %}</th>
-            <th class="text-end">{% trans "Кол-во" %}</th>
-            <th class="text-end">{% trans "Стоимость" %}</th>
-            <th class="text-end">{% trans "Общая сумма" %}</th>
-            <th>{% trans "Отправки" %}</th>
-            <th>{% trans "Привозки" %}</th>
-            <th>{% trans "Отправки" %}</th>
-            <th>{% trans "Привозки" %}</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for it in items %}
-            <tr>
-                <td>{{ rental.customer.code }}</td>
-                <td>{{ it.product.name }}</td>
-                <td class="text-end">{{ it.qty }}</td>
-                <td class="text-end">{{ it.price_per_day }}</td>
-                <td class="text-end">{{ it.item_total }}</td>
-                <td>{% if it.first_issue_at %}{{ it.first_issue_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
-                <td>{% if it.last_return_at %}{{ it.last_return_at|date:"d.m.Y" }}{% else %}—{% endif %}</td>
-                <td>{% if it.first_issue_at %}{{ it.first_issue_at|date:"H:i:s" }}{% else %}—{% endif %}</td>
-                <td>{% if it.last_return_at %}{{ it.last_return_at|date:"H:i:s" }}{% else %}—{% endif %}</td>
-            </tr>
-        {% empty %}
-            <tr><td colspan="9" class="text-center text-muted">{% trans "Нет позиций" %}</td></tr>
-        {% endfor %}
-    </tbody>
-    <tfoot>
-        <tr>
-            <th colspan="2" class="text-end">{% trans "Итого" %}</th>
-            <th class="text-end">{{ total_qty }}</th>
-            <th></th>
-            <th class="text-end">{{ grand_total }}</th>
-            <th colspan="4"></th>
-        </tr>
-    </tfoot>
-</table>
+{% include 'config/rentals/_print_items_table.html' %}
 {% endblock %}
 
 {# Таблица широкая — печатаем горизонтально (альбом) во всех форматах A4/A5/A6. #}

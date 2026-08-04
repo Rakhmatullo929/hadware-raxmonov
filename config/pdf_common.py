@@ -139,3 +139,136 @@ def draw_watermark(pdf):
         pdf.cell(tw, th, _WATERMARK_TEXT, align='C')
 
     pdf.set_xy(x0, y0)
+
+
+# ---- Общая таблица позиций (печать аренды и чека возврата) ----------------
+#
+# И договор аренды, и чек возврата печатают одну и ту же плоскую таблицу
+# (образец — бумажный лист клиента). Держим её здесь единым источником, чтобы
+# оба вида не разъезжались.
+
+def fit_text(pdf, text, cell_w, pad=1.2):
+    """Обрезать text с многоточием, чтобы влез в ячейку шириной cell_w (мм).
+
+    fpdf ``cell`` не обрезает текст — длинная строка вылезает в соседнюю
+    колонку. Здесь укорачиваем по фактической ширине текущего шрифта.
+    """
+    s = str(text)
+    avail = max(cell_w - pad, 1)
+    if pdf.get_string_width(s) <= avail:
+        return s
+    ell = '…'
+    while s and pdf.get_string_width(s + ell) > avail:
+        s = s[:-1]
+    return (s + ell) if s else ell
+
+
+def fmt_date(dt):
+    """tz-aware datetime → локальная дата ``дд.мм.гггг`` (или «—»)."""
+    if not dt:
+        return '—'
+    from django.utils import timezone
+    return timezone.localtime(dt).strftime('%d.%m.%Y')
+
+
+def fmt_time(dt):
+    """tz-aware datetime → локальное время ``чч:мм:сс`` (или «—»)."""
+    if not dt:
+        return '—'
+    from django.utils import timezone
+    return timezone.localtime(dt).strftime('%H:%M:%S')
+
+
+# Доли ширины колонок (в сумме = 1.0). Порядок:
+# Код клиента | Наименование | Кол-во | Стоимость | Общая сумма |
+# Дата-Отправки | Дата-Привозки | Время-Отправки | Время-Привозки
+_FR_CODE = 0.09
+_FR_NAME = 0.22
+_FR_QTY = 0.07
+_FR_PRICE = 0.10
+_FR_SUM = 0.12
+_FR_DOUT = 0.105
+_FR_DIN = 0.105
+_FR_TOUT = 0.095
+_FR_TIN = 0.095
+
+
+def draw_items_table(pdf, rows, total_qty, grand_total, customer_code, *,
+                     row_h, base_font):
+    """Плоская таблица позиций с двухрядной «шапкой» — общая для двух печатей.
+
+    Шапка: Код клиента │ Товар(Наименование│Кол-во│Стоимость│Общая сумма)
+                       │ Дата(Отправки│Привозки) │ Время(Отправки│Привозки).
+    ``rows`` — список словарей ``{name, qty, price, total, issue_dt, return_dt}``;
+    ``issue_dt``/``return_dt`` — tz-aware datetime либо ``None`` (тогда «—»).
+    «Код клиента» повторяется в каждой строке; итог — Σ кол-ва и Σ суммы.
+    """
+    from django.utils.translation import gettext as _
+    w = pdf.epw
+    h = row_h
+    base = base_font
+    hdr = max(base - 1, 6)
+    x_left = pdf.l_margin
+
+    subheaders = [
+        (_('Наименование'), _FR_NAME),
+        (_('Кол-во'), _FR_QTY),
+        (_('Стоимость'), _FR_PRICE),
+        (_('Общая сумма'), _FR_SUM),
+        (_('Отправки'), _FR_DOUT),
+        (_('Привозки'), _FR_DIN),
+        (_('Отправки'), _FR_TOUT),
+        (_('Привозки'), _FR_TIN),
+    ]
+
+    def draw_header():
+        pdf.set_font('Body', 'B', hdr)
+        pdf.set_fill_color(238, 240, 242)
+        y0 = pdf.get_y()
+        pdf.cell(w * _FR_CODE, h * 2,
+                 fit_text(pdf, _('Код клиента'), w * _FR_CODE),
+                 border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_NAME + _FR_QTY + _FR_PRICE + _FR_SUM), h,
+                 _('Товар'), border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_DOUT + _FR_DIN), h,
+                 _('Дата'), border=1, align='C', fill=True)
+        pdf.cell(w * (_FR_TOUT + _FR_TIN), h,
+                 _('Время'), border=1, align='C', fill=True)
+        pdf.ln(h)
+        pdf.set_xy(x_left + w * _FR_CODE, y0 + h)
+        for title, frac in subheaders:
+            pdf.cell(w * frac, h, fit_text(pdf, str(title), w * frac),
+                     border=1, align='C', fill=True)
+        pdf.ln(h)
+
+    draw_header()
+
+    pdf.set_font('Body', size=base)
+    for r in rows:
+        if pdf.will_page_break(h):
+            pdf.add_page()
+            draw_header()
+            pdf.set_font('Body', size=base)
+        cells = [
+            (customer_code, _FR_CODE, 'C'),
+            (fit_text(pdf, r['name'], w * _FR_NAME), _FR_NAME, 'L'),
+            (str(r['qty']), _FR_QTY, 'R'),
+            (money(r['price']), _FR_PRICE, 'R'),
+            (money(r['total']), _FR_SUM, 'R'),
+            (fmt_date(r.get('issue_dt')), _FR_DOUT, 'C'),
+            (fmt_date(r.get('return_dt')), _FR_DIN, 'C'),
+            (fmt_time(r.get('issue_dt')), _FR_TOUT, 'C'),
+            (fmt_time(r.get('return_dt')), _FR_TIN, 'C'),
+        ]
+        for text, frac, align in cells:
+            pdf.cell(w * frac, h, str(text), border=1, align=align)
+        pdf.ln(h)
+
+    # Итог: Σ кол-ва и Σ суммы.
+    pdf.set_font('Body', 'B', base)
+    pdf.cell(w * (_FR_CODE + _FR_NAME), h, _('Итого'), border=1, align='R')
+    pdf.cell(w * _FR_QTY, h, str(total_qty), border=1, align='R')
+    pdf.cell(w * _FR_PRICE, h, '', border=1)
+    pdf.cell(w * _FR_SUM, h, money(grand_total), border=1, align='R')
+    pdf.cell(w * (_FR_DOUT + _FR_DIN + _FR_TOUT + _FR_TIN), h, '', border=1)
+    pdf.ln(h + 2)

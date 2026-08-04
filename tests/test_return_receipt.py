@@ -43,12 +43,14 @@ def test_build_context_exposes_days(rental_with_multiday_return):
     assert row['qty'] * row['price_per_day'] * row['days'] == row['amount']
 
 
-def test_receipt_html_shows_days_column(client_staff, rental_with_multiday_return):
+def test_receipt_html_folds_days_into_total(client_staff, rental_with_multiday_return):
+    """Чек как в аренде: колонки «Дней» нет, но сумма учитывает дни (9600)."""
     r, item, m = rental_with_multiday_return
     url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m.id}'
     body = client_staff.get(url).content.decode()
-    assert 'Дней' in body      # заголовок новой колонки
-    assert '9600.00' in body   # стоимость с учётом дней
+    assert 'Общая сумма' in body   # колонка суммы (как в аренде)
+    assert '9600.00' in body       # сумма с учётом дней (в итоговой фразе)
+    assert 'Дней' not in body      # отдельной колонки «Дней» больше нет
 
 
 def test_build_context_ignores_foreign_movements(
@@ -86,7 +88,7 @@ def test_receipt_html_renders(client_staff, rental_with_returns, product):
     assert 'ЧЕК ВОЗВРАТА' in body
     assert r.customer.full_name in body
     assert product.name in body
-    assert 'Тип товара' in body
+    assert 'Код клиента' in body           # колонка кода клиента (как в аренде)
     assert '700.00' in body               # итоговая сумма
     assert 'print-page--quarter' in body  # размер по умолчанию
     assert 'return-receipt.pdf' in body   # ссылка «Скачать PDF»
@@ -173,7 +175,7 @@ def test_receipt_uz_translation(client_staff, rental_with_returns):
         url = reverse('rental_return_receipt', args=[r.pk]) + f'?m={m1.id}'
         assert url.startswith('/uz/')
         body = client_staff.get(url).content.decode()
-    assert 'Tovar turi' in body   # узбекский заголовок «Тип товара»
+    assert 'Mijoz kodi' in body   # узбекский заголовок «Код клиента»
     assert 'Qaytarish' in body    # узбекский «возврат» (Qaytarish cheki)
 
 
