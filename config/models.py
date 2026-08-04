@@ -395,6 +395,29 @@ class RentalItem(models.Model):
         return self.issued_qty - self.returned_qty
 
     @property
+    def first_issue_at(self):
+        """Дата/время первого движения ВЫДАЧИ позиции (или ``None``).
+
+        Использует уже подгруженные ``movements`` (prefetch) — без доп. запроса.
+        Источник колонки «Отправки» в печати аренды."""
+        dates = [
+            m.date for m in self.movements.all()
+            if m.kind == Movement.Kind.ISSUE
+        ]
+        return min(dates) if dates else None
+
+    @property
+    def last_return_at(self):
+        """Дата/время последнего движения ВОЗВРАТА позиции (или ``None``).
+
+        Источник колонки «Привозки» в печати аренды; ``None`` пока не возвращали."""
+        dates = [
+            m.date for m in self.movements.all()
+            if m.kind == Movement.Kind.RETURN
+        ]
+        return max(dates) if dates else None
+
+    @property
     def days_since_first_issue(self):
         """Сколько календарных суток прошло с первой выдачи позиции.
         ``None``, если ничего не выдавалось."""

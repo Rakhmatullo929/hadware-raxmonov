@@ -133,26 +133,44 @@ def test_pdf_handles_rental_without_note(client_staff, customer, product, staff_
     assert resp.content[:5] == b'%PDF-'
 
 
-def test_contract_html_shows_type_and_cost(client_staff, rental, category):
-    """Договор показывает «Тип товара» (категорию), колонку «Қиймат» и итог."""
+def test_contract_html_shows_new_columns(client_staff, rental):
+    """Печать аренды: код клиента, наименование, «Общая сумма» и колонки дат."""
+    product = rental.items.first().product
     for size in ('full', 'half', 'quarter'):
         url = reverse('rental_contract', args=[rental.pk]) + f'?size={size}'
         body = client_staff.get(url).content.decode()
-        assert category.name in body            # тип товара (категория)
-        assert 'Тури' in body                   # заголовок колонки типа
-        assert 'Қиймат' in body                 # колонка стоимости
-        assert 'Жами (кунлик)' in body          # итог по стоимости
+        assert rental.customer.code in body     # колонка «Код клиента»
+        assert 'Наименование' in body
+        assert 'Общая сумма' in body
+        assert 'Отправки' in body               # дата/время выдачи
+        assert 'Привозки' in body               # дата/время возврата
+        assert product.name in body
 
 
-def test_contract_html_shows_returns(client_staff, rental, staff_user):
-    """Когда есть возврат — договор показывает «сколько вернул и на какую сумму»."""
-    item = rental.items.first()
-    Movement.objects.create(
-        rental_item=item, kind=Movement.Kind.RETURN, qty=2,
-        amount=Decimal('200.00'), created_by=staff_user,
+def test_contract_html_shows_issue_and_return_dates(
+    client_staff, customer, product, staff_user,
+):
+    """Колонки «Отправки»/«Привозки» показывают даты выдачи и возврата позиции."""
+    r = Rental.objects.create(
+        customer=customer, due_date=timezone.now() + timedelta(days=7),
+        created_by=staff_user,
     )
-    body = client_staff.get(reverse('rental_contract', args=[rental.pk])).content.decode()
-    assert 'Қайтарилди' in body
+    item = RentalItem.objects.create(
+        rental=r, product=product, qty=4, price_per_day=product.daily_price,
+    )
+    issue = timezone.now() - timedelta(days=5)
+    ret = timezone.now()
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.ISSUE, qty=4,
+        date=issue, created_by=staff_user,
+    )
+    Movement.objects.create(
+        rental_item=item, kind=Movement.Kind.RETURN, qty=4,
+        amount=Decimal('2000.00'), date=ret, created_by=staff_user,
+    )
+    body = client_staff.get(reverse('rental_contract', args=[r.pk])).content.decode()
+    assert timezone.localtime(issue).strftime('%d.%m.%Y') in body   # Отправки
+    assert timezone.localtime(ret).strftime('%d.%m.%Y') in body     # Привозки
 
 
 def test_contract_pdf_with_returns_builds(rental, staff_user):

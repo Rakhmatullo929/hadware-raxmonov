@@ -55,15 +55,16 @@ def test_product_list_shows_included_kit(client_admin, kit_product):
     assert 'Зажим ×3, Фиксатор ×3' in body
 
 
-def test_html_contract_shows_included_kit(client_admin, kit_product, customer, admin_user):
-    # _make_rental_with выдаёт qty=2 → итог = 3 × 2 = 6 на компонент.
+def test_html_contract_shows_brief_item_without_kit(
+    client_admin, kit_product, customer, admin_user,
+):
+    """Печать аренды — краткая: показывает наименование, но НЕ раскладку комплекта."""
     rental = _make_rental_with(kit_product, customer, admin_user)
     resp = client_admin.get(reverse('rental_contract', args=[rental.pk]))
     assert resp.status_code == 200
     body = resp.content.decode()
-    assert 'Зажим ×3' in body          # норма на 1 шт
-    assert 'Фиксатор ×3' in body
-    assert 'жами ×6' in body           # итог на строку (3 × 2)
+    assert kit_product.name in body    # наименование товара (кратко)
+    assert 'жами ×6' not in body        # деталка комплекта в печати убрана
 
 
 def test_parse_included_kit_computes_totals():
